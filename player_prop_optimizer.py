@@ -91,7 +91,16 @@ class OddsAPI:
             
             # Step 2: Get odds for each event with player props (only games with player props)
             all_games = []
-            player_markets = ['player_receptions', 'player_reception_yds', 'player_rush_yds', 'player_pass_yds', 'player_pass_tds']
+            # Request all available player prop markets
+            player_markets = [
+                'player_pass_yds', 
+                'player_pass_tds',
+                'player_rush_yds',
+                'player_rush_tds',
+                'player_receptions',
+                'player_reception_yds',
+                'player_reception_tds'
+            ]
             games_with_props = 0
             
             for i, event in enumerate(events[:15]):  # Check more events to find ones with player props
@@ -267,7 +276,7 @@ class OddsAPI:
                         'player_rush_tds': 'Rushing TDs',
                         'player_receptions': 'Receptions',
                         'player_reception_yds': 'Receiving Yards',
-                        'player_rec_tds': 'Receiving TDs'
+                        'player_reception_tds': 'Receiving TDs'  # Fixed: was player_rec_tds
                     }
                     
                     stat_type = stat_mapping.get(market_key, market_key)
@@ -615,7 +624,7 @@ class AlternateLineManager:
             'Receptions': 'player_receptions_alternate',
             'Passing TDs': 'player_pass_tds_alternate',
             'Rushing TDs': 'player_rush_tds_alternate',
-            'Receiving TDs': 'player_rec_tds_alternate'
+            'Receiving TDs': 'player_reception_tds_alternate'  # Fixed: was player_rec_tds_alternate
         }
     
     def fetch_alternate_lines_for_stat(self, stat_type: str, bookmaker: str = 'fanduel', progress_callback=None) -> Dict:
