@@ -1118,8 +1118,10 @@ def main():
                 row.get('Odds', 0)
             )
             
-            # Calculate L5 over rate
+            # Calculate L5, Home, and Away over rates
             l5_over_rate = 0.5  # Default
+            home_over_rate = 0.5  # Default
+            away_over_rate = 0.5  # Default
             player_name = row['Player']
             stat_type = row['Stat Type']
             line = row['Line']
@@ -1142,7 +1144,12 @@ def main():
                     # Calculate L5 over rate
                     l5_over_rate = calculate_last_n_over_rate(player_stats, line, n=5)
             
-            scored_prop = {**row.to_dict(), **score_data, 'l5_over_rate': l5_over_rate}
+            # Calculate home/away over rates
+            home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
+            away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
+            
+            scored_prop = {**row.to_dict(), **score_data, 'l5_over_rate': l5_over_rate, 
+                          'home_over_rate': home_over_rate, 'away_over_rate': away_over_rate}
             scored_props.append(scored_prop)
             
             # Get ALL alternate lines with odds between +200 and -450
@@ -1181,12 +1188,18 @@ def main():
                         if player_stats and len(player_stats) > 0:
                             alt_l5_over_rate = calculate_last_n_over_rate(player_stats, alt_line['line'], n=5)
                         
+                        # Calculate home/away over rates for alternate line
+                        alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
+                        alt_away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, alt_line['line'])
+                        
                         alt_prop = {
                             **row.to_dict(),
                             'Line': alt_line['line'],
                             'Odds': alt_line['odds'],
                             **alt_score_data,
                             'l5_over_rate': alt_l5_over_rate,
+                            'home_over_rate': alt_home_over_rate,
+                            'away_over_rate': alt_away_over_rate,
                             'is_alternate': True  # Flag to identify alternate lines
                         }
                         alternate_line_props.append(alt_prop)
@@ -1218,7 +1231,7 @@ def main():
         # Format the display
         display_columns = [
             'Player', 'Opposing Team', 'team_rank', 
-            'Line', 'Odds', 'l5_over_rate', 'over_rate'
+            'Line', 'Odds', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
         ]
         
         display_df = results_df[display_columns].copy()
@@ -1226,7 +1239,7 @@ def main():
         # Rename columns for display
         display_df.columns = [
             'Player', 'Opposing Team', 'Team Rank', 
-            'Line', 'Odds', 'L5', '25/26'
+            'Line', 'Odds', 'L5', 'Home', 'Away', '25/26'
         ]
         
         # Format the line display
@@ -1237,10 +1250,18 @@ def main():
         
         # Store numeric values for styling before converting to strings
         display_df['L5_numeric'] = display_df['L5'] * 100
+        display_df['Home_numeric'] = display_df['Home'] * 100
+        display_df['Away_numeric'] = display_df['Away'] * 100
         display_df['25/26_numeric'] = display_df['25/26'] * 100
         
         # Format L5 over rate as percentage
         display_df['L5'] = display_df['L5_numeric'].round(1).astype(str) + '%'
+        
+        # Format Home over rate as percentage
+        display_df['Home'] = display_df['Home_numeric'].round(1).astype(str) + '%'
+        
+        # Format Away over rate as percentage
+        display_df['Away'] = display_df['Away_numeric'].round(1).astype(str) + '%'
         
         # Format season over rate as percentage
         display_df['25/26'] = display_df['25/26_numeric'].round(1).astype(str) + '%'
@@ -1287,6 +1308,14 @@ def main():
             if 'L5_numeric' in row.index and row['L5_numeric'] > 60:
                 styles['L5'] = 'background-color: #d4edda; color: #155724'
             
+            # Style Home based on numeric value
+            if 'Home_numeric' in row.index and row['Home_numeric'] > 60:
+                styles['Home'] = 'background-color: #d4edda; color: #155724'
+            
+            # Style Away based on numeric value
+            if 'Away_numeric' in row.index and row['Away_numeric'] > 60:
+                styles['Away'] = 'background-color: #d4edda; color: #155724'
+            
             # Style 25/26 based on numeric value
             if '25/26_numeric' in row.index and row['25/26_numeric'] > 60:
                 styles['25/26'] = 'background-color: #d4edda; color: #155724'
@@ -1297,7 +1326,7 @@ def main():
         styled_df = display_df.style.apply(apply_all_styles, axis=1)
         
         # Drop the numeric columns from display
-        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'L5', '25/26']
+        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'L5', '25/26', 'Home', 'Away']
         
         # Display the results with styling
         st.dataframe(

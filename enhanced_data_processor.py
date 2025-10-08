@@ -24,6 +24,7 @@ class EnhancedFootballDataProcessor:
         self.team_defensive_stats = {}
         self.player_season_stats = {}
         self.current_week = self._get_current_week()
+        self.schedule_data = self._load_schedule()
         
         # Create data directory if it doesn't exist
         os.makedirs(data_dir, exist_ok=True)
@@ -38,6 +39,37 @@ class EnhancedFootballDataProcessor:
         season_start = datetime(current_date.year, 9, 1)
         weeks_elapsed = (current_date - season_start).days // 7
         return min(max(1, weeks_elapsed), 18)  # NFL regular season is 18 weeks max
+    
+    def _load_schedule(self) -> pd.DataFrame:
+        """Load the NFL schedule from CSV"""
+        try:
+            schedule_path = "2025/nfl_schedule.csv"
+            if os.path.exists(schedule_path):
+                df = pd.read_csv(schedule_path)
+                print(f"✅ Loaded NFL schedule with {len(df)} games")
+                return df
+            else:
+                print(f"⚠️ Schedule file not found: {schedule_path}")
+                return pd.DataFrame()
+        except Exception as e:
+            print(f"⚠️ Error loading schedule: {e}")
+            return pd.DataFrame()
+    
+    def _is_home_game(self, team: str, week: int) -> Optional[bool]:
+        """Determine if a team was home for a specific week. Returns True for home, False for away, None if unknown"""
+        if self.schedule_data.empty:
+            return None
+        
+        # Filter schedule for the specific week
+        week_games = self.schedule_data[self.schedule_data['Week'] == week]
+        
+        for _, game in week_games.iterrows():
+            if game['Home'] == team:
+                return True
+            elif game['Away'] == team:
+                return False
+        
+        return None  # Team not found in schedule for this week (bye week or not found)
     
     def _get_cache_file(self, data_type: str) -> str:
         """Get cache file path for a data type"""
@@ -182,14 +214,18 @@ class EnhancedFootballDataProcessor:
             print("⚠️ No new data to update")
     
     def _build_season_stats(self, all_week_data: Dict[str, pd.DataFrame]):
-        """Build player season stats from weekly data"""
-        print("📊 Building player season stats...")
+        """Build player season stats from weekly data including home/away splits"""
+        print("📊 Building player season stats with home/away splits...")
         
-        # Combine all weeks
+        # Combine all weeks with week numbers
         all_games = []
         for week_key, week_df in all_week_data.items():
             if not week_df.empty:
-                all_games.append(week_df)
+                # Extract week number from key (e.g., 'week_1' -> 1)
+                week_num = int(week_key.split('_')[1]) if '_' in week_key else 0
+                week_df_copy = week_df.copy()
+                week_df_copy['week'] = week_num
+                all_games.append(week_df_copy)
         
         if not all_games:
             return
@@ -217,16 +253,42 @@ class EnhancedFootballDataProcessor:
             
             for stat in stat_categories:
                 if stat in player_data.columns:
-                    # Get non-null values for this stat
-                    values = player_data[stat].dropna()
-                    if len(values) > 0:
+                    # Get non-null values for this stat with team and week info
+                    stat_data = player_data[['team', 'week', stat]].dropna(subset=[stat])
+                    
+                    if len(stat_data) > 0:
                         # Convert to numeric and get actual values
-                        numeric_values = pd.to_numeric(values, errors='coerce').dropna()
-                        if len(numeric_values) > 0:
-                            player_stats[player][stat] = numeric_values.tolist()
+                        stat_data[stat] = pd.to_numeric(stat_data[stat], errors='coerce')
+                        stat_data = stat_data.dropna(subset=[stat])
+                        
+                        if len(stat_data) > 0:
+                            # All games
+                            player_stats[player][stat] = stat_data[stat].tolist()
+                            
+                            # Split by home/away
+                            home_values = []
+                            away_values = []
+                            
+                            for _, row in stat_data.iterrows():
+                                team = row['team']
+                                week = row['week']
+                                value = row[stat]
+                                
+                                is_home = self._is_home_game(team, week)
+                                if is_home == True:
+                                    home_values.append(value)
+                                elif is_home == False:
+                                    away_values.append(value)
+                                # If None (bye week or not found), we skip it
+                            
+                            # Store home/away splits
+                            if home_values:
+                                player_stats[player][f"{stat}_home"] = home_values
+                            if away_values:
+                                player_stats[player][f"{stat}_away"] = away_values
         
         self.player_season_stats = player_stats
-        print(f"✅ Built season stats for {len(player_stats)} players")
+        print(f"✅ Built season stats for {len(player_stats)} players with home/away splits")
     
     def _build_team_defensive_stats(self, all_week_data: Dict[str, pd.DataFrame]):
         """Build team defensive stats using ESPN data and NFL.com TD data"""
@@ -464,6 +526,60 @@ class EnhancedFootballDataProcessor:
             cleaned_stored = clean_player_name(stored_player)
             if cleaned_stored.lower() == cleaned_input.lower() and stat_type in stats:
                 games = stats[stat_type]
+                over_count = sum(1 for game_stat in games if game_stat > line)
+                return over_count / len(games) if games else 0.5
+        
+        return 0.5  # Default 50% if no data
+    
+    def get_player_home_over_rate(self, player: str, stat_type: str, line: float) -> float:
+        """Calculate how often a player has gone over a specific line in home games"""
+        if not self.player_season_stats:
+            self.update_season_data()
+        
+        # Import clean function
+        from utils import clean_player_name
+        
+        home_stat_key = f"{stat_type}_home"
+        
+        # Try exact match first
+        if player in self.player_season_stats and home_stat_key in self.player_season_stats[player]:
+            games = self.player_season_stats[player][home_stat_key]
+            over_count = sum(1 for game_stat in games if game_stat > line)
+            return over_count / len(games) if games else 0.5
+        
+        # Try case-insensitive matching with name cleaning on both sides
+        cleaned_input = clean_player_name(player)
+        for stored_player, stats in self.player_season_stats.items():
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored.lower() == cleaned_input.lower() and home_stat_key in stats:
+                games = stats[home_stat_key]
+                over_count = sum(1 for game_stat in games if game_stat > line)
+                return over_count / len(games) if games else 0.5
+        
+        return 0.5  # Default 50% if no data
+    
+    def get_player_away_over_rate(self, player: str, stat_type: str, line: float) -> float:
+        """Calculate how often a player has gone over a specific line in away games"""
+        if not self.player_season_stats:
+            self.update_season_data()
+        
+        # Import clean function
+        from utils import clean_player_name
+        
+        away_stat_key = f"{stat_type}_away"
+        
+        # Try exact match first
+        if player in self.player_season_stats and away_stat_key in self.player_season_stats[player]:
+            games = self.player_season_stats[player][away_stat_key]
+            over_count = sum(1 for game_stat in games if game_stat > line)
+            return over_count / len(games) if games else 0.5
+        
+        # Try case-insensitive matching with name cleaning on both sides
+        cleaned_input = clean_player_name(player)
+        for stored_player, stats in self.player_season_stats.items():
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored.lower() == cleaned_input.lower() and away_stat_key in stats:
+                games = stats[away_stat_key]
                 over_count = sum(1 for game_stat in games if game_stat > line)
                 return over_count / len(games) if games else 0.5
         
