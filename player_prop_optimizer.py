@@ -12,7 +12,7 @@ from datetime import datetime
 from enhanced_data_processor import EnhancedFootballDataProcessor
 from scoring_model import AdvancedPropScorer
 from odds_api import OddsAPI, AlternateLineManager
-from utils import clean_player_name, format_odds, format_line, calculate_last_n_over_rate, calculate_streak
+from utils import clean_player_name, format_odds, format_line
 from config import ODDS_API_KEY, STAT_TYPES, CONFIDENCE_LEVELS, DEFAULT_MIN_SCORE, PREFERRED_BOOKMAKER
 
 # Set page config
@@ -146,19 +146,8 @@ def main():
                         )
                         
                         # Calculate L5 over rate for export
-                        l5_over_rate = 0.5  # Default
                         player_name = row['Player']
-                        if hasattr(data_processor, 'player_season_stats'):
-                            player_stats_dict = data_processor.player_season_stats
-                            cleaned_player_name = clean_player_name(player_name)
-                            player_stats = None
-                            for stored_player, stats in player_stats_dict.items():
-                                cleaned_stored = clean_player_name(stored_player)
-                                if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
-                                    player_stats = stats[stat_type]
-                                    break
-                            if player_stats and len(player_stats) > 0:
-                                l5_over_rate = calculate_last_n_over_rate(player_stats, row['Line'], n=5)
+                        l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, row['Line'], n=5)
                         
                         export_row = {
                             'Stat Type': stat_type,
@@ -187,17 +176,6 @@ def main():
                                 
                                 # Check if odds are between +200 and -450
                                 if -400 <= alt_odds <= 200:
-                                    # Get player stats for L5 calculation
-                                    player_stats = None
-                                    if hasattr(data_processor, 'player_season_stats'):
-                                        player_stats_dict = data_processor.player_season_stats
-                                        cleaned_player_name = clean_player_name(player_name)
-                                        for stored_player, stats in player_stats_dict.items():
-                                            cleaned_stored = clean_player_name(stored_player)
-                                            if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
-                                                player_stats = stats[stat_type]
-                                                break
-                                    
                                     alt_score_data = scorer.calculate_comprehensive_score(
                                         player_name,
                                         row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
@@ -207,9 +185,7 @@ def main():
                                     )
                                     
                                     # Calculate L5 for alternate line
-                                    alt_l5_over_rate = 0.5  # Default
-                                    if player_stats and len(player_stats) > 0:
-                                        alt_l5_over_rate = calculate_last_n_over_rate(player_stats, alt_line['line'], n=5)
+                                    alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
                                     
                                     alt_export_row = {
                                         'Stat Type': stat_type,
@@ -279,34 +255,13 @@ def main():
             )
             
             # Calculate L5, Home, Away over rates, and Streak
-            l5_over_rate = 0.5  # Default
-            home_over_rate = 0.5  # Default
-            away_over_rate = 0.5  # Default
-            streak = 0  # Default
             player_name = row['Player']
             stat_type = row['Stat Type']
             line = row['Line']
             
-            # Get player's stat history from data processor
-            if hasattr(data_processor, 'player_season_stats'):
-                player_stats_dict = data_processor.player_season_stats
-                
-                # Try to find player stats (case-insensitive with name cleaning)
-                cleaned_player_name = clean_player_name(player_name)
-                player_stats = None
-                for stored_player, stats in player_stats_dict.items():
-                    cleaned_stored = clean_player_name(stored_player)
-                    if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
-                        player_stats = stats[stat_type]
-                        break
-                
-                if player_stats and len(player_stats) > 0:
-                    # Calculate L5 over rate
-                    l5_over_rate = calculate_last_n_over_rate(player_stats, line, n=5)
-                    # Calculate streak
-                    streak = calculate_streak(player_stats, line)
-            
-            # Calculate home/away over rates
+            # Use data processor methods for all calculations
+            l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
+            streak = data_processor.get_player_streak(player_name, stat_type, line)
             home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
             away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
             
@@ -324,17 +279,6 @@ def main():
                     
                     # Check if odds are between +200 and -450
                     if -450 <= alt_odds <= 200:
-                        # Get player stats for L5 calculation
-                        player_stats = None
-                        if hasattr(data_processor, 'player_season_stats'):
-                            player_stats_dict = data_processor.player_season_stats
-                            cleaned_player_name = clean_player_name(player_name)
-                            for stored_player, stats in player_stats_dict.items():
-                                cleaned_stored = clean_player_name(stored_player)
-                                if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
-                                    player_stats = stats[stat_type]
-                                    break
-                        
                         # Create alternate line prop row
                         alt_score_data = scorer.calculate_comprehensive_score(
                             player_name,
@@ -344,14 +288,9 @@ def main():
                             alt_line['odds']
                         )
                         
-                        # Calculate L5 for alternate line
-                        alt_l5_over_rate = 0.5  # Default
-                        alt_streak = 0  # Default
-                        if player_stats and len(player_stats) > 0:
-                            alt_l5_over_rate = calculate_last_n_over_rate(player_stats, alt_line['line'], n=5)
-                            alt_streak = calculate_streak(player_stats, alt_line['line'])
-                        
-                        # Calculate home/away over rates for alternate line
+                        # Calculate L5, streak, and home/away for alternate line using data processor
+                        alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
+                        alt_streak = data_processor.get_player_streak(player_name, stat_type, alt_line['line'])
                         alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
                         alt_away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, alt_line['line'])
                         
@@ -392,7 +331,7 @@ def main():
         
         # Format the display
         display_columns = [
-            'Player', 'Opposing Team', 'team_rank',
+            'Player', 'Opposing Team', 'team_rank', 'total_score',
             'Line', 'Odds', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
         ]
         
@@ -400,7 +339,7 @@ def main():
         
         # Rename columns for display
         display_df.columns = [
-            'Player', 'Opposing Team', 'Team Rank',
+            'Player', 'Opposing Team', 'Team Rank', 'Score',
             'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26'
         ]
         
@@ -410,7 +349,9 @@ def main():
         # Format odds
         display_df['Odds'] = display_df['Odds'].apply(format_odds)
         
-        # Store numeric values for styling before converting to strings
+        # Format Score as decimal with 2 decimal places
+        display_df['Score_numeric'] = display_df['Score']  # Store for styling
+        display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.2f}")
         display_df['L5_numeric'] = display_df['L5'] * 100
         display_df['Home_numeric'] = display_df['Home'] * 100
         display_df['Away_numeric'] = display_df['Away'] * 100
@@ -466,6 +407,19 @@ def main():
                 except:
                     pass
             
+            # Style Score (green=high, orange=medium, red=low)
+            if 'Score_numeric' in row.index:
+                try:
+                    val = row['Score_numeric']
+                    if val >= 70:  # High score
+                        styles['Score'] = 'background-color: #d4edda; color: #155724'  # Green
+                    elif val >= 50:  # Medium score
+                        styles['Score'] = 'background-color: #fff3cd; color: #856404'  # Orange/yellow
+                    else:  # Low score
+                        styles['Score'] = 'background-color: #f8d7da; color: #721c24'  # Red
+                except:
+                    pass
+            
             # Style Streak (green if 3 or more consecutive overs)
             if 'Streak' in row.index:
                 try:
@@ -497,7 +451,7 @@ def main():
         styled_df = display_df.style.apply(apply_all_styles, axis=1)
         
         # Drop the numeric columns from display
-        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26']
+        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         
         # Display the results with styling
         st.dataframe(
@@ -529,6 +483,13 @@ def main():
             - Higher rank = easier defense (e.g., rank 32 is easiest to score against)
             - 🔴 Red highlight (≤10): Favorable matchup - defense is weak against this stat
             - 🟢 Green highlight (≥21): Difficult matchup - defense is strong against this stat
+            
+            **Score** - Overall prop quality score (0-100)
+            - Combines matchup quality, player history, consistency, and betting value
+            - 🟢 Green (70+): High quality prop - strong recommendation
+            - 🟠 Orange (50-69): Medium quality prop - decent option
+            - 🔴 Red (<50): Low quality prop - proceed with caution
+            - Higher scores indicate better overall betting opportunities
             
             **Line** - The betting line (over/under threshold)
             - This is the number you're betting the player will go over or under

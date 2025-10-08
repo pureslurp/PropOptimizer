@@ -258,7 +258,14 @@ def clean_player_name(name: str) -> str:
         name = name.replace(" D/ST", "")
     
     # Normalize to lowercase for consistent matching
-    return name.lower()
+    name = name.lower()
+    
+    # Remove dots from initials for consistent matching
+    # This ensures "a.j. brown" matches "aj brown" from different sources
+    # Pattern matches single letters followed by dots (e.g., "a.", "j.")
+    name = re.sub(r'\b([a-z])\.', r'\1', name)
+    
+    return name
 
 
 def format_odds(odds: float) -> str:
@@ -299,51 +306,3 @@ def format_line(line: float, stat_type: str) -> str:
             return f"{int(line)}"
         else:
             return f"{line}"
-
-
-def calculate_last_n_over_rate(player_stats: list, line: float, n: int = 5) -> float:
-    """
-    Calculate the over rate for the last N games
-    
-    Args:
-        player_stats: List of player's game stats (should be in chronological order)
-        line: The line to compare against
-        n: Number of recent games to consider (default: 5)
-        
-    Returns:
-        Over rate as a decimal (0.0 to 1.0), or 0.5 if insufficient data
-    """
-    if not player_stats or len(player_stats) == 0:
-        return 0.5
-    
-    # Get the last N games
-    last_n_games = player_stats[-n:] if len(player_stats) >= n else player_stats
-    
-    # Calculate over rate
-    over_count = sum(1 for stat in last_n_games if stat > line)
-    return over_count / len(last_n_games)
-
-
-def calculate_streak(player_stats: list, line: float) -> int:
-    """
-    Calculate how many consecutive games (from most recent) the player has gone over the line
-    
-    Args:
-        player_stats: List of player's game stats (should be in chronological order)
-        line: The line to compare against
-        
-    Returns:
-        Number of consecutive games over the line (0 if last game was under)
-    """
-    if not player_stats or len(player_stats) == 0:
-        return 0
-    
-    streak = 0
-    # Count backwards from most recent game
-    for stat in reversed(player_stats):
-        if stat > line:
-            streak += 1
-        else:
-            break  # Stop at first game that didn't go over
-    
-    return streak

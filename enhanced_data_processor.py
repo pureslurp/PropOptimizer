@@ -55,8 +55,17 @@ class EnhancedFootballDataProcessor:
             print(f"⚠️ Error loading schedule: {e}")
             return pd.DataFrame()
     
-    def _is_home_game(self, team: str, week: int) -> Optional[bool]:
-        """Determine if a team was home for a specific week. Returns True for home, False for away, None if unknown"""
+    def is_home_game(self, team: str, week: int) -> Optional[bool]:
+        """
+        Determine if a team was home for a specific week
+        
+        Args:
+            team: Full team name (e.g., "Kansas City Chiefs")
+            week: NFL week number
+            
+        Returns:
+            True for home, False for away, None if unknown/bye week
+        """
         if self.schedule_data.empty:
             return None
         
@@ -64,9 +73,9 @@ class EnhancedFootballDataProcessor:
         week_games = self.schedule_data[self.schedule_data['Week'] == week]
         
         for _, game in week_games.iterrows():
-            if game['Home'] == team:
+            if game['Home'].strip() == team:
                 return True
-            elif game['Away'] == team:
+            elif game['Away'].strip() == team:
                 return False
         
         return None  # Team not found in schedule for this week (bye week or not found)
@@ -274,7 +283,7 @@ class EnhancedFootballDataProcessor:
                                 week = row['week']
                                 value = row[stat]
                                 
-                                is_home = self._is_home_game(team, week)
+                                is_home = self.is_home_game(team, week)
                                 if is_home == True:
                                     home_values.append(value)
                                 elif is_home == False:
@@ -661,22 +670,88 @@ class EnhancedFootballDataProcessor:
         
         return "Unknown"
     
+    def get_player_last_n_over_rate(self, player: str, stat_type: str, line: float, n: int = 5) -> float:
+        """
+        Calculate the over rate for the last N games
+        
+        Args:
+            player: Player name
+            stat_type: Type of stat (e.g., "Passing Yards")
+            line: The line to compare against
+            n: Number of recent games to consider (default: 5)
+            
+        Returns:
+            Over rate as a decimal (0.0 to 1.0), or 0.5 if insufficient data
+        """
+        from utils import clean_player_name
+        cleaned_name = clean_player_name(player)
+        
+        # Get player stats
+        player_stats = None
+        for stored_player, stats in self.player_season_stats.items():
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored == cleaned_name and stat_type in stats:
+                player_stats = stats[stat_type]
+                break
+        
+        if not player_stats or len(player_stats) == 0:
+            return 0.5
+        
+        # Get the last N games
+        last_n_games = player_stats[-n:] if len(player_stats) >= n else player_stats
+        
+        # Calculate over rate
+        over_count = sum(1 for stat in last_n_games if stat > line)
+        return over_count / len(last_n_games)
+    
+    def get_player_streak(self, player: str, stat_type: str, line: float) -> int:
+        """
+        Calculate how many consecutive games (from most recent) the player has gone over the line
+        
+        Args:
+            player: Player name
+            stat_type: Type of stat (e.g., "Passing Yards")
+            line: The line to compare against
+            
+        Returns:
+            Number of consecutive games over the line (0 if last game was under)
+        """
+        from utils import clean_player_name
+        cleaned_name = clean_player_name(player)
+        
+        # Get player stats
+        player_stats = None
+        for stored_player, stats in self.player_season_stats.items():
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored == cleaned_name and stat_type in stats:
+                player_stats = stats[stat_type]
+                break
+        
+        if not player_stats or len(player_stats) == 0:
+            return 0
+        
+        streak = 0
+        # Count backwards from most recent game
+        for stat in reversed(player_stats):
+            if stat > line:
+                streak += 1
+            else:
+                break  # Stop at first game that didn't go over
+        
+        return streak
+    
     def get_opposing_team(self, player_team: str, week: int = None) -> str:
         """Get the opposing team for a given team and week"""
         if week is None:
             week = self.current_week
         
         try:
-            # Load schedule data
-            schedule_file = "2025/nfl_schedule.csv"
-            if not os.path.exists(schedule_file):
+            # Use loaded schedule data instead of re-loading
+            if self.schedule_data is None or self.schedule_data.empty:
                 return "Unknown"
             
-            import pandas as pd
-            schedule_df = pd.read_csv(schedule_file)
-            
             # Find the game for this team in the specified week
-            week_games = schedule_df[schedule_df['Week'] == week]
+            week_games = self.schedule_data[self.schedule_data['Week'] == week]
             
             for _, game in week_games.iterrows():
                 home_team = game['Home'].strip()
@@ -691,6 +766,75 @@ class EnhancedFootballDataProcessor:
         except Exception as e:
             print(f"Error getting opposing team for {player_team}: {e}")
             return "Unknown"
+    
+    def get_week_from_matchup(self, team1: str, team2: str) -> Optional[int]:
+        """
+        Determine the week number based on a team matchup
+        
+        Args:
+            team1: First team name (full name like "Kansas City Chiefs")
+            team2: Second team name (full name like "Buffalo Bills")
+            
+        Returns:
+            Week number if matchup found, None otherwise
+        """
+        try:
+            if self.schedule_data is None or self.schedule_data.empty:
+                return None
+            
+            # Search for matchup in either direction (home vs away or away vs home)
+            for _, game in self.schedule_data.iterrows():
+                home_team = game['Home'].strip()
+                away_team = game['Away'].strip()
+                
+                # Check if teams match in either direction
+                if (home_team == team1 and away_team == team2) or \
+                   (home_team == team2 and away_team == team1):
+                    return int(game['Week'])
+            
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ Error finding week from matchup: {e}")
+            return None
+    
+    def get_matchup_details(self, team1: str, team2: str) -> Optional[Dict]:
+        """
+        Get comprehensive matchup details for two teams
+        
+        Args:
+            team1: First team name
+            team2: Second team name
+            
+        Returns:
+            Dict with week, home_team, away_team, date, time, or None if not found
+        """
+        try:
+            if self.schedule_data is None or self.schedule_data.empty:
+                return None
+            
+            # Search for matchup
+            for _, game in self.schedule_data.iterrows():
+                home_team = game['Home'].strip()
+                away_team = game['Away'].strip()
+                
+                # Check if teams match in either direction
+                if (home_team == team1 and away_team == team2) or \
+                   (home_team == team2 and away_team == team1):
+                    return {
+                        'week': int(game['Week']),
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'date': game.get('Date', 'Unknown'),
+                        'time': game.get('Time (ET)', 'Unknown'),
+                        'is_team1_home': (home_team == team1)
+                    }
+            
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ Error getting matchup details: {e}")
+            return None
     
     def get_player_detailed_stats(self, player: str) -> Dict:
         """Get detailed stats for a player (for dashboard display)"""

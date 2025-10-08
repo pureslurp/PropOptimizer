@@ -44,88 +44,102 @@ class AdvancedPropScorer:
         
         team_rank = self.data_processor.get_team_defensive_rank(opposing_team, defense_stat_type)
         
+        # Get player's team and determine home/away status
+        player_team = self.data_processor.get_player_team(player)
+        week = self.data_processor.get_week_from_matchup(player_team, opposing_team)
+        is_home = self.data_processor.is_home_game(player_team, week) if week else None
+        
         # Get player statistics
-        over_rate = self.data_processor.get_player_over_rate(player, stat_type, line)
+        season_over_rate = self.data_processor.get_player_over_rate(player, stat_type, line)
+        l5_over_rate = self.data_processor.get_player_last_n_over_rate(player, stat_type, line, n=5)
+        home_over_rate = self.data_processor.get_player_home_over_rate(player, stat_type, line)
+        away_over_rate = self.data_processor.get_player_away_over_rate(player, stat_type, line)
+        
+        # Use location-specific over rate based on home/away status
+        if is_home:
+            loc_over_rate = home_over_rate
+        else:
+            loc_over_rate = away_over_rate
+        
         player_avg = self.data_processor.get_player_average(player, stat_type)
         player_consistency = self.data_processor.get_player_consistency(player, stat_type)
+        player_streak = self.data_processor.get_player_streak(player, stat_type, line)
         
         # Calculate different score components
         matchup_score = self._calculate_matchup_score(team_rank, stat_type)
-        player_history_score = self._calculate_player_history_score(over_rate, player_avg, line)
+        player_history_score = self._calculate_player_history_score(season_over_rate, loc_over_rate, l5_over_rate, player_streak, line)
         consistency_score = self._calculate_consistency_score(player_consistency, player_avg)
-        value_score = self._calculate_value_score(over_rate, odds) if odds != 0 else 50
+        value_score = self._calculate_value_score(season_over_rate, odds) if odds != 0 else 50
         
         # Weighted combination of scores
         weights = {
-            'matchup': 0.35,      # 35% - How good/bad the matchup is
-            'player_history': 0.30, # 30% - Player's historical performance
-            'consistency': 0.20,   # 20% - Player's consistency
-            'value': 0.15         # 15% - Betting value
+            'matchup': 0.33,      # 35% - How good/bad the matchup is
+            'player_history': 0.33, # 30% - Player's historical performance
+            'value': 0.33, # 30% - Betting value
         }
         
         total_score = (
             weights['matchup'] * matchup_score +
             weights['player_history'] * player_history_score +
-            weights['consistency'] * consistency_score +
             weights['value'] * value_score
         )
         
         # Calculate confidence level
-        confidence = self._calculate_confidence(over_rate, player_consistency, team_rank)
+        confidence = self._calculate_confidence(season_over_rate, player_consistency, team_rank)
         
         return {
-            'total_score': int(total_score),
-            'matchup_score': int(matchup_score),
-            'player_history_score': int(player_history_score),
-            'consistency_score': int(consistency_score),
-            'value_score': int(value_score),
+            'total_score': round(total_score, 2),
+            'matchup_score': round(matchup_score, 2),
+            'player_history_score': round(player_history_score, 2),
+            'consistency_score': round(consistency_score, 2),
+            'value_score': round(value_score, 2),
             'confidence': confidence,
             'team_rank': team_rank,
-            'over_rate': over_rate,
+            'over_rate': season_over_rate,
             'player_avg': player_avg,
             'player_consistency': player_consistency,
             'line_vs_avg': line - player_avg,
+            'is_home': is_home,
+            'week': week,
+            'l5_over_rate': l5_over_rate,
+            'home_over_rate': home_over_rate,
+            'away_over_rate': away_over_rate,
             'analysis': self._generate_analysis(player, opposing_team, stat_type, line, total_score, confidence)
         }
     
     def _calculate_matchup_score(self, team_rank: int, stat_type: str) -> float:
         """Calculate score based on defensive matchup"""
-        # Lower rank = better defense = lower score
-        # Scale from 0-100 where 100 is worst defense (best matchup)
-        max_rank = 32
-        score = ((max_rank - team_rank + 1) / max_rank) * 100
+        # Higher rank = worse defense = higher score (better matchup for offense)
+        # Rank 1 (best defense) = 0 score, Rank 32 (worst defense) = 100 score
+        score = ((team_rank - 1) / 31) * 100
         
-        # Adjust based on stat type sensitivity
-        if stat_type in ['Passing Yards', 'Receiving Yards']:
-            # These stats are more sensitive to defensive rankings
-            return score
-        elif stat_type in ['Rushing Yards']:
-            # Rushing is moderately sensitive
-            return score * 0.9
-        else:
-            # TD stats are less predictable
-            return score * 0.8
+        return score
     
-    def _calculate_player_history_score(self, over_rate: float, player_avg: float, line: float) -> float:
+    def _calculate_player_history_score(self, season_over_rate: float, loc_over_rate: float, l5_over_rate: float, player_streak: int, line: float) -> float:
         """Calculate score based on player's historical performance"""
         # Base score from over rate (0-100)
-        base_score = over_rate * 100
+        season_score = season_over_rate * 100
+        loc_score = loc_over_rate * 100
+        l5_score = l5_over_rate * 100
+
+        # weight 
+        weights = {
+            'season': 0.2,
+            'loc': 0.3,
+            'l5': 0.5
+        }
+
+        base_score = (
+            weights['season'] * season_score +
+            weights['loc'] * loc_score +
+            weights['l5'] * l5_score
+        )
         
-        # Adjust based on how the line compares to player average
-        if player_avg > 0:
-            line_ratio = line / player_avg
-            if line_ratio < 0.8:  # Line is much lower than average
-                adjustment = 20
-            elif line_ratio < 1.0:  # Line is lower than average
-                adjustment = 10
-            elif line_ratio < 1.2:  # Line is close to average
-                adjustment = 0
-            else:  # Line is higher than average
-                adjustment = -20
-        else:
-            adjustment = 0
-        
-        return max(0, min(100, base_score + adjustment))
+        # Apply streak multiplier (e.g., 5 game streak = 1.05x multiplier = 5% bonus)
+        streak_multiplier = (1 + (player_streak / 100))
+        total_score = base_score * streak_multiplier
+
+        return max(0, min(100, total_score))
     
     def _calculate_consistency_score(self, consistency: float, player_avg: float) -> float:
         """Calculate score based on player consistency"""
@@ -149,7 +163,10 @@ class AdvancedPropScorer:
             return 40
     
     def _calculate_value_score(self, over_rate: float, odds: float) -> float:
-        """Calculate betting value score"""
+        """
+        Calculate betting value score based on Expected Value (EV)
+        Heavy favorites are capped because of limited upside
+        """
         if odds == 0:
             return 50  # Default middle score
         
@@ -159,22 +176,39 @@ class AdvancedPropScorer:
         else:
             implied_prob = abs(odds) / (abs(odds) + 100)
         
-        # Calculate value (positive expected value = good value)
+        # Calculate Expected Value (EV)
+        # EV = (win_prob × profit) - (loss_prob × stake)
         expected_value = (over_rate * (1 / implied_prob - 1)) - ((1 - over_rate) * 1)
         
-        # Convert to 0-100 score
-        if expected_value > 0.2:  # Very good value
-            return 90
-        elif expected_value > 0.1:  # Good value
-            return 80
-        elif expected_value > 0.05:  # Decent value
-            return 70
-        elif expected_value > 0:  # Slight value
-            return 60
-        elif expected_value > -0.05:  # Fair value
-            return 50
-        else:  # Poor value
-            return 30
+        # Simple EV-based scoring
+        # Scale EV to 0-100 score (EV of 0.5 = great value)
+        ev_score = 50 + (expected_value * 100)  # Linear scaling
+        
+        # Cap the maximum score based on odds (heavy favorites get lower ceiling)
+        # The heavier the favorite, the lower the max value score
+        if odds >= 100:  # Plus odds (underdog)
+            max_score = 100  # No cap for underdogs
+        elif odds >= -110:  # Close to even
+            max_score = 95
+        elif odds >= -150:  # Slight favorite
+            max_score = 85
+        elif odds >= -200:  # Moderate favorite
+            max_score = 75
+        elif odds >= -250:  # Heavy favorite
+            max_score = 65
+        elif odds >= -300:  # Very heavy favorite
+            max_score = 55
+        elif odds >= -400:  # Extreme favorite
+            max_score = 50
+        elif odds >= -500:  # Ridiculous favorite
+            max_score = 45
+        else:  # -500 or worse (terrible upside)
+            max_score = 40
+        
+        # Apply the cap
+        capped_score = min(ev_score, max_score)
+        
+        return max(20, min(100, capped_score))
     
     def _calculate_confidence(self, over_rate: float, consistency: float, team_rank: int) -> str:
         """Calculate confidence level for the prediction"""
