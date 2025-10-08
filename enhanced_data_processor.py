@@ -449,15 +449,20 @@ class EnhancedFootballDataProcessor:
         if not self.player_season_stats:
             self.update_season_data()
         
+        # Import clean function
+        from utils import clean_player_name
+        
         # Try exact match first
         if player in self.player_season_stats and stat_type in self.player_season_stats[player]:
             games = self.player_season_stats[player][stat_type]
             over_count = sum(1 for game_stat in games if game_stat > line)
             return over_count / len(games) if games else 0.5
         
-        # Try case-insensitive matching
+        # Try case-insensitive matching with name cleaning on both sides
+        cleaned_input = clean_player_name(player)
         for stored_player, stats in self.player_season_stats.items():
-            if stored_player.lower() == player.lower() and stat_type in stats:
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored.lower() == cleaned_input.lower() and stat_type in stats:
                 games = stats[stat_type]
                 over_count = sum(1 for game_stat in games if game_stat > line)
                 return over_count / len(games) if games else 0.5
@@ -469,40 +474,72 @@ class EnhancedFootballDataProcessor:
         if not self.player_season_stats:
             self.update_season_data()
         
-        if player not in self.player_season_stats or stat_type not in self.player_season_stats[player]:
-            return 0.0
+        # Import clean function
+        from utils import clean_player_name
         
-        games = self.player_season_stats[player][stat_type]
-        return sum(games) / len(games) if games else 0.0
+        # Try exact match first
+        if player in self.player_season_stats and stat_type in self.player_season_stats[player]:
+            games = self.player_season_stats[player][stat_type]
+            return sum(games) / len(games) if games else 0.0
+        
+        # Try case-insensitive matching with name cleaning on both sides
+        cleaned_input = clean_player_name(player)
+        for stored_player, stats in self.player_season_stats.items():
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored.lower() == cleaned_input.lower() and stat_type in stats:
+                games = stats[stat_type]
+                return sum(games) / len(games) if games else 0.0
+        
+        return 0.0
     
     def get_player_consistency(self, player: str, stat_type: str) -> float:
         """Calculate player consistency (lower standard deviation = more consistent)"""
         if not self.player_season_stats:
             self.update_season_data()
         
-        if player not in self.player_season_stats or stat_type not in self.player_season_stats[player]:
-            return 1.0  # Default high variance
+        # Import clean function
+        from utils import clean_player_name
         
-        games = self.player_season_stats[player][stat_type]
-        if len(games) < 2:
-            return 1.0
+        # Try exact match first
+        if player in self.player_season_stats and stat_type in self.player_season_stats[player]:
+            games = self.player_season_stats[player][stat_type]
+            if len(games) < 2:
+                return 1.0
+            mean_val = sum(games) / len(games)
+            variance = sum((x - mean_val) ** 2 for x in games) / len(games)
+            return variance ** 0.5
         
-        mean_val = sum(games) / len(games)
-        variance = sum((x - mean_val) ** 2 for x in games) / len(games)
-        return variance ** 0.5
+        # Try case-insensitive matching with name cleaning on both sides
+        cleaned_input = clean_player_name(player)
+        for stored_player, stats in self.player_season_stats.items():
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored.lower() == cleaned_input.lower() and stat_type in stats:
+                games = stats[stat_type]
+                if len(games) < 2:
+                    return 1.0
+                mean_val = sum(games) / len(games)
+                variance = sum((x - mean_val) ** 2 for x in games) / len(games)
+                return variance ** 0.5
+        
+        return 1.0  # Default high variance
     
     def get_player_team(self, player: str) -> str:
         """Get the player's current team"""
         if not self.player_season_stats:
             self.update_season_data()
         
+        # Import clean function
+        from utils import clean_player_name
+        
         # Try exact match first
         if player in self.player_season_stats and 'team' in self.player_season_stats[player]:
             return self.player_season_stats[player]['team']
         
-        # Try case-insensitive matching
+        # Try case-insensitive matching with name cleaning on both sides
+        cleaned_input = clean_player_name(player)
         for stored_player, stats in self.player_season_stats.items():
-            if stored_player.lower() == player.lower() and 'team' in stats:
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored.lower() == cleaned_input.lower() and 'team' in stats:
                 return stats['team']
         
         return "Unknown"

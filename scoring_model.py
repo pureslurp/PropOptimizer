@@ -39,6 +39,8 @@ class AdvancedPropScorer:
             defense_stat_type = "Passing Yards Allowed"
         elif stat_type == "Receiving TDs":
             defense_stat_type = "Passing TDs Allowed"
+        elif stat_type == "Receptions":
+            defense_stat_type = "Passing Yards Allowed"  # Receptions correlate with passing defense
         
         team_rank = self.data_processor.get_team_defensive_rank(opposing_team, defense_stat_type)
         

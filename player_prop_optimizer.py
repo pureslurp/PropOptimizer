@@ -35,6 +35,42 @@ class OddsAPI:
         self.base_url = "https://api.the-odds-api.com/v4"
         self.player_teams = {}  # Cache for player team assignments
         
+        # Map team abbreviations to full names (as used by Odds API)
+        self.team_name_mapping = {
+            'PHI': 'Philadelphia Eagles',
+            'NYG': 'New York Giants',
+            'DAL': 'Dallas Cowboys',
+            'WAS': 'Washington Commanders',
+            'SF': 'San Francisco 49ers',
+            'SEA': 'Seattle Seahawks',
+            'LAR': 'Los Angeles Rams',
+            'ARI': 'Arizona Cardinals',
+            'GB': 'Green Bay Packers',
+            'MIN': 'Minnesota Vikings',
+            'DET': 'Detroit Lions',
+            'CHI': 'Chicago Bears',
+            'TB': 'Tampa Bay Buccaneers',
+            'NO': 'New Orleans Saints',
+            'ATL': 'Atlanta Falcons',
+            'CAR': 'Carolina Panthers',
+            'KC': 'Kansas City Chiefs',
+            'LV': 'Las Vegas Raiders',
+            'LAC': 'Los Angeles Chargers',
+            'DEN': 'Denver Broncos',
+            'BUF': 'Buffalo Bills',
+            'MIA': 'Miami Dolphins',
+            'NE': 'New England Patriots',
+            'NYJ': 'New York Jets',
+            'BAL': 'Baltimore Ravens',
+            'CIN': 'Cincinnati Bengals',
+            'CLE': 'Cleveland Browns',
+            'PIT': 'Pittsburgh Steelers',
+            'HOU': 'Houston Texans',
+            'IND': 'Indianapolis Colts',
+            'JAX': 'Jacksonville Jaguars',
+            'TEN': 'Tennessee Titans'
+        }
+        
     def get_player_props(self, sport: str = "americanfootball_nfl") -> List[Dict]:
         """Fetch player props from The Odds API using the event-based approach"""
         try:
@@ -322,20 +358,28 @@ class OddsAPI:
             from utils import clean_player_name
             cleaned_name = clean_player_name(player_name)
             
+            team = "Unknown"
+            
             # Try to get team from data processor
             if hasattr(data_processor, 'get_player_team'):
                 team = data_processor.get_player_team(cleaned_name)
-                if team != "Unknown":
-                    return team
-                
-                # Try case-insensitive matching
-                if hasattr(data_processor, 'player_season_stats'):
-                    for stored_player, stats in data_processor.player_season_stats.items():
-                        if stored_player.lower() == cleaned_name.lower():
-                            return stats.get('team', 'Unknown')
+                if team == "Unknown":
+                    # Try case-insensitive matching with name cleaning on both sides
+                    if hasattr(data_processor, 'player_season_stats'):
+                        for stored_player, stats in data_processor.player_season_stats.items():
+                            # Clean both names for comparison
+                            cleaned_stored = clean_player_name(stored_player)
+                            if cleaned_stored.lower() == cleaned_name.lower():
+                                team = stats.get('team', 'Unknown')
+                                break
             
-            return "Unknown"
-        except Exception:
+            # Normalize team name from abbreviation to full name
+            if team != "Unknown" and team in self.team_name_mapping:
+                team = self.team_name_mapping[team]
+            
+            return team
+        except Exception as e:
+            print(f"ERROR in get_player_team_from_data for {player_name}: {e}")
             return "Unknown"
 
 class DataProcessor:
@@ -546,6 +590,206 @@ class PropScorer:
         
         return min(100, max(0, total_score))  # Clamp between 0-100
 
+
+class AlternateLineManager:
+    """Manage alternate lines from The Odds API - fetches in real-time"""
+    
+    def __init__(self, api_key: str, odds_data: List[Dict] = None):
+        """
+        Initialize AlternateLineManager
+        
+        Args:
+            api_key: The Odds API key
+            odds_data: Optional pre-fetched odds data (list of events from main odds fetch)
+        """
+        self.api_key = api_key
+        self.base_url = "https://api.the-odds-api.com/v4"
+        self.alternate_lines = {}
+        self.odds_data = odds_data or []
+        
+        # Map stat types to alternate market names
+        self.stat_market_mapping = {
+            'Passing Yards': 'player_pass_yds_alternate',
+            'Rushing Yards': 'player_rush_yds_alternate',
+            'Receiving Yards': 'player_reception_yds_alternate',
+            'Receptions': 'player_receptions_alternate',
+            'Passing TDs': 'player_pass_tds_alternate',
+            'Rushing TDs': 'player_rush_tds_alternate',
+            'Receiving TDs': 'player_rec_tds_alternate'
+        }
+    
+    def fetch_alternate_lines_for_stat(self, stat_type: str, bookmaker: str = 'fanduel', progress_callback=None) -> Dict:
+        """
+        Fetch alternate lines for a specific stat type in real-time
+        
+        Args:
+            stat_type: The stat type (e.g., 'Passing Yards')
+            bookmaker: The bookmaker to use (default: 'fanduel')
+            progress_callback: Optional callback function to report progress
+            
+        Returns:
+            Dict mapping player names to their alternate lines
+        """
+        market_key = self.stat_market_mapping.get(stat_type)
+        if not market_key:
+            return {}
+        
+        # Get event IDs from the odds data
+        event_ids = [event.get('id') for event in self.odds_data if event.get('id')]
+        if not event_ids:
+            return {}
+        
+        parsed_lines = {}
+        total_events = len(event_ids)
+        
+        # Fetch alternate lines for each event
+        for idx, event_id in enumerate(event_ids, 1):
+            if progress_callback:
+                progress_callback(f"Fetching alternate lines for {stat_type}... ({idx}/{total_events})")
+            
+            try:
+                odds_url = f"{self.base_url}/sports/americanfootball_nfl/events/{event_id}/odds"
+                odds_params = {
+                    'apiKey': self.api_key,
+                    'regions': 'us',
+                    'bookmakers': bookmaker,
+                    'markets': market_key,
+                    'oddsFormat': 'american',
+                    'includeAltLines': 'true'
+                }
+                
+                response = requests.get(odds_url, params=odds_params, timeout=30)
+                
+                if response.status_code == 200:
+                    event_data = response.json()
+                    
+                    # Parse the alternate lines from this event
+                    for bookmaker_data in event_data.get('bookmakers', []):
+                        if bookmaker_data.get('key') == bookmaker:
+                            for market in bookmaker_data.get('markets', []):
+                                if market.get('key') == market_key:
+                                    for outcome in market.get('outcomes', []):
+                                        if outcome.get('name') == 'Over':
+                                            player_name = outcome.get('description', '')
+                                            if player_name:
+                                                if player_name not in parsed_lines:
+                                                    parsed_lines[player_name] = []
+                                                
+                                                parsed_lines[player_name].append({
+                                                    'line': outcome.get('point', 0),
+                                                    'odds': outcome.get('price', 0)
+                                                })
+                
+                # Rate limiting
+                time.sleep(0.3)
+                
+            except Exception as e:
+                # Continue to next event on error
+                continue
+        
+        # Sort lines by point value for each player
+        for player in parsed_lines:
+            parsed_lines[player] = sorted(parsed_lines[player], key=lambda x: x['line'])
+        
+        return parsed_lines
+    
+    def get_closest_alternate_line(self, player: str, stat_type: str, target_line: float) -> Optional[Dict]:
+        """
+        Find the closest alternate line to a target threshold
+        
+        Args:
+            player: Player name
+            stat_type: Stat type (e.g., 'Passing Yards')
+            target_line: Target line to find closest match to
+            
+        Returns:
+            Dict with 'line' and 'odds' or None if not found
+        """
+        # Get alternate lines for this stat type (should already be cached)
+        if stat_type not in self.alternate_lines:
+            return None
+        
+        player_lines = self.alternate_lines[stat_type].get(player, [])
+        if not player_lines:
+            return None
+        
+        # Find the closest line
+        closest_line = min(player_lines, key=lambda x: abs(x['line'] - target_line))
+        return closest_line
+
+
+def calculate_70_percent_threshold(player_stats: List[float]) -> Tuple[float, float]:
+    """
+    Calculate the threshold at which a player's over rate is closest to 70%
+    
+    Args:
+        player_stats: List of player's game stats
+        
+    Returns:
+        Tuple of (threshold, actual_over_rate)
+    """
+    if not player_stats or len(player_stats) == 0:
+        return (0.0, 0.0)
+    
+    # Sort the stats
+    sorted_stats = sorted(player_stats)
+    n = len(sorted_stats)
+    
+    # Target is 70% over rate
+    target_rate = 0.70
+    
+    best_threshold = 0.0
+    best_rate = 0.0
+    best_diff = float('inf')
+    
+    # Check thresholds between consecutive games (e.g., 226.5 is between 226 and 280)
+    # This is more realistic for betting lines
+    for i in range(n):
+        # Set threshold at mid-point between consecutive values
+        if i < n - 1:
+            threshold = (sorted_stats[i] + sorted_stats[i + 1]) / 2
+        else:
+            # For the highest value, add 0.5
+            threshold = sorted_stats[i] + 0.5
+        
+        over_count = sum(1 for stat in player_stats if stat > threshold)
+        over_rate = over_count / n
+        diff = abs(over_rate - target_rate)
+        
+        # If there's a tie in difference, prefer the higher threshold (lower over rate)
+        if diff < best_diff or (diff == best_diff and over_rate < best_rate):
+            best_diff = diff
+            best_threshold = threshold
+            best_rate = over_rate
+    
+    # Also check a threshold just below the lowest value
+    threshold = sorted_stats[0] - 0.5
+    over_count = sum(1 for stat in player_stats if stat > threshold)
+    over_rate = over_count / n
+    diff = abs(over_rate - target_rate)
+    
+    if diff < best_diff or (diff == best_diff and over_rate < best_rate):
+        best_diff = diff
+        best_threshold = threshold
+        best_rate = over_rate
+    
+    # Round to .5 for cleaner display
+    int_part = int(best_threshold)
+    decimal_part = best_threshold - int_part
+    
+    if decimal_part < 0.25:
+        best_threshold = int_part + 0.5
+    elif decimal_part < 0.75:
+        best_threshold = int_part + 0.5
+    else:
+        best_threshold = int_part + 1.5
+    
+    # Recalculate the over rate with the rounded threshold
+    over_count = sum(1 for stat in player_stats if stat > best_threshold)
+    best_rate = over_count / n
+    
+    return (best_threshold, best_rate)
+
 def main():
     """Main Streamlit application"""
     st.title("🏈 NFL Player Prop Optimizer")
@@ -579,6 +823,13 @@ def main():
     
     with col2:
         if st.button("🔄 Refresh", type="primary"):
+            # Clear all cached data on refresh
+            if 'alt_line_manager' in st.session_state:
+                del st.session_state.alt_line_manager
+            if 'props_df_cache' in st.session_state:
+                del st.session_state.props_df_cache
+            if 'odds_data_cache' in st.session_state:
+                del st.session_state.odds_data_cache
             st.rerun()
     
     st.subheader(f"Player Props - {selected_stat}")
@@ -586,48 +837,69 @@ def main():
     
     # Fetch and display data
     try:
-        with st.spinner("Fetching player props data..."):
-            odds_data = odds_api.get_player_props()
+        # Check if we have cached data
+        if 'props_df_cache' in st.session_state and 'odds_data_cache' in st.session_state:
+            # Use cached data
+            props_df = st.session_state.props_df_cache
+            odds_data = st.session_state.odds_data_cache
+            st.info(f"ℹ️ Using cached props data ({len(props_df)} props from {len(odds_data)} games)")
+        else:
+            # Fetch fresh data
+            with st.spinner("Fetching player props data..."):
+                odds_data = odds_api.get_player_props()
+            
+            if not odds_data:
+                st.error("No odds data available. Please check your API key and try again.")
+                st.stop()
+            
+            # Check if we're using mock data
+            if any('mock_game' in str(game.get('id', '')) for game in odds_data):
+                st.info("📊 Using demonstration data")
+                with st.expander("ℹ️ About Player Props API Access"):
+                    st.markdown("""
+                    **Player props require a paid API plan:**
+                    - Free plan: 500 requests/month, basic markets only
+                    - Paid plans: Player props, historical data, and more
+                    
+                    **To get real player props data:**
+                    1. Upgrade your plan at [The Odds API](https://the-odds-api.com/)
+                    2. Player props are available on 20K+ plans
+                    3. Your current API key works for demonstration purposes
+                    
+                    **Current features:**
+                    - ✅ Advanced scoring model
+                    - ✅ Matchup analysis  
+                    - ✅ Player history tracking
+                    - ✅ Interactive dashboard
+                    """)
+            
+            # Parse the data
+            with st.spinner("Processing player props data..."):
+                props_df = odds_api.parse_player_props(odds_data)
+            
+            if props_df.empty:
+                st.warning("No player props found for the selected criteria.")
+                st.stop()
+            
+            # Update team assignments using actual player data
+            with st.spinner("Updating team assignments..."):
+                props_df = odds_api.update_team_assignments(props_df, data_processor)
+            
+            # Cache the data
+            st.session_state.props_df_cache = props_df
+            st.session_state.odds_data_cache = odds_data
+            
+            # Show success message once
+            st.success(f"✅ Loaded {len(props_df)} player props from {len(odds_data)} games")
         
-        if not odds_data:
-            st.error("No odds data available. Please check your API key and try again.")
-            st.stop()
+        # Initialize or retrieve alternate line manager from session state
+        if 'alt_line_manager' not in st.session_state:
+            st.session_state.alt_line_manager = AlternateLineManager(ODDS_API_KEY, odds_data)
+        else:
+            # Update odds_data in case events changed
+            st.session_state.alt_line_manager.odds_data = odds_data
         
-        # Check if we're using mock data
-        if any('mock_game' in str(game.get('id', '')) for game in odds_data):
-            st.info("📊 Using demonstration data")
-            with st.expander("ℹ️ About Player Props API Access"):
-                st.markdown("""
-                **Player props require a paid API plan:**
-                - Free plan: 500 requests/month, basic markets only
-                - Paid plans: Player props, historical data, and more
-                
-                **To get real player props data:**
-                1. Upgrade your plan at [The Odds API](https://the-odds-api.com/)
-                2. Player props are available on 20K+ plans
-                3. Your current API key works for demonstration purposes
-                
-                **Current features:**
-                - ✅ Advanced scoring model
-                - ✅ Matchup analysis  
-                - ✅ Player history tracking
-                - ✅ Interactive dashboard
-                """)
-        
-        # Parse the data
-        with st.spinner("Processing player props data..."):
-            props_df = odds_api.parse_player_props(odds_data)
-        
-        if props_df.empty:
-            st.warning("No player props found for the selected criteria.")
-            st.stop()
-        
-        # Update team assignments using actual player data
-        with st.spinner("Updating team assignments..."):
-            props_df = odds_api.update_team_assignments(props_df, data_processor)
-        
-        # Show success message once
-        st.success(f"✅ Loaded {len(props_df)} player props from {len(odds_data)} games")
+        alt_line_manager = st.session_state.alt_line_manager
         
         # Filter by selected stat type
         filtered_df = props_df[props_df['Stat Type'] == selected_stat].copy()
@@ -636,8 +908,20 @@ def main():
             st.warning(f"No {selected_stat} props found.")
             st.stop()
         
+        # Pre-fetch alternate lines for the selected stat type (only if not cached)
+        if selected_stat not in alt_line_manager.alternate_lines:
+            with st.spinner(f"Fetching alternate lines for {selected_stat}..."):
+                # This will populate the cache for this stat type
+                if selected_stat in alt_line_manager.stat_market_mapping:
+                    alt_line_manager.alternate_lines[selected_stat] = alt_line_manager.fetch_alternate_lines_for_stat(selected_stat)
+                    st.success(f"✅ Cached alternate lines for {selected_stat}")
+        else:
+            st.info(f"ℹ️ Using cached alternate lines for {selected_stat}")
+        
         # Calculate comprehensive scores
         scored_props = []
+        alternate_line_props = []  # Store alternate line props separately
+        
         for _, row in filtered_df.iterrows():
             score_data = scorer.calculate_comprehensive_score(
                 row['Player'],
@@ -648,14 +932,74 @@ def main():
             )
             scored_prop = {**row.to_dict(), **score_data}
             scored_props.append(scored_prop)
+            
+            # Calculate 70% threshold and find alternate line
+            player_name = row['Player']
+            stat_type = row['Stat Type']
+            
+            # Get player's stat history from data processor
+            if hasattr(data_processor, 'player_season_stats'):
+                player_stats_dict = data_processor.player_season_stats
+                
+                # Try to find player stats (case-insensitive with name cleaning)
+                from utils import clean_player_name
+                cleaned_player_name = clean_player_name(player_name)
+                player_stats = None
+                for stored_player, stats in player_stats_dict.items():
+                    cleaned_stored = clean_player_name(stored_player)
+                    if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
+                        player_stats = stats[stat_type]
+                        break
+                
+                if player_stats and len(player_stats) > 0:
+                    # Calculate 70% threshold
+                    threshold, actual_rate = calculate_70_percent_threshold(player_stats)
+                    
+                    # Find closest alternate line
+                    alt_line = alt_line_manager.get_closest_alternate_line(
+                        player_name, stat_type, threshold
+                    )
+                    
+                    if alt_line:
+                        # Create alternate line prop row
+                        alt_score_data = scorer.calculate_comprehensive_score(
+                            player_name,
+                            row['Opposing Team'],
+                            stat_type,
+                            alt_line['line'],
+                            alt_line['odds']
+                        )
+                        
+                        alt_prop = {
+                            **row.to_dict(),
+                            'Line': alt_line['line'],
+                            'Odds': alt_line['odds'],
+                            **alt_score_data,
+                            'is_alternate': True,  # Flag to identify alternate lines
+                            'calculated_threshold': threshold,
+                            'threshold_over_rate': actual_rate
+                        }
+                        alternate_line_props.append(alt_prop)
+        
+        # Combine main props and alternate line props
+        all_props = scored_props + alternate_line_props
+        
+        # Show info about alternate lines added
+        if alternate_line_props:
+            st.info(f"✨ Added {len(alternate_line_props)} alternate line recommendation(s) based on 70% threshold analysis")
         
         # Convert to DataFrame
-        results_df = pd.DataFrame(scored_props)
+        results_df = pd.DataFrame(all_props)
         
         # No additional filtering needed
         
-        # Sort by total score (highest first)
-        results_df = results_df.sort_values('total_score', ascending=False)
+        # Add is_alternate flag if not present
+        if 'is_alternate' not in results_df.columns:
+            results_df['is_alternate'] = False
+        
+        # Sort by Player name, then by is_alternate (False first, then True)
+        # This groups each player's main line with their alternate line
+        results_df = results_df.sort_values(['Player', 'is_alternate'], ascending=[True, True])
         
         if results_df.empty:
             st.warning(f"No props found matching the selected criteria.")
@@ -704,41 +1048,7 @@ def main():
             hide_index=True
         )
         
-        # Summary statistics
-        st.subheader("Summary")
-        col1, col2, col3 = st.columns(3)
         
-        with col1:
-            st.metric("Total Props", len(results_df))
-        
-        with col2:
-            avg_score = results_df['total_score'].mean()
-            st.metric("Average Score", f"{avg_score:.1f}")
-        
-        with col3:
-            high_score_count = len(results_df[results_df['total_score'] >= 70])
-            st.metric("High Score Props (70+)", high_score_count)
-        
-        # Top recommendations
-        if len(results_df) > 0:
-            st.subheader("🏆 Top Recommendations")
-            top_props = results_df.head(5)
-            
-            for i, (_, prop) in enumerate(top_props.iterrows(), 1):
-                with st.expander(f"{i}. {prop['Player']} - Score: {prop['total_score']}"):
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric("Score", f"{prop['total_score']}")
-                        st.metric("Team Rank", f"{prop['team_rank']}")
-                    
-                    with col2:
-                        st.metric("Over Rate", f"{prop['over_rate']*100:.1f}%")
-                        st.metric("Line", prop['Line'])
-                    
-                    with col3:
-                        st.metric("Odds", prop['Odds'])
-                        st.metric("Opposing Team", prop['Opposing Team'])
     
     except Exception as e:
         st.error(f"Error fetching data: {e}")

@@ -20,8 +20,11 @@ def clean_player_name(name: str) -> str:
     # Remove extra whitespace
     name = name.strip()
     
+    # Remove periods from initials (A.J. -> AJ, D.J. -> DJ, etc.)
+    name = name.replace('.', '')
+    
     # Remove common suffixes and prefixes
-    name = re.sub(r'\s+(Jr\.|Sr\.|III|II|IV)$', '', name)
+    name = re.sub(r'\s+(Jr|Sr|III|II|IV)$', '', name)
     
     # Remove position indicators that might be in the name
     name = re.sub(r'\s+(QB|RB|WR|TE|K|DST)$', '', name)
@@ -65,10 +68,10 @@ def format_line(line: float, stat_type: str) -> str:
     """
     if stat_type in ["Receptions", "Passing TDs", "Rushing TDs", "Receiving TDs"]:
         # For counting stats, show as whole numbers
-        return f"{int(line)}+"
+        return f"{int(line)}"
     else:
         # For yardage stats, show with decimal if needed
         if line == int(line):
-            return f"{int(line)}+"
+            return f"{int(line)}"
         else:
-            return f"{line}+"
+            return f"{line}"
