@@ -9,7 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
-from utils_other import clean_player_name
+from utils import clean_player_name
 import time
 from selenium.common.exceptions import (
     TimeoutException,
