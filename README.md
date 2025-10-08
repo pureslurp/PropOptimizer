@@ -22,15 +22,9 @@ A comprehensive Streamlit application for analyzing NFL player props using match
 ## Setup
 
 1. **Get an API Key**: Sign up at [The Odds API](https://the-odds-api.com/) to get your free API key
-2. **Configure API Key**: 
-   - **Option A**: Edit `config.py` and replace `YOUR_API_KEY_HERE` with your actual API key
-   - **Option B**: Run the setup script: `python3 set_api_key.py`
+2. **Configure API Key**: Edit `config.py` and replace `YOUR_API_KEY_HERE` with your actual API key
 3. **Run the Application**: 
    ```bash
-   # Option 1: Use the startup script (recommended)
-   python3 run_app.py
-   
-   # Option 2: Run directly
    streamlit run player_prop_optimizer.py
    ```
 
@@ -88,28 +82,22 @@ The app highlights the top 5 recommendations with detailed breakdowns including:
 ## Data Sources
 
 - **Odds Data**: The Odds API for real-time player prop odds
-- **Matchup Data**: Team defensive statistics (currently using enhanced mock data)
-- **Player History**: Season-long player performance data (currently using enhanced mock data)
-
-## Integration with Existing Data
-
-The application is designed to integrate with your existing `dfs_box_scores.py` script. The `FootballDataProcessor` class can be extended to:
-
-1. **Load Real Team Stats**: Replace mock defensive data with actual team statistics scraped from FootballDB
-2. **Load Real Player Stats**: Replace mock player data with actual player performance from your scraping script
-3. **Historical Analysis**: Incorporate multiple seasons of data for more robust analysis
+- **Matchup Data**: Real ESPN defensive statistics
+- **Player History**: Actual player performance data from box scores
 
 ## File Structure
 
 ```
 PropOptimizer/
 ├── player_prop_optimizer.py    # Main Streamlit application
-├── data_processor.py           # Data processing and team/player stats
+├── enhanced_data_processor.py  # Real data processing
 ├── scoring_model.py           # Advanced scoring algorithms
+├── espn_defensive_scraper.py  # ESPN defensive data scraping
+├── dfs_box_scores.py          # Box score scraping
+├── optimized_workflow.py      # Data workflow orchestrator
 ├── utils.py                   # Utility functions
 ├── requirements.txt           # Python dependencies
-├── README.md                  # This file
-└── dfs_box_scores.py          # Your existing scraping script
+└── README.md                  # This file
 ```
 
 ## Customization
@@ -128,22 +116,6 @@ weights = {
     'consistency': 0.20,   # Player consistency
     'value': 0.15         # Betting value
 }
-```
-
-### Integrating Real Data
-
-Replace the mock data functions in `data_processor.py` with actual data loading from your scraping scripts:
-
-```python
-def load_team_defensive_stats_from_footballdb(self, weeks: List[int] = None):
-    # Integrate with your existing FootballDBScraper
-    # Process actual team defensive statistics
-    pass
-
-def load_player_season_stats_from_footballdb(self, weeks: List[int] = None):
-    # Integrate with your existing scraping functionality
-    # Process actual player performance data
-    pass
 ```
 
 ## Troubleshooting
