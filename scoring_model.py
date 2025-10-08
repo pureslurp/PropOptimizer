@@ -5,12 +5,12 @@ Implements sophisticated algorithms based on matchup data and player history
 
 import numpy as np
 from typing import Dict, List, Optional, Tuple
-from data_processor import FootballDataProcessor
+from enhanced_data_processor import EnhancedFootballDataProcessor
 
 class AdvancedPropScorer:
     """Advanced scoring model for player props"""
     
-    def __init__(self, data_processor: FootballDataProcessor):
+    def __init__(self, data_processor: EnhancedFootballDataProcessor):
         self.data_processor = data_processor
         
     def calculate_comprehensive_score(self, 
