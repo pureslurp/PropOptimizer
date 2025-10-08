@@ -187,6 +187,10 @@ class OddsAPI:
                             line = outcome.get('point', 0)
                             odds = outcome.get('price', 0)
                             
+                            # Fix reception lines: API returns 2.5 for "3+ receptions", so add 1
+                            if stat_type == 'Receptions':
+                                line = line + 1
+                            
                             # Determine team using actual data (will be updated later with data processor)
                             team = "Unknown"  # Will be determined by data processor
                             opposing_team = "Unknown"  # Will be determined by data processor
@@ -208,6 +212,10 @@ class OddsAPI:
                             player_name = outcome.get('name', '')
                             line = outcome.get('point', 0)
                             odds = outcome.get('price', 0)
+                            
+                            # Fix reception lines: API returns 2.5 for "3+ receptions", so add 1
+                            if stat_type == 'Receptions':
+                                line = line + 1
                             
                             # Determine team using actual data (will be updated later with data processor)
                             team = "Unknown"  # Will be determined by data processor
@@ -479,8 +487,13 @@ class AlternateLineManager:
                                                 if player_name not in parsed_lines:
                                                     parsed_lines[player_name] = []
                                                 
+                                                line = outcome.get('point', 0)
+                                                # Fix reception lines: API returns 2.5 for "3+ receptions", so add 1
+                                                if stat_type == 'Receptions':
+                                                    line = line + 1
+                                                
                                                 parsed_lines[player_name].append({
-                                                    'line': outcome.get('point', 0),
+                                                    'line': line,
                                                     'odds': outcome.get('price', 0)
                                                 })
                 
