@@ -1383,6 +1383,73 @@ def main():
             elif msg_type == 'success':
                 st.success(msg_text)
         
+        # Column Explanations Section
+        with st.expander("📖 Column Explanations", expanded=False):
+            st.markdown("""
+            ### What Each Column Means
+            
+            **Player** - The NFL player's name for this prop bet
+            
+            **Opposing Team** - The defense the player is facing this week
+            - Format: "vs TEAM" (home game) or "@ TEAM" (away game)
+            
+            **Team Rank** - Defensive ranking against this stat type (1-32)
+            - Lower rank = tougher defense (e.g., rank 1 is hardest to score against)
+            - Higher rank = easier defense (e.g., rank 32 is easiest to score against)
+            - 🔴 Red highlight (≤10): Favorable matchup - defense is weak against this stat
+            - 🟢 Green highlight (≥21): Difficult matchup - defense is strong against this stat
+            
+            **Line** - The betting line (over/under threshold)
+            - This is the number you're betting the player will go over or under
+            
+            **Odds** - The American odds for the OVER bet
+            - Negative odds (e.g., -110): You bet this amount to win $100
+            - Positive odds (e.g., +120): You win this amount on a $100 bet
+            
+            **Streak** - Number of consecutive games the player has gone OVER this line
+            - 🟢 Green highlight (≥3): Player is hot, hit the over 3+ games in a row
+            - Example: "3" means the player went over this line in their last 3 straight games
+            
+            **L5** - Over rate for the Last 5 games
+            - Percentage of the last 5 games where the player exceeded this line
+            - 🟢 Green highlight (>60%): Strong recent performance
+            - Example: "80.0%" means player went over in 4 of last 5 games
+            
+            **Home** - Over rate in home games this season
+            - Percentage of home games where the player exceeded this line
+            - 🟢 Green highlight (>60%): Player performs well at home
+            
+            **Away** - Over rate in away games this season
+            - Percentage of away games where the player exceeded this line
+            - 🟢 Green highlight (>60%): Player performs well on the road
+            
+            **25/26** - Overall season over rate for 2025/2026
+            - Percentage of ALL games this season where the player exceeded this line
+            - 🟢 Green highlight (>60%): Consistently strong performance all season
+            - This is the most comprehensive stat showing overall consistency
+            
+            ---
+            
+            ### How to Use This Information
+            
+            **Look for green highlights** - These indicate favorable conditions:
+            - Green Team Rank = weak opposing defense
+            - Green Streak = player is on a hot streak
+            - Green percentages = player frequently hits this line
+            
+            **Multiple green indicators = stronger bet**
+            - Best bets typically have 3+ green highlights
+            
+            **Compare Home vs Away**
+            - If the game is at home, prioritize the "Home" percentage
+            - If the game is away, prioritize the "Away" percentage
+            
+            **Alternate Lines**
+            - Some players will have multiple rows with different lines and odds
+            - These are alternate betting options for the same player
+            - Compare the over rates to find the best value
+            """)
+        
         
     
     except Exception as e:
