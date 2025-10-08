@@ -1,0 +1,225 @@
+Week,Date,Time (ET),Home,Away
+1,Sep 4 2025,8:20 p,Philadelphia Eagles,Dallas Cowboys
+1,Sep 5 2025,8:00 p,Los Angeles Chargers,Kansas City Chiefs
+1,Sep 7 2025,1:00 p,Atlanta Falcons,Tampa Bay Buccaneers
+1,Sep 7 2025,1:00 p,Cleveland Browns,Cincinnati Bengals
+1,Sep 7 2025,1:00 p,Green Bay Packers,Detroit Lions
+1,Sep 7 2025,1:00 p,Los Angeles Rams,Houston Texans
+1,Sep 7 2025,4:05 p,San Francisco 49ers,Seattle Seahawks
+1,Sep 7 2025,8:20 p,Buffalo Bills,Baltimore Ravens
+1,Sep 8 2025,8:15 p,Chicago Bears,Minnesota Vikings
+2,Sep 11 2025,8:15 p,Green Bay Packers,Washington Commanders
+2,Sep 14 2025,1:00 p,Baltimore Ravens,Cleveland Browns
+2,Sep 14 2025,1:00 p,Cincinnati Bengals,Jacksonville Jaguars
+2,Sep 14 2025,1:00 p,Dallas Cowboys,New York Giants
+2,Sep 14 2025,1:00 p,Detroit Lions,Chicago Bears
+2,Sep 14 2025,1:00 p,Miami Dolphins,New England Patriots
+2,Sep 14 2025,1:00 p,New Orleans Saints,San Francisco 49ers
+2,Sep 14 2025,1:00 p,New York Jets,Buffalo Bills
+2,Sep 14 2025,1:00 p,Pittsburgh Steelers,Seattle Seahawks
+2,Sep 14 2025,1:00 p,Tennessee Titans,Los Angeles Rams
+2,Sep 14 2025,1:00 p,Carolina Panthers,Arizona Cardinals
+2,Sep 14 2025,4:05 p,Indianapolis Colts,Denver Broncos
+2,Sep 14 2025,4:25 p,Philadelphia Eagles,Kansas City Chiefs
+2,Sep 14 2025,8:20 p,Minnesota Vikings,Atlanta Falcons
+2,Sep 15 2025,7:00 p,Houston Texans,Tampa Bay Buccaneers
+2,Sep 15 2025,10:00 p,Las Vegas Raiders,Los Angeles Chargers
+3,Sep 18 2025,8:15 p,Buffalo Bills,Miami Dolphins
+3,Sep 21 2025,1:00 p,Carolina Panthers,Atlanta Falcons
+3,Sep 21 2025,1:00 p,Cleveland Browns,Green Bay Packers
+3,Sep 21 2025,1:00 p,Jacksonville Jaguars,Houston Texans
+3,Sep 21 2025,1:00 p,Minnesota Vikings,Cincinnati Bengals
+3,Sep 21 2025,1:00 p,New England Patriots,Pittsburgh Steelers
+3,Sep 21 2025,1:00 p,Philadelphia Eagles,Los Angeles Rams
+3,Sep 21 2025,1:00 p,Tampa Bay Buccaneers,New York Jets
+3,Sep 21 2025,1:00 p,Tennessee Titans,Indianapolis Colts
+3,Sep 21 2025,1:00 p,Washington Commanders,Las Vegas Raiders
+3,Sep 21 2025,4:05 p,Denver Broncos,Los Angeles Chargers
+3,Sep 21 2025,4:05 p,New Orleans Saints,Seattle Seahawks
+3,Sep 21 2025,8:20 p,Kansas City Chiefs,New York Giants
+3,Sep 22 2025,8:15 p,Baltimore Ravens,Detroit Lions
+4,Sep 25 2025,8:15 p,Arizona Cardinals,Seattle Seahawks
+4,Sep 28 2025,1:00 p,Atlanta Falcons,Washington Commanders
+4,Sep 28 2025,1:00 p,Buffalo Bills,New Orleans Saints
+4,Sep 28 2025,1:00 p,Cleveland Browns,Detroit Lions
+4,Sep 28 2025,1:00 p,Carolina Panthers,New England Patriots
+4,Sep 28 2025,1:00 p,Los Angeles Chargers,New York Giants
+4,Sep 28 2025,1:00 p,Philadelphia Eagles,Tampa Bay Buccaneers
+4,Sep 28 2025,4:05 p,Indianapolis Colts,Los Angeles Rams
+4,Sep 28 2025,4:05 p,Jacksonville Jaguars,San Francisco 49ers
+4,Sep 28 2025,4:25 p,Kansas City Chiefs,Baltimore Ravens
+4,Sep 28 2025,4:25 p,Las Vegas Raiders,Chicago Bears
+4,Sep 28 2025,8:20 p,Dallas Cowboys,Green Bay Packers
+4,Sep 29 2025,7:15 p,New York Jets,Miami Dolphins
+4,Sep 29 2025,8:15 p,Cincinnati Bengals,Denver Broncos
+5,Oct 2 2025,8:15 p,San Francisco 49ers,Los Angeles Rams
+5,Oct 5 2025,1:00 p,Houston Texans,Baltimore Ravens
+5,Oct 5 2025,1:00 p,Miami Dolphins,Carolina Panthers
+5,Oct 5 2025,1:00 p,Las Vegas Raiders,Indianapolis Colts
+5,Oct 5 2025,1:00 p,New York Giants,New Orleans Saints
+5,Oct 5 2025,1:00 p,Dallas Cowboys,New York Jets
+5,Oct 5 2025,1:00 p,Denver Broncos,Philadelphia Eagles
+5,Oct 5 2025,1:05 p,Tennessee Titans,Arizona Cardinals
+5,Oct 5 2025,1:05 p,Tampa Bay Buccaneers,Seattle Seahawks
+5,Oct 5 2025,4:25 p,Detroit Lions,Cincinnati Bengals
+5,Oct 5 2025,4:25 p,Washington Commanders,Los Angeles Chargers
+5,Oct 5 2025,8:20 p,Buffalo Bills,New England Patriots
+5,Oct 6 2025,8:15 p,Jacksonville Jaguars,Kansas City Chiefs
+6,Oct 9 2025,8:15 p,New York Giants,Philadelphia Eagles
+6,Oct 12 2025,1:00 p,Los Angeles Rams,Baltimore Ravens
+6,Oct 12 2025,1:00 p,Dallas Cowboys,Carolina Panthers
+6,Oct 12 2025,1:00 p,Arizona Cardinals,Indianapolis Colts
+6,Oct 12 2025,1:00 p,Seattle Seahawks,Jacksonville Jaguars
+6,Oct 12 2025,1:00 p,Los Angeles Chargers,Miami Dolphins
+6,Oct 12 2025,1:00 p,Cleveland Browns,Pittsburgh Steelers
+6,Oct 12 2025,1:00 p,San Francisco 49ers,Tampa Bay Buccaneers
+6,Oct 12 2025,1:05 p,Tennessee Titans,Las Vegas Raiders
+6,Oct 12 2025,4:25 p,Cincinnati Bengals,Green Bay Packers
+6,Oct 12 2025,4:25 p,New England Patriots,New Orleans Saints
+6,Oct 12 2025,8:20 p,Detroit Lions,Kansas City Chiefs
+6,Oct 13 2025,7:15 p,Buffalo Bills,Atlanta Falcons
+6,Oct 13 2025,8:15 p,Chicago Bears,Washington Commanders
+7,Oct 16 2025,8:15 p,Cincinnati Bengals,Pittsburgh Steelers
+7,Oct 19 2025,1:00 p,New Orleans Saints,Chicago Bears
+7,Oct 19 2025,1:00 p,Miami Dolphins,Cleveland Browns
+7,Oct 19 2025,1:00 p,Las Vegas Raiders,Kansas City Chiefs
+7,Oct 19 2025,1:00 p,Philadelphia Eagles,Minnesota Vikings
+7,Oct 19 2025,1:00 p,Carolina Panthers,New York Jets
+7,Oct 19 2025,1:00 p,New England Patriots,Tennessee Titans
+7,Oct 19 2025,4:05 p,New York Giants,Denver Broncos
+7,Oct 19 2025,4:05 p,Indianapolis Colts,Los Angeles Chargers
+7,Oct 19 2025,4:25 p,Washington Commanders,Dallas Cowboys
+7,Oct 19 2025,4:25 p,Green Bay Packers,Arizona Cardinals
+7,Oct 19 2025,8:20 p,Atlanta Falcons,San Francisco 49ers
+7,Oct 20 2025,7:00 p,Tampa Bay Buccaneers,Detroit Lions
+7,Oct 20 2025,10:00 p,Houston Texans,Seattle Seahawks
+8,Oct 23 2025,8:15 p,Los Angeles Chargers,Minnesota Vikings
+8,Oct 26 2025,1:00 p,Atlanta Falcons,Miami Dolphins
+8,Oct 26 2025,1:00 p,Baltimore Ravens,Chicago Bears
+8,Oct 26 2025,1:00 p,Carolina Panthers,Buffalo Bills
+8,Oct 26 2025,1:00 p,Cincinnati Bengals,New York Jets
+8,Oct 26 2025,1:00 p,New York Giants,Philadelphia Eagles
+8,Oct 26 2025,1:00 p,Tampa Bay Buccaneers,New Orleans Saints
+8,Oct 26 2025,1:00 p,New England Patriots,Cleveland Browns
+8,Oct 26 2025,1:00 p,San Francisco 49ers,Houston Texans
+8,Oct 26 2025,4:05 p,Jacksonville Jaguars,Arizona Cardinals
+8,Oct 26 2025,4:25 p,Dallas Cowboys,Denver Broncos
+8,Oct 26 2025,4:25 p,Tennessee Titans,Indianapolis Colts
+8,Oct 26 2025,8:20 p,Green Bay Packers,Pittsburgh Steelers
+8,Oct 27 2025,8:15 p,Kansas City Chiefs,Washington Commanders
+9,Oct 30 2025,8:15 p,Miami Dolphins,Baltimore Ravens
+9,Nov 2 2025,1:00 p,Chicago Bears,Cincinnati Bengals
+9,Nov 2 2025,1:00 p,Detroit Lions,Minnesota Vikings
+9,Nov 2 2025,1:00 p,Carolina Panthers,Green Bay Packers
+9,Nov 2 2025,1:00 p,Denver Broncos,Houston Texans
+9,Nov 2 2025,1:00 p,Atlanta Falcons,New England Patriots
+9,Nov 2 2025,1:00 p,San Francisco 49ers,New York Giants
+9,Nov 2 2025,1:00 p,Indianapolis Colts,Pittsburgh Steelers
+9,Nov 2 2025,1:00 p,Los Angeles Chargers,Tennessee Titans
+9,Nov 2 2025,1:05 p,New Orleans Saints,Los Angeles Rams
+9,Nov 2 2025,1:05 p,Jacksonville Jaguars,Las Vegas Raiders
+9,Nov 2 2025,4:25 p,Kansas City Chiefs,Buffalo Bills
+9,Nov 2 2025,8:20 p,Seattle Seahawks,Washington Commanders
+9,Nov 3 2025,8:20 p,Pittsburgh Steelers,Los Angeles Chargers
+10,Nov 6 2025,8:15 p,Denver Broncos,Las Vegas Raiders
+10,Nov 9 2025,9:30 a,Atlanta Falcons,Indianapolis Colts
+10,Nov 9 2025,1:00 p,Jacksonville Jaguars,Houston Texans
+10,Nov 9 2025,1:00 p,Buffalo Bills,Miami Dolphins
+10,Nov 9 2025,1:00 p,New England Patriots,Tampa Bay Buccaneers
+10,Nov 9 2025,1:00 p,Cleveland Browns,New York Jets
+10,Nov 9 2025,1:00 p,New York Giants,Chicago Bears
+10,Nov 9 2025,1:00 p,New Orleans Saints,Carolina Panthers
+10,Nov 9 2025,1:00 p,Baltimore Ravens,Minnesota Vikings
+10,Nov 9 2025,4:05 p,Arizona Cardinals,Seattle Seahawks
+10,Nov 9 2025,4:25 p,Los Angeles Rams,San Francisco 49ers
+10,Nov 9 2025,4:25 p,Detroit Lions,Washington Commanders
+10,Nov 9 2025,8:20 p,Pittsburgh Steelers,Los Angeles Chargers
+10,Nov 10 2025,8:15 p,Green Bay Packers,Philadelphia Eagles
+11,Nov 13 2025,8:15 p,New England Patriots,New York Jets
+11,Nov 16 2025,1:00 p,Carolina Panthers,Atlanta Falcons
+11,Nov 16 2025,1:00 p,Tampa Bay Buccaneers,Buffalo Bills
+11,Nov 16 2025,1:00 p,Los Angeles Chargers,Jacksonville Jaguars
+11,Nov 16 2025,1:00 p,Chicago Bears,Minnesota Vikings
+11,Nov 16 2025,1:00 p,Green Bay Packers,New York Giants
+11,Nov 16 2025,1:00 p,Houston Texans,Tennessee Titans
+11,Nov 16 2025,1:00 p,San Francisco 49ers,Arizona Cardinals
+11,Nov 16 2025,4:25 p,Baltimore Ravens,Cleveland Browns
+11,Nov 16 2025,4:25 p,Kansas City Chiefs,Denver Broncos
+11,Nov 16 2025,8:20 p,Detroit Lions,Philadelphia Eagles
+11,Nov 17 2025,8:15 p,Las Vegas Raiders,Dallas Cowboys
+12,Nov 20 2025,8:15 p,Houston Texans,Buffalo Bills
+12,Nov 23 2025,1:00 p,New York Jets,Baltimore Ravens
+12,Nov 23 2025,1:00 p,Pittsburgh Steelers,Chicago Bears
+12,Nov 23 2025,1:00 p,New England Patriots,Cincinnati Bengals
+12,Nov 23 2025,1:00 p,New York Giants,Detroit Lions
+12,Nov 23 2025,1:00 p,Minnesota Vikings,Green Bay Packers
+12,Nov 23 2025,1:00 p,Indianapolis Colts,Kansas City Chiefs
+12,Nov 23 2025,1:00 p,Seattle Seahawks,Tennessee Titans
+12,Nov 23 2025,4:05 p,Cleveland Browns,Las Vegas Raiders
+12,Nov 23 2025,4:05 p,Jacksonville Jaguars,Arizona Cardinals
+12,Nov 23 2025,4:25 p,Atlanta Falcons,New Orleans Saints
+12,Nov 23 2025,4:25 p,Philadelphia Eagles,Dallas Cowboys
+12,Nov 23 2025,8:20 p,Tampa Bay Buccaneers,Los Angeles Rams
+12,Nov 24 2025,8:15 p,San Francisco 49ers,Carolina Panthers
+13,Nov 27 2025,1:00 p,Detroit Lions,Green Bay Packers
+13,Nov 27 2025,3:30 p,Dallas Cowboys,Kansas City Chiefs
+13,Nov 27 2025,8:20 p,Baltimore Ravens,Cincinnati Bengals
+13,Nov 28 2025,3:00 p,Philadelphia Eagles,Chicago Bears
+13,Nov 30 2025,1:00 p,Los Angeles Rams,Carolina Panthers
+13,Nov 30 2025,1:00 p,San Francisco 49ers,Cleveland Browns
+13,Nov 30 2025,1:00 p,Houston Texans,Indianapolis Colts
+13,Nov 30 2025,1:00 p,New Orleans Saints,Miami Dolphins
+13,Nov 30 2025,1:00 p,Atlanta Falcons,New York Jets
+13,Nov 30 2025,1:00 p,Arizona Cardinals,Tampa Bay Buccaneers
+13,Nov 30 2025,4:05 p,Minnesota Vikings,Seattle Seahawks
+13,Nov 30 2025,4:25 p,Buffalo Bills,Pittsburgh Steelers
+13,Nov 30 2025,4:25 p,Las Vegas Raiders,Los Angeles Chargers
+13,Nov 30 2025,8:20 p,Denver Broncos,Washington Commanders
+14,Dec 4 2025,8:15 p,Detroit Lions,Dallas Cowboys
+14,Dec 7 2025,1:00 p,Seattle Seahawks,Atlanta Falcons
+14,Dec 7 2025,1:00 p,Baltimore Ravens,Pittsburgh Steelers
+14,Dec 7 2025,1:00 p,Cleveland Browns,Tennessee Titans
+14,Dec 7 2025,1:00 p,New England Patriots,Indianapolis Colts
+14,Dec 7 2025,1:00 p,Washington Commanders,Minnesota Vikings
+14,Dec 7 2025,1:00 p,Miami Dolphins,New York Jets
+14,Dec 7 2025,1:00 p,New Orleans Saints,Tampa Bay Buccaneers
+14,Dec 7 2025,1:00 p,Chicago Bears,Green Bay Packers
+14,Dec 7 2025,4:05 p,Denver Broncos,Las Vegas Raiders
+14,Dec 7 2025,4:25 p,Los Angeles Rams,Arizona Cardinals
+14,Dec 7 2025,4:25 p,Cincinnati Bengals,Buffalo Bills
+14,Dec 7 2025,8:20 p,New York Giants,Minnesota Vikings
+14,Dec 8 2025,8:15 p,Los Angeles Chargers,Philadelphia Eagles
+15,Dec 11 2025,8:15 p,Tampa Bay Buccaneers,Atlanta Falcons
+15,Dec 14 2025,1:00 p,Chicago Bears,Cleveland Browns
+15,Dec 14 2025,1:00 p,Baltimore Ravens,Cincinnati Bengals
+15,Dec 14 2025,1:00 p,Arizona Cardinals,Houston Texans
+15,Dec 14 2025,1:00 p,New England Patriots,Buffalo Bills
+15,Dec 14 2025,1:00 p,New York Jets,Jacksonville Jaguars
+15,Dec 14 2025,1:00 p,Los Angeles Chargers,Kansas City Chiefs
+15,Dec 14 2025,1:00 p,Washington Commanders,New York Giants
+15,Dec 14 2025,1:00 p,Las Vegas Raiders,Philadelphia Eagles
+15,Dec 14 2025,1:00 p,Detroit Lions,Los Angeles Rams
+15,Dec 14 2025,4:25 p,Green Bay Packers,Denver Broncos
+15,Dec 14 2025,4:25 p,Carolina Panthers,New Orleans Saints
+15,Dec 14 2025,4:25 p,Indianapolis Colts,Seattle Seahawks
+15,Dec 14 2025,4:25 p,Tennessee Titans,San Francisco 49ers
+15,Dec 14 2025,8:20 p,Detroit Lions,Philadelphia Eagles
+15,Dec 15 2025,8:15 p,Pittsburgh Steelers,Miami Dolphins
+16,Dec 18 2025,8:15 p,Seattle Seahawks,Los Angeles Rams
+16,Dec 20 2025,? ,Green Bay Packers,Chicago Bears
+16,Dec 20 2025,? ,Philadelphia Eagles,Washington Commanders
+16,Dec 21 2025,1:00 p,New England Patriots,Baltimore Ravens
+16,Dec 21 2025,1:00 p,Tampa Bay Buccaneers,Carolina Panthers
+16,Dec 21 2025,1:00 p,Buffalo Bills,Cleveland Browns
+16,Dec 21 2025,1:00 p,Los Angeles Chargers,Dallas Cowboys
+16,Dec 21 2025,1:00 p,New York Jets,New Orleans Saints
+16,Dec 21 2025,1:00 p,Minnesota Vikings,New York Giants
+16,Dec 21 2025,1:00 p,Kansas City Chiefs,Tennessee Titans
+16,Dec 21 2025,4:05 p,Atlanta Falcons,Arizona Cardinals
+16,Dec 21 2025,4:05 p,Jacksonville Jaguars,Denver Broncos
+16,Dec 21 2025,4:25 p,Pittsburgh Steelers,Detroit Lions
+16,Dec 21 2025,4:25 p,Las Vegas Raiders,Houston Texans
+16,Dec 21 2025,8:20 p,Cincinnati Bengals,Miami Dolphins
+17,Dec 25 2025,1:00 p,Washington Commanders,Dallas Cowboys
+17,Dec 25 2025,3:30 p,Detroit Lions,Minnesota Vikings
+17,Dec 25 2025,8:15 p,Denver Broncos,Kansas City Chiefs
