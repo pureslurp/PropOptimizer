@@ -3,8 +3,27 @@ Configuration file for the NFL Player Prop Optimizer
 """
 
 # API Configuration
-# Replace 'YOUR_API_KEY_HERE' with your actual API key from https://the-odds-api.com/
-ODDS_API_KEY = "5fcc5a130a5bf4e22fa51c033d9a7c1a"
+# Use environment variable for security, fallback to Streamlit secrets for local dev
+import os
+import streamlit as st
+
+def get_api_key():
+    """Get API key from environment variable or Streamlit secrets"""
+    # Try environment variable first (for production)
+    api_key = os.getenv("ODDS_API_KEY")
+    if api_key and api_key != "YOUR_API_KEY_HERE":
+        return api_key
+    
+    # Try Streamlit secrets (for local development)
+    try:
+        if hasattr(st, 'secrets') and 'api' in st.secrets:
+            return st.secrets['api']['odds_api_key']
+    except:
+        pass
+    
+    return "YOUR_API_KEY_HERE"
+
+ODDS_API_KEY = get_api_key()
 
 # Application Settings
 DEFAULT_MIN_SCORE = 50

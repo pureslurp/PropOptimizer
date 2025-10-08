@@ -10,7 +10,7 @@ import os
 import json
 from datetime import datetime, timedelta
 import pickle
-from dfs_box_scores import FootballDBScraper
+# from dfs_box_scores import FootballDBScraper  # Not needed for production
 from simple_box_score_processor import process_box_score_simple, create_simplified_defensive_rankings, convert_to_defensive_yards
 from espn_defensive_scraper import ESPNDefensiveScraper
 import warnings
