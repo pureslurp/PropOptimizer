@@ -523,7 +523,12 @@ class PropScorer:
     def calculate_score(self, player: str, opposing_team: str, stat_type: str, line: float) -> int:
         """Calculate a score for a player prop"""
         # Get team defensive ranking (lower is better defense)
-        team_rank = self.data_processor.get_team_rank(opposing_team, f"{stat_type} Allowed")
+        # Map receiving yards to passing yards since they're the same defensive stat
+        defense_stat_type = f"{stat_type} Allowed"
+        if stat_type == "Receiving Yards":
+            defense_stat_type = "Passing Yards Allowed"
+        
+        team_rank = self.data_processor.get_team_rank(opposing_team, defense_stat_type)
         
         # Get player's over rate for this line
         over_rate = self.data_processor.get_player_over_rate(player, stat_type, line)
