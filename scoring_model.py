@@ -33,10 +33,12 @@ class AdvancedPropScorer:
             Dictionary with score breakdown and analysis
         """
         # Get team defensive ranking
-        # Map receiving yards to passing yards since they're the same defensive stat
+        # Map stat types to defensive rankings
         defense_stat_type = f"{stat_type} Allowed"
         if stat_type == "Receiving Yards":
             defense_stat_type = "Passing Yards Allowed"
+        elif stat_type == "Receiving TDs":
+            defense_stat_type = "Passing TDs Allowed"
         
         team_rank = self.data_processor.get_team_defensive_rank(opposing_team, defense_stat_type)
         

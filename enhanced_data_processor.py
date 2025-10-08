@@ -229,20 +229,31 @@ class EnhancedFootballDataProcessor:
         print(f"✅ Built season stats for {len(player_stats)} players")
     
     def _build_team_defensive_stats(self, all_week_data: Dict[str, pd.DataFrame]):
-        """Build team defensive stats using ESPN data"""
-        print("🛡️ Building team defensive stats using ESPN data...")
+        """Build team defensive stats using ESPN data and NFL.com TD data"""
+        print("🛡️ Building team defensive stats using ESPN and NFL.com data...")
         
         try:
-            # Use ESPN defensive scraper to get real rankings
+            # Use ESPN defensive scraper to get yards rankings
             espn_scraper = ESPNDefensiveScraper()
-            defensive_rankings = espn_scraper.get_defensive_rankings()
+            yards_rankings = espn_scraper.get_defensive_rankings()
             
-            if defensive_rankings:
-                print(f"✅ Loaded ESPN defensive rankings for {len(defensive_rankings)} teams")
-                self.team_defensive_stats = defensive_rankings
+            # Use NFL.com scraper to get TD data
+            from nfl_defensive_scraper import NFLDefensiveScraper
+            nfl_scraper = NFLDefensiveScraper()
+            td_data = nfl_scraper.get_defensive_td_rankings()
+            
+            if yards_rankings and td_data:
+                # Combine yards and TD data
+                combined_rankings = self._combine_defensive_data(yards_rankings, td_data)
+                print(f"✅ Loaded combined defensive rankings for {len(combined_rankings)} teams")
+                self.team_defensive_stats = combined_rankings
+                return
+            elif yards_rankings:
+                print(f"✅ Loaded ESPN defensive rankings for {len(yards_rankings)} teams (no TD data)")
+                self.team_defensive_stats = yards_rankings
                 return
             
-            print("⚠️ No ESPN defensive data available, using fallback")
+            print("⚠️ No defensive data available, using fallback")
             self._use_fallback_defensive_stats()
             return
             
@@ -250,6 +261,54 @@ class EnhancedFootballDataProcessor:
             print(f"⚠️ Error building team defensive stats: {e}")
             print("Using fallback defensive stats")
             self._use_fallback_defensive_stats()
+    
+    def _combine_defensive_data(self, yards_rankings: Dict, td_data: Dict) -> Dict:
+        """Combine ESPN yards rankings with NFL.com TD data"""
+        print("🔄 Combining yards and TD defensive data...")
+        
+        combined_rankings = {}
+        
+        # Start with yards data
+        for team, stats in yards_rankings.items():
+            combined_rankings[team] = stats.copy()
+        
+        # Add TD data
+        for team, td_stats in td_data.items():
+            if team in combined_rankings:
+                combined_rankings[team].update(td_stats)
+            else:
+                # If team not in yards data, create entry with just TD data
+                combined_rankings[team] = td_stats
+        
+        # Convert TD counts to rankings
+        self._convert_td_counts_to_rankings(combined_rankings)
+        
+        return combined_rankings
+    
+    def _convert_td_counts_to_rankings(self, defensive_stats: Dict):
+        """Convert TD counts to rankings (lower TDs = better defense = lower rank)"""
+        # Extract TD counts for ranking
+        passing_tds = {}
+        rushing_tds = {}
+        
+        for team, stats in defensive_stats.items():
+            if 'Passing TDs Allowed' in stats:
+                passing_tds[team] = stats['Passing TDs Allowed']
+            if 'Rushing TDs Allowed' in stats:
+                rushing_tds[team] = stats['Rushing TDs Allowed']
+        
+        # Convert to rankings (lower TDs = better rank)
+        if passing_tds:
+            sorted_passing = sorted(passing_tds.items(), key=lambda x: x[1])
+            for rank, (team, _) in enumerate(sorted_passing, 1):
+                if team in defensive_stats:
+                    defensive_stats[team]['Passing TDs Allowed'] = rank
+        
+        if rushing_tds:
+            sorted_rushing = sorted(rushing_tds.items(), key=lambda x: x[1])
+            for rank, (team, _) in enumerate(sorted_rushing, 1):
+                if team in defensive_stats:
+                    defensive_stats[team]['Rushing TDs Allowed'] = rank
     
     def _convert_position_analysis_to_defensive_stats(self, position_results: Dict):
         """Convert position vs team analysis results to defensive stats format"""
