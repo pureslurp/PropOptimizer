@@ -821,7 +821,7 @@ def main():
     scorer = AdvancedPropScorer(data_processor)
     
     # Stat type selector at the top
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([3, 1, 1])
     
     with col1:
         selected_stat = st.selectbox(
@@ -840,6 +840,7 @@ def main():
             if 'odds_data_cache' in st.session_state:
                 del st.session_state.odds_data_cache
             st.rerun()
+        export_button = st.button("📥 Export to CSV", type="secondary")
     
     st.subheader(f"Player Props - {selected_stat}")
     st.caption(f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)")
@@ -909,6 +910,112 @@ def main():
             st.session_state.alt_line_manager.odds_data = odds_data
         
         alt_line_manager = st.session_state.alt_line_manager
+        
+        # Handle export if button was clicked
+        if export_button:
+            with st.spinner("Generating export for all stat types..."):
+                all_export_data = []
+                
+                # Fetch alternate lines for all stat types
+                for stat_type in STAT_TYPES:
+                    if stat_type not in alt_line_manager.alternate_lines:
+                        with st.spinner(f"Fetching alternate lines for {stat_type}..."):
+                            alt_line_manager.alternate_lines[stat_type] = alt_line_manager.fetch_alternate_lines_for_stat(stat_type)
+                
+                # Process all stat types
+                for stat_type in STAT_TYPES:
+                    stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
+                    
+                    if stat_filtered_df.empty:
+                        continue
+                    
+                    # Calculate scores for this stat type
+                    for _, row in stat_filtered_df.iterrows():
+                        score_data = scorer.calculate_comprehensive_score(
+                            row['Player'],
+                            row['Opposing Team'], 
+                            row['Stat Type'],
+                            row['Line'],
+                            row.get('Odds', 0)
+                        )
+                        
+                        export_row = {
+                            'Stat Type': stat_type,
+                            'Player': row['Player'],
+                            'Team': row['Team'],
+                            'Opposing Team': row['Opposing Team'],
+                            'Line': row['Line'],
+                            'Odds': row.get('Odds', 0),
+                            'Team Rank': score_data['team_rank'],
+                            'Score': score_data['total_score'],
+                            'Over Rate': f"{score_data['over_rate']*100:.1f}%",
+                            'Player Avg': f"{score_data['player_avg']:.1f}",
+                            'Is Alternate': False
+                        }
+                        all_export_data.append(export_row)
+                        
+                        # Add alternate line if available
+                        player_name = row['Player']
+                        if hasattr(data_processor, 'player_season_stats'):
+                            player_stats_dict = data_processor.player_season_stats
+                            
+                            from utils import clean_player_name
+                            cleaned_player_name = clean_player_name(player_name)
+                            player_stats = None
+                            for stored_player, stats in player_stats_dict.items():
+                                cleaned_stored = clean_player_name(stored_player)
+                                if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
+                                    player_stats = stats[stat_type]
+                                    break
+                            
+                            if player_stats and len(player_stats) > 0:
+                                threshold, actual_rate = calculate_70_percent_threshold(player_stats)
+                                alt_line = alt_line_manager.get_closest_alternate_line(player_name, stat_type, threshold)
+                                
+                                if alt_line:
+                                    alt_score_data = scorer.calculate_comprehensive_score(
+                                        player_name,
+                                        row['Opposing Team'],
+                                        stat_type,
+                                        alt_line['line'],
+                                        alt_line['odds']
+                                    )
+                                    
+                                    alt_export_row = {
+                                        'Stat Type': stat_type,
+                                        'Player': player_name,
+                                        'Team': row['Team'],
+                                        'Opposing Team': row['Opposing Team'],
+                                        'Line': alt_line['line'],
+                                        'Odds': alt_line['odds'],
+                                        'Team Rank': alt_score_data['team_rank'],
+                                        'Score': alt_score_data['total_score'],
+                                        'Over Rate': f"{alt_score_data['over_rate']*100:.1f}%",
+                                        'Player Avg': f"{alt_score_data['player_avg']:.1f}",
+                                        'Is Alternate': True
+                                    }
+                                    all_export_data.append(alt_export_row)
+                
+                # Create DataFrame and CSV
+                export_df = pd.DataFrame(all_export_data)
+                export_df = export_df.sort_values(['Stat Type', 'Player', 'Is Alternate'])
+                
+                # Format odds for export
+                export_df['Odds'] = export_df['Odds'].apply(format_odds)
+                
+                csv = export_df.to_csv(index=False)
+                
+                # Show download button
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                st.download_button(
+                    label="⬇️ Download CSV",
+                    data=csv,
+                    file_name=f"nfl_props_export_{timestamp}.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
+                
+                st.success(f"✅ Export ready! {len(export_df)} total props (including alternates) across {len(STAT_TYPES)} stat types")
         
         # Filter by selected stat type
         filtered_df = props_df[props_df['Stat Type'] == selected_stat].copy()
