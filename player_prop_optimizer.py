@@ -768,6 +768,31 @@ def calculate_last_n_over_rate(player_stats: List[float], line: float, n: int = 
     return over_count / len(last_n_games)
 
 
+def calculate_streak(player_stats: List[float], line: float) -> int:
+    """
+    Calculate how many consecutive games (from most recent) the player has gone over the line
+    
+    Args:
+        player_stats: List of player's game stats (should be in chronological order)
+        line: The line to compare against
+        
+    Returns:
+        Number of consecutive games over the line (0 if last game was under)
+    """
+    if not player_stats or len(player_stats) == 0:
+        return 0
+    
+    streak = 0
+    # Count backwards from most recent game
+    for stat in reversed(player_stats):
+        if stat > line:
+            streak += 1
+        else:
+            break  # Stop at first game that didn't go over
+    
+    return streak
+
+
 def calculate_70_percent_threshold(player_stats: List[float]) -> Tuple[float, float]:
     """
     Calculate the threshold at which a player's over rate is closest to 70%
@@ -1118,10 +1143,11 @@ def main():
                 row.get('Odds', 0)
             )
             
-            # Calculate L5, Home, and Away over rates
+            # Calculate L5, Home, Away over rates, and Streak
             l5_over_rate = 0.5  # Default
             home_over_rate = 0.5  # Default
             away_over_rate = 0.5  # Default
+            streak = 0  # Default
             player_name = row['Player']
             stat_type = row['Stat Type']
             line = row['Line']
@@ -1143,13 +1169,15 @@ def main():
                 if player_stats and len(player_stats) > 0:
                     # Calculate L5 over rate
                     l5_over_rate = calculate_last_n_over_rate(player_stats, line, n=5)
+                    # Calculate streak
+                    streak = calculate_streak(player_stats, line)
             
             # Calculate home/away over rates
             home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
             away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
             
             scored_prop = {**row.to_dict(), **score_data, 'l5_over_rate': l5_over_rate, 
-                          'home_over_rate': home_over_rate, 'away_over_rate': away_over_rate}
+                          'home_over_rate': home_over_rate, 'away_over_rate': away_over_rate, 'streak': streak}
             scored_props.append(scored_prop)
             
             # Get ALL alternate lines with odds between +200 and -450
@@ -1185,8 +1213,10 @@ def main():
                         
                         # Calculate L5 for alternate line
                         alt_l5_over_rate = 0.5  # Default
+                        alt_streak = 0  # Default
                         if player_stats and len(player_stats) > 0:
                             alt_l5_over_rate = calculate_last_n_over_rate(player_stats, alt_line['line'], n=5)
+                            alt_streak = calculate_streak(player_stats, alt_line['line'])
                         
                         # Calculate home/away over rates for alternate line
                         alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
@@ -1200,6 +1230,7 @@ def main():
                             'l5_over_rate': alt_l5_over_rate,
                             'home_over_rate': alt_home_over_rate,
                             'away_over_rate': alt_away_over_rate,
+                            'streak': alt_streak,
                             'is_alternate': True  # Flag to identify alternate lines
                         }
                         alternate_line_props.append(alt_prop)
@@ -1230,16 +1261,16 @@ def main():
         
         # Format the display
         display_columns = [
-            'Player', 'Opposing Team', 'team_rank', 
-            'Line', 'Odds', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
+            'Player', 'Opposing Team', 'team_rank',
+            'Line', 'Odds', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
         ]
         
         display_df = results_df[display_columns].copy()
         
         # Rename columns for display
         display_df.columns = [
-            'Player', 'Opposing Team', 'Team Rank', 
-            'Line', 'Odds', 'L5', 'Home', 'Away', '25/26'
+            'Player', 'Opposing Team', 'Team Rank',
+            'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26'
         ]
         
         # Format the line display
@@ -1304,6 +1335,15 @@ def main():
                 except:
                     pass
             
+            # Style Streak (green if 3 or more consecutive overs)
+            if 'Streak' in row.index:
+                try:
+                    val = row['Streak']
+                    if val >= 3:
+                        styles['Streak'] = 'background-color: #d4edda; color: #155724'
+                except:
+                    pass
+            
             # Style L5 based on numeric value
             if 'L5_numeric' in row.index and row['L5_numeric'] > 60:
                 styles['L5'] = 'background-color: #d4edda; color: #155724'
@@ -1326,7 +1366,7 @@ def main():
         styled_df = display_df.style.apply(apply_all_styles, axis=1)
         
         # Drop the numeric columns from display
-        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'L5', '25/26', 'Home', 'Away']
+        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26']
         
         # Display the results with styling
         st.dataframe(
