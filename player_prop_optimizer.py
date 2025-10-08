@@ -71,6 +71,9 @@ class OddsAPI:
             'TEN': 'Tennessee Titans'
         }
         
+        # Create reverse mapping (full name to abbreviation)
+        self.team_abbrev_mapping = {v: k for k, v in self.team_name_mapping.items()}
+        
     def get_player_props(self, sport: str = "americanfootball_nfl") -> List[Dict]:
         """Fetch player props from The Odds API using the event-based approach"""
         try:
@@ -343,19 +346,34 @@ class OddsAPI:
             
             # Get opposing team from odds API game context
             opposing_team = "Unknown"
+            opposing_team_full = "Unknown"  # Keep full name for lookups
             if player_team != "Unknown" and 'Home Team' in row and 'Away Team' in row:
                 home_team = row['Home Team']
                 away_team = row['Away Team']
                 # Determine opposing team based on which team the player is on
+                is_home_game = False
                 if player_team == home_team:
-                    opposing_team = away_team
+                    opposing_team_full = away_team
+                    is_home_game = True
                 elif player_team == away_team:
-                    opposing_team = home_team
+                    opposing_team_full = home_team
+                    is_home_game = False
+                
+                # Format opposing team as "vs NYG" or "@ NYG" for display
+                if opposing_team_full != "Unknown":
+                    opp_abbrev = self.team_abbrev_mapping.get(opposing_team_full, opposing_team_full)
+                    if is_home_game:
+                        opposing_team = f"vs {opp_abbrev}"
+                    else:
+                        opposing_team = f"@ {opp_abbrev}"
+                else:
+                    opposing_team = "Unknown"
             
             # Update the row
             updated_row = row.copy()
             updated_row['Team'] = player_team
-            updated_row['Opposing Team'] = opposing_team
+            updated_row['Opposing Team'] = opposing_team  # Display version
+            updated_row['Opposing Team Full'] = opposing_team_full  # Full name for lookups
             updated_props.append(updated_row)
         
         return pd.DataFrame(updated_props)
@@ -727,6 +745,29 @@ class AlternateLineManager:
         return closest_line
 
 
+def calculate_last_n_over_rate(player_stats: List[float], line: float, n: int = 5) -> float:
+    """
+    Calculate the over rate for the last N games
+    
+    Args:
+        player_stats: List of player's game stats (should be in chronological order)
+        line: The line to compare against
+        n: Number of recent games to consider (default: 5)
+        
+    Returns:
+        Over rate as a decimal (0.0 to 1.0), or 0.5 if insufficient data
+    """
+    if not player_stats or len(player_stats) == 0:
+        return 0.5
+    
+    # Get the last N games
+    last_n_games = player_stats[-n:] if len(player_stats) >= n else player_stats
+    
+    # Calculate over rate
+    over_count = sum(1 for stat in last_n_games if stat > line)
+    return over_count / len(last_n_games)
+
+
 def calculate_70_percent_threshold(player_stats: List[float]) -> Tuple[float, float]:
     """
     Calculate the threshold at which a player's over rate is closest to 70%
@@ -847,12 +888,15 @@ def main():
     
     # Fetch and display data
     try:
+        # Initialize info messages list
+        info_messages = []
+        
         # Check if we have cached data
         if 'props_df_cache' in st.session_state and 'odds_data_cache' in st.session_state:
             # Use cached data
             props_df = st.session_state.props_df_cache
             odds_data = st.session_state.odds_data_cache
-            st.info(f"ℹ️ Using cached props data ({len(props_df)} props from {len(odds_data)} games)")
+            info_messages.append(('info', f"ℹ️ Using cached props data ({len(props_df)} props from {len(odds_data)} games)"))
         else:
             # Fetch fresh data
             with st.spinner("Fetching player props data..."):
@@ -899,8 +943,8 @@ def main():
             st.session_state.props_df_cache = props_df
             st.session_state.odds_data_cache = odds_data
             
-            # Show success message once
-            st.success(f"✅ Loaded {len(props_df)} player props from {len(odds_data)} games")
+            # Store success message
+            info_messages.append(('success', f"✅ Loaded {len(props_df)} player props from {len(odds_data)} games"))
         
         # Initialize or retrieve alternate line manager from session state
         if 'alt_line_manager' not in st.session_state:
@@ -933,11 +977,27 @@ def main():
                     for _, row in stat_filtered_df.iterrows():
                         score_data = scorer.calculate_comprehensive_score(
                             row['Player'],
-                            row['Opposing Team'], 
+                            row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
                             row['Stat Type'],
                             row['Line'],
                             row.get('Odds', 0)
                         )
+                        
+                        # Calculate L5 over rate for export
+                        l5_over_rate = 0.5  # Default
+                        player_name = row['Player']
+                        if hasattr(data_processor, 'player_season_stats'):
+                            player_stats_dict = data_processor.player_season_stats
+                            from utils import clean_player_name
+                            cleaned_player_name = clean_player_name(player_name)
+                            player_stats = None
+                            for stored_player, stats in player_stats_dict.items():
+                                cleaned_stored = clean_player_name(stored_player)
+                                if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
+                                    player_stats = stats[stat_type]
+                                    break
+                            if player_stats and len(player_stats) > 0:
+                                l5_over_rate = calculate_last_n_over_rate(player_stats, row['Line'], n=5)
                         
                         export_row = {
                             'Stat Type': stat_type,
@@ -948,38 +1008,48 @@ def main():
                             'Odds': row.get('Odds', 0),
                             'Team Rank': score_data['team_rank'],
                             'Score': score_data['total_score'],
+                            'L5': f"{l5_over_rate*100:.1f}%",
                             'Over Rate': f"{score_data['over_rate']*100:.1f}%",
                             'Player Avg': f"{score_data['player_avg']:.1f}",
                             'Is Alternate': False
                         }
                         all_export_data.append(export_row)
                         
-                        # Add alternate line if available
+                        # Add ALL alternate lines with odds between +200 and -450
                         player_name = row['Player']
-                        if hasattr(data_processor, 'player_season_stats'):
-                            player_stats_dict = data_processor.player_season_stats
+                        if stat_type in alt_line_manager.alternate_lines:
+                            player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
                             
-                            from utils import clean_player_name
-                            cleaned_player_name = clean_player_name(player_name)
-                            player_stats = None
-                            for stored_player, stats in player_stats_dict.items():
-                                cleaned_stored = clean_player_name(stored_player)
-                                if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
-                                    player_stats = stats[stat_type]
-                                    break
-                            
-                            if player_stats and len(player_stats) > 0:
-                                threshold, actual_rate = calculate_70_percent_threshold(player_stats)
-                                alt_line = alt_line_manager.get_closest_alternate_line(player_name, stat_type, threshold)
+                            # Filter alternate lines by odds criteria
+                            for alt_line in player_alt_lines:
+                                alt_odds = alt_line.get('odds', 0)
                                 
-                                if alt_line:
+                                # Check if odds are between +200 and -450
+                                if -400 <= alt_odds <= 200:
+                                    # Get player stats for L5 calculation
+                                    player_stats = None
+                                    if hasattr(data_processor, 'player_season_stats'):
+                                        player_stats_dict = data_processor.player_season_stats
+                                        from utils import clean_player_name
+                                        cleaned_player_name = clean_player_name(player_name)
+                                        for stored_player, stats in player_stats_dict.items():
+                                            cleaned_stored = clean_player_name(stored_player)
+                                            if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
+                                                player_stats = stats[stat_type]
+                                                break
+                                    
                                     alt_score_data = scorer.calculate_comprehensive_score(
                                         player_name,
-                                        row['Opposing Team'],
+                                        row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
                                         stat_type,
                                         alt_line['line'],
                                         alt_line['odds']
                                     )
+                                    
+                                    # Calculate L5 for alternate line
+                                    alt_l5_over_rate = 0.5  # Default
+                                    if player_stats and len(player_stats) > 0:
+                                        alt_l5_over_rate = calculate_last_n_over_rate(player_stats, alt_line['line'], n=5)
                                     
                                     alt_export_row = {
                                         'Stat Type': stat_type,
@@ -990,6 +1060,7 @@ def main():
                                         'Odds': alt_line['odds'],
                                         'Team Rank': alt_score_data['team_rank'],
                                         'Score': alt_score_data['total_score'],
+                                        'L5': f"{alt_l5_over_rate*100:.1f}%",
                                         'Over Rate': f"{alt_score_data['over_rate']*100:.1f}%",
                                         'Player Avg': f"{alt_score_data['player_avg']:.1f}",
                                         'Is Alternate': True
@@ -1030,9 +1101,9 @@ def main():
                 # This will populate the cache for this stat type
                 if selected_stat in alt_line_manager.stat_market_mapping:
                     alt_line_manager.alternate_lines[selected_stat] = alt_line_manager.fetch_alternate_lines_for_stat(selected_stat)
-                    st.success(f"✅ Cached alternate lines for {selected_stat}")
+                    info_messages.append(('success', f"✅ Cached alternate lines for {selected_stat}"))
         else:
-            st.info(f"ℹ️ Using cached alternate lines for {selected_stat}")
+            info_messages.append(('info', f"ℹ️ Using cached alternate lines for {selected_stat}"))
         
         # Calculate comprehensive scores
         scored_props = []
@@ -1041,17 +1112,17 @@ def main():
         for _, row in filtered_df.iterrows():
             score_data = scorer.calculate_comprehensive_score(
                 row['Player'],
-                row['Opposing Team'], 
+                row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
                 row['Stat Type'],
                 row['Line'],
                 row.get('Odds', 0)
             )
-            scored_prop = {**row.to_dict(), **score_data}
-            scored_props.append(scored_prop)
             
-            # Calculate 70% threshold and find alternate line
+            # Calculate L5 over rate
+            l5_over_rate = 0.5  # Default
             player_name = row['Player']
             stat_type = row['Stat Type']
+            line = row['Line']
             
             # Get player's stat history from data processor
             if hasattr(data_processor, 'player_season_stats'):
@@ -1068,41 +1139,64 @@ def main():
                         break
                 
                 if player_stats and len(player_stats) > 0:
-                    # Calculate 70% threshold
-                    threshold, actual_rate = calculate_70_percent_threshold(player_stats)
+                    # Calculate L5 over rate
+                    l5_over_rate = calculate_last_n_over_rate(player_stats, line, n=5)
+            
+            scored_prop = {**row.to_dict(), **score_data, 'l5_over_rate': l5_over_rate}
+            scored_props.append(scored_prop)
+            
+            # Get ALL alternate lines with odds between +200 and -450
+            if stat_type in alt_line_manager.alternate_lines:
+                player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
+                
+                # Filter alternate lines by odds criteria
+                for alt_line in player_alt_lines:
+                    alt_odds = alt_line.get('odds', 0)
                     
-                    # Find closest alternate line
-                    alt_line = alt_line_manager.get_closest_alternate_line(
-                        player_name, stat_type, threshold
-                    )
-                    
-                    if alt_line:
+                    # Check if odds are between +200 and -450
+                    if -450 <= alt_odds <= 200:
+                        # Get player stats for L5 calculation
+                        player_stats = None
+                        if hasattr(data_processor, 'player_season_stats'):
+                            player_stats_dict = data_processor.player_season_stats
+                            from utils import clean_player_name
+                            cleaned_player_name = clean_player_name(player_name)
+                            for stored_player, stats in player_stats_dict.items():
+                                cleaned_stored = clean_player_name(stored_player)
+                                if cleaned_stored.lower() == cleaned_player_name.lower() and stat_type in stats:
+                                    player_stats = stats[stat_type]
+                                    break
+                        
                         # Create alternate line prop row
                         alt_score_data = scorer.calculate_comprehensive_score(
                             player_name,
-                            row['Opposing Team'],
+                            row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
                             stat_type,
                             alt_line['line'],
                             alt_line['odds']
                         )
+                        
+                        # Calculate L5 for alternate line
+                        alt_l5_over_rate = 0.5  # Default
+                        if player_stats and len(player_stats) > 0:
+                            alt_l5_over_rate = calculate_last_n_over_rate(player_stats, alt_line['line'], n=5)
                         
                         alt_prop = {
                             **row.to_dict(),
                             'Line': alt_line['line'],
                             'Odds': alt_line['odds'],
                             **alt_score_data,
-                            'is_alternate': True,  # Flag to identify alternate lines
-                            'calculated_threshold': threshold,
-                            'threshold_over_rate': actual_rate
+                            'l5_over_rate': alt_l5_over_rate,
+                            'is_alternate': True  # Flag to identify alternate lines
                         }
                         alternate_line_props.append(alt_prop)
         
         # Combine main props and alternate line props
         all_props = scored_props + alternate_line_props
         
-        # Show info about alternate lines added
+        # Store info about alternate lines added
         if alternate_line_props:
-            st.info(f"✨ Added {len(alternate_line_props)} alternate line recommendation(s) based on 70% threshold analysis")
+            info_messages.append(('info', f"✨ Added {len(alternate_line_props)} alternate line(s) with odds between +200 and -450"))
         
         # Convert to DataFrame
         results_df = pd.DataFrame(all_props)
@@ -1123,16 +1217,16 @@ def main():
         
         # Format the display
         display_columns = [
-            'Player', 'Opposing Team', 'team_rank', 'total_score', 
-            'Line', 'Odds', 'over_rate'
+            'Player', 'Opposing Team', 'team_rank', 
+            'Line', 'Odds', 'l5_over_rate', 'over_rate'
         ]
         
         display_df = results_df[display_columns].copy()
         
         # Rename columns for display
         display_df.columns = [
-            'Player', 'Opposing Team', 'Team Rank', 'Score', 
-            'Line', 'Odds', 'Over Rate'
+            'Player', 'Opposing Team', 'Team Rank', 
+            'Line', 'Odds', 'L5', '25/26'
         ]
         
         # Format the line display
@@ -1141,28 +1235,84 @@ def main():
         # Format odds
         display_df['Odds'] = display_df['Odds'].apply(format_odds)
         
-        # Format over rate as percentage
-        display_df['Over Rate'] = (display_df['Over Rate'] * 100).round(1).astype(str) + '%'
+        # Store numeric values for styling before converting to strings
+        display_df['L5_numeric'] = display_df['L5'] * 100
+        display_df['25/26_numeric'] = display_df['25/26'] * 100
         
-        # Color code the scores
-        def color_score(val):
-            if val >= 80:
-                return 'background-color: #d4edda'  # Green
-            elif val >= 70:
-                return 'background-color: #fff3cd'  # Yellow
-            elif val >= 60:
-                return 'background-color: #f8d7da'  # Light red
-            else:
-                return 'background-color: #f5c6cb'  # Red
+        # Format L5 over rate as percentage
+        display_df['L5'] = display_df['L5_numeric'].round(1).astype(str) + '%'
         
-        styled_df = display_df.style.applymap(color_score, subset=['Score'])
+        # Format season over rate as percentage
+        display_df['25/26'] = display_df['25/26_numeric'].round(1).astype(str) + '%'
         
-        # Display the results
+        # Define styling functions
+        def style_team_rank(val):
+            """Red if 10 or less (good matchup), green if 21 or higher (bad matchup)"""
+            try:
+                if val <= 10:
+                    return 'background-color: #f8d7da; color: #721c24'  # Subtle red bg with dark red text
+                elif val >= 21:
+                    return 'background-color: #d4edda; color: #155724'  # Subtle green bg with dark green text
+                else:
+                    return ''
+            except:
+                return ''
+        
+        def style_percentage(val):
+            """Green if above 60%"""
+            try:
+                if val > 60:
+                    return 'background-color: #d4edda; color: #155724'  # Subtle green bg with dark green text
+                else:
+                    return ''
+            except:
+                return ''
+        
+        # Create a custom styling function that handles all columns
+        def apply_all_styles(row):
+            styles = pd.Series([''] * len(row), index=row.index)
+            
+            # Style Team Rank
+            if 'Team Rank' in row.index:
+                try:
+                    val = row['Team Rank']
+                    if val <= 10:
+                        styles['Team Rank'] = 'background-color: #f8d7da; color: #721c24'
+                    elif val >= 21:
+                        styles['Team Rank'] = 'background-color: #d4edda; color: #155724'
+                except:
+                    pass
+            
+            # Style L5 based on numeric value
+            if 'L5_numeric' in row.index and row['L5_numeric'] > 60:
+                styles['L5'] = 'background-color: #d4edda; color: #155724'
+            
+            # Style 25/26 based on numeric value
+            if '25/26_numeric' in row.index and row['25/26_numeric'] > 60:
+                styles['25/26'] = 'background-color: #d4edda; color: #155724'
+            
+            return styles
+        
+        # Apply all styling
+        styled_df = display_df.style.apply(apply_all_styles, axis=1)
+        
+        # Drop the numeric columns from display
+        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'L5', '25/26']
+        
+        # Display the results with styling
         st.dataframe(
             styled_df,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_order=display_columns_final
         )
+        
+        # Display info messages below the table
+        for msg_type, msg_text in info_messages:
+            if msg_type == 'info':
+                st.info(msg_text)
+            elif msg_type == 'success':
+                st.success(msg_text)
         
         
     
