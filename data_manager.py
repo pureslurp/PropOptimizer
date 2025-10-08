@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import argparse
 from enhanced_data_processor import EnhancedFootballDataProcessor
-from position_vs_team_analysis import load_week_data, calculate_totals
 
 class NFLDataManager:
     """Manages NFL data processing and caching for optimal performance"""

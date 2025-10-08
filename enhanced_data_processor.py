@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import pickle
 # from dfs_box_scores import FootballDBScraper  # Not needed for production
 from simple_box_score_processor import process_box_score_simple, create_simplified_defensive_rankings, convert_to_defensive_yards
-from espn_defensive_scraper import ESPNDefensiveScraper
+from defensive_scraper import DefensiveScraper
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -295,14 +295,15 @@ class EnhancedFootballDataProcessor:
         print("🛡️ Building team defensive stats using ESPN and NFL.com data...")
         
         try:
-            # Use ESPN defensive scraper to get yards rankings
-            espn_scraper = ESPNDefensiveScraper()
-            yards_rankings = espn_scraper.get_defensive_rankings()
+            # Use unified defensive scraper to get all defensive stats
+            defensive_scraper = DefensiveScraper()
+            defensive_data = defensive_scraper.update_defensive_stats()
             
-            # Use NFL.com scraper to get TD data
-            from nfl_defensive_scraper import NFLDefensiveScraper
-            nfl_scraper = NFLDefensiveScraper()
-            td_data = nfl_scraper.get_defensive_td_rankings()
+            # Extract yards rankings and TD data from combined defensive data
+            yards_rankings = {team: {k: v for k, v in stats.items() if 'Allowed' in k and 'TDs' not in k}
+                            for team, stats in defensive_data.items()}
+            td_data = {team: {k: v for k, v in stats.items() if 'TDs Allowed' in k}
+                      for team, stats in defensive_data.items()}
             
             if yards_rankings and td_data:
                 # Combine yards and TD data
