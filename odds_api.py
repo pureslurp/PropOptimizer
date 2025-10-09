@@ -146,6 +146,7 @@ class OddsAPI:
         for game in odds_data:
             home_team = game.get('home_team', '')
             away_team = game.get('away_team', '')
+            commence_time = game.get('commence_time', '')
             
             # Prioritize FanDuel bookmaker
             fanduel_bookmaker = None
@@ -205,7 +206,8 @@ class OddsAPI:
                                 'Bookmaker': bookmaker.get('title', ''),
                                 'Market': market_key,
                                 'Home Team': home_team,
-                                'Away Team': away_team
+                                'Away Team': away_team,
+                                'Commence Time': commence_time
                             })
                         elif outcome.get('name') and outcome.get('name') not in ['Over', 'Under']:
                             # Handle other outcome types if needed (but skip Over/Under)
@@ -231,7 +233,8 @@ class OddsAPI:
                                 'Bookmaker': bookmaker.get('title', ''),
                                 'Market': market_key,
                                 'Home Team': home_team,
-                                'Away Team': away_team
+                                'Away Team': away_team,
+                                'Commence Time': commence_time
                             })
         
         return pd.DataFrame(props)
