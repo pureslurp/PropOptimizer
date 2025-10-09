@@ -102,10 +102,77 @@ def get_actual_stat(player_name, stat_type, box_score_df):
     return stat_value
 
 
+def get_team_abbreviation(full_name):
+    """Convert full team name to abbreviation"""
+    team_abbrev_map = {
+        'Arizona Cardinals': 'ARI',
+        'Atlanta Falcons': 'ATL',
+        'Baltimore Ravens': 'BAL',
+        'Buffalo Bills': 'BUF',
+        'Carolina Panthers': 'CAR',
+        'Chicago Bears': 'CHI',
+        'Cincinnati Bengals': 'CIN',
+        'Cleveland Browns': 'CLE',
+        'Dallas Cowboys': 'DAL',
+        'Denver Broncos': 'DEN',
+        'Detroit Lions': 'DET',
+        'Green Bay Packers': 'GB',
+        'Houston Texans': 'HOU',
+        'Indianapolis Colts': 'IND',
+        'Jacksonville Jaguars': 'JAX',
+        'Kansas City Chiefs': 'KC',
+        'Las Vegas Raiders': 'LV',
+        'Los Angeles Chargers': 'LAC',
+        'Los Angeles Rams': 'LAR',
+        'Miami Dolphins': 'MIA',
+        'Minnesota Vikings': 'MIN',
+        'New England Patriots': 'NE',
+        'New Orleans Saints': 'NO',
+        'New York Giants': 'NYG',
+        'New York Jets': 'NYJ',
+        'Philadelphia Eagles': 'PHI',
+        'Pittsburgh Steelers': 'PIT',
+        'San Francisco 49ers': 'SF',
+        'Seattle Seahawks': 'SEA',
+        'Tampa Bay Buccaneers': 'TB',
+        'Tennessee Titans': 'TEN',
+        'Washington Commanders': 'WAS'
+    }
+    return team_abbrev_map.get(full_name, full_name)
+
+
+def get_matchup_string(row):
+    """Create matchup string from row data (e.g., 'PHI @ NYG')"""
+    if 'Home Team' in row and 'Away Team' in row and pd.notna(row['Home Team']) and pd.notna(row['Away Team']):
+        away_abbrev = get_team_abbreviation(row['Away Team'])
+        home_abbrev = get_team_abbreviation(row['Home Team'])
+        return f"{away_abbrev} @ {home_abbrev}"
+    return None
+
+
+def is_player_in_matchup(row, matchup_string):
+    """Check if a player's team is in the specified matchup"""
+    if not matchup_string or pd.isna(row.get('Team')):
+        return False
+    
+    # Extract teams from matchup string (e.g., "PHI @ NYG" -> ["PHI", "NYG"])
+    teams_in_matchup = matchup_string.replace(' @ ', ' ').split()
+    
+    # Get player's team abbreviation
+    player_team_abbrev = get_team_abbreviation(row['Team'])
+    
+    return player_team_abbrev in teams_in_matchup
+
+
 def main():
     """Main Streamlit application"""
     st.title("🏈 NFL Player Prop Optimizer")
     st.markdown("Analyze NFL player props using matchup data and player history")
+    
+    # Sidebar configuration
+    with st.sidebar:
+        st.header("⚙️ Settings")
+        st.markdown("---")
     
     # Check if API key is configured
     if ODDS_API_KEY == "YOUR_API_KEY_HERE":
@@ -123,31 +190,31 @@ def main():
     data_processor = EnhancedFootballDataProcessor()
     scorer = AdvancedPropScorer(data_processor)
     
-    # Stat type selector at the top
-    col1, col2, col3 = st.columns([3, 1, 1])
+    # Control buttons at the top
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        selected_stat = st.selectbox(
-            "Select Stat Type",
-            STAT_TYPES,
-            index=0
-        )
-    
-    with col2:
         if st.button("🔄 Refresh", type="primary"):
             # Clear all cached data on refresh
             if 'alt_line_manager' in st.session_state:
                 del st.session_state.alt_line_manager
+            if 'all_scored_props' in st.session_state:
+                del st.session_state.all_scored_props
             if 'props_df_cache' in st.session_state:
                 del st.session_state.props_df_cache
             if 'odds_data_cache' in st.session_state:
                 del st.session_state.odds_data_cache
+            # Clear filter selections
+            if 'selected_stat_types' in st.session_state:
+                del st.session_state.selected_stat_types
+            if 'selected_games' in st.session_state:
+                del st.session_state.selected_games
             st.rerun()
     
-    with col3:
+    with col2:
         export_button = st.button("📥 Export to CSV", type="secondary")
     
-    st.subheader(f"Player Props - {selected_stat}")
+    st.subheader("Player Props - All Stat Types")
     st.caption(f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)")
     
     # Fetch and display data
@@ -155,264 +222,302 @@ def main():
         # Initialize info messages list
         info_messages = []
         
-        # Check if we have cached data
-        if 'props_df_cache' in st.session_state and 'odds_data_cache' in st.session_state:
-            # Use cached data
-            props_df = st.session_state.props_df_cache
+        # Check if we have all scored props cached
+        if 'all_scored_props' in st.session_state:
+            # Use cached scored props
+            all_props = st.session_state.all_scored_props
             odds_data = st.session_state.odds_data_cache
-            info_messages.append(('info', f"ℹ️ Using cached props data ({len(props_df)} props from {len(odds_data)} games)"))
+            alt_line_manager = st.session_state.alt_line_manager
+            info_messages.append(('info', f"ℹ️ Using cached data ({len(all_props)} total props)"))
         else:
-            # Fetch fresh data
-            with st.spinner("Fetching player props data..."):
-                odds_data = odds_api.get_player_props()
+            # Fetch fresh data with progress bars
+            progress_bar = st.progress(0, text="Fetching player props data...")
+            odds_data = odds_api.get_player_props()
+            progress_bar.progress(10, text="Processing player props data...")
             
             if not odds_data:
                 st.error("No odds data available. Please check your API key and try again.")
                 st.stop()
             
             # Parse the data
-            with st.spinner("Processing player props data..."):
-                props_df = odds_api.parse_player_props(odds_data)
+            props_df = odds_api.parse_player_props(odds_data)
+            progress_bar.progress(20, text="Updating team assignments...")
             
             if props_df.empty:
                 st.warning("No player props found for the selected criteria.")
                 st.stop()
             
             # Update team assignments using actual player data
-            with st.spinner("Updating team assignments..."):
-                props_df = odds_api.update_team_assignments(props_df, data_processor)
+            props_df = odds_api.update_team_assignments(props_df, data_processor)
             
-            # Cache the data
+            # Cache the raw data
             st.session_state.props_df_cache = props_df
             st.session_state.odds_data_cache = odds_data
             
-            # Store success message
-            info_messages.append(('success', f"✅ Loaded {len(props_df)} player props from {len(odds_data)} games"))
-        
-        # Initialize or retrieve alternate line manager from session state
-        if 'alt_line_manager' not in st.session_state:
-            st.session_state.alt_line_manager = AlternateLineManager(ODDS_API_KEY, odds_data)
-        else:
-            # Update odds_data in case events changed
-            st.session_state.alt_line_manager.odds_data = odds_data
-        
-        alt_line_manager = st.session_state.alt_line_manager
+            # Initialize alternate line manager
+            alt_line_manager = AlternateLineManager(ODDS_API_KEY, odds_data)
+            st.session_state.alt_line_manager = alt_line_manager
+            
+            # Fetch alternate lines for all stat types with progress
+            progress_bar.progress(30, text="Fetching alternate lines for all stat types...")
+            stat_types_in_data = props_df['Stat Type'].unique()
+            for idx, stat_type in enumerate(stat_types_in_data):
+                if stat_type in alt_line_manager.stat_market_mapping:
+                    progress_text = f"Fetching alternate lines for {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
+                    progress_val = 30 + int((idx + 1) / len(stat_types_in_data) * 20)
+                    progress_bar.progress(progress_val, text=progress_text)
+                    alt_line_manager.alternate_lines[stat_type] = alt_line_manager.fetch_alternate_lines_for_stat(stat_type)
+            
+            # Process all stat types and calculate scores
+            progress_bar.progress(50, text="Calculating scores for all props...")
+            all_props = []
+            
+            for idx, stat_type in enumerate(stat_types_in_data):
+                stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
+                
+                if stat_filtered_df.empty:
+                    continue
+                
+                progress_text = f"Processing {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
+                progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
+                progress_bar.progress(progress_val, text=progress_text)
+                
+                # Calculate scores for main lines
+                for _, row in stat_filtered_df.iterrows():
+                    score_data = scorer.calculate_comprehensive_score(
+                        row['Player'],
+                        row.get('Opposing Team Full', row['Opposing Team']),
+                        row['Stat Type'],
+                        row['Line'],
+                        row.get('Odds', 0)
+                    )
+                    
+                    # Calculate L5, Home, Away over rates, and Streak
+                    player_name = row['Player']
+                    line = row['Line']
+                    
+                    l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
+                    streak = data_processor.get_player_streak(player_name, stat_type, line)
+                    home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
+                    away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
+                    
+                    scored_prop = {
+                        **row.to_dict(),
+                        **score_data,
+                        'l5_over_rate': l5_over_rate,
+                        'home_over_rate': home_over_rate,
+                        'away_over_rate': away_over_rate,
+                        'streak': streak,
+                        'is_alternate': False
+                    }
+                    all_props.append(scored_prop)
+                    
+                    # Add alternate lines with odds between +200 and -450
+                    if stat_type in alt_line_manager.alternate_lines:
+                        player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
+                        
+                        for alt_line in player_alt_lines:
+                            alt_odds = alt_line.get('odds', 0)
+                            
+                            if -450 <= alt_odds <= 200:
+                                alt_score_data = scorer.calculate_comprehensive_score(
+                                    player_name,
+                                    row.get('Opposing Team Full', row['Opposing Team']),
+                                    stat_type,
+                                    alt_line['line'],
+                                    alt_line['odds']
+                                )
+                                
+                                alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
+                                alt_streak = data_processor.get_player_streak(player_name, stat_type, alt_line['line'])
+                                alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
+                                alt_away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, alt_line['line'])
+                                
+                                alt_prop = {
+                                    **row.to_dict(),
+                                    'Line': alt_line['line'],
+                                    'Odds': alt_line['odds'],
+                                    **alt_score_data,
+                                    'l5_over_rate': alt_l5_over_rate,
+                                    'home_over_rate': alt_home_over_rate,
+                                    'away_over_rate': alt_away_over_rate,
+                                    'streak': alt_streak,
+                                    'is_alternate': True
+                                }
+                                all_props.append(alt_prop)
+            
+            progress_bar.progress(100, text="Complete!")
+            progress_bar.empty()  # Clear the progress bar
+            
+            # Cache the processed data
+            st.session_state.all_scored_props = all_props
+            
+            info_messages.append(('success', f"✅ Loaded {len(all_props)} total props from {len(odds_data)} games"))
         
         # Handle export if button was clicked
         if export_button:
-                with st.spinner("Generating export for all stat types..."):
-                    all_export_data = []
-                    
-                    # Fetch alternate lines for all stat types
-                    for stat_type in STAT_TYPES:
-                        if stat_type not in alt_line_manager.alternate_lines:
-                            with st.spinner(f"Fetching alternate lines for {stat_type}..."):
-                                alt_line_manager.alternate_lines[stat_type] = alt_line_manager.fetch_alternate_lines_for_stat(stat_type)
-                    
-                    # Process all stat types
-                    for stat_type in STAT_TYPES:
-                        stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
-                        
-                        if stat_filtered_df.empty:
-                            continue
-                        
-                        # Calculate scores for this stat type
-                        for _, row in stat_filtered_df.iterrows():
-                            score_data = scorer.calculate_comprehensive_score(
-                                row['Player'],
-                                row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
-                                row['Stat Type'],
-                                row['Line'],
-                                row.get('Odds', 0)
-                            )
-                            
-                            # Calculate L5 over rate for export
-                            player_name = row['Player']
-                            l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, row['Line'], n=5)
-                            
-                            export_row = {
-                                'Stat Type': stat_type,
-                                'Player': row['Player'],
-                                'Team': row['Team'],
-                                'Opposing Team': row['Opposing Team'],
-                                'Line': row['Line'],
-                                'Odds': row.get('Odds', 0),
-                                'Team Rank': score_data['team_rank'],
-                                'Score': score_data['total_score'],
-                                'L5': f"{l5_over_rate*100:.1f}%",
-                                'Over Rate': f"{score_data['over_rate']*100:.1f}%",
-                                'Player Avg': f"{score_data['player_avg']:.1f}",
-                                'Is Alternate': False
-                            }
-                            all_export_data.append(export_row)
-                            
-                            # Add ALL alternate lines with odds between +200 and -450
-                            player_name = row['Player']
-                            if stat_type in alt_line_manager.alternate_lines:
-                                player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
-                                
-                                # Filter alternate lines by odds criteria
-                                for alt_line in player_alt_lines:
-                                    alt_odds = alt_line.get('odds', 0)
-                                    
-                                    # Check if odds are between +200 and -450
-                                    if -400 <= alt_odds <= 200:
-                                        alt_score_data = scorer.calculate_comprehensive_score(
-                                            player_name,
-                                            row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
-                                            stat_type,
-                                            alt_line['line'],
-                                            alt_line['odds']
-                                        )
-                                        
-                                        # Calculate L5 for alternate line
-                                        alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
-                                        
-                                        alt_export_row = {
-                                            'Stat Type': stat_type,
-                                            'Player': player_name,
-                                            'Team': row['Team'],
-                                            'Opposing Team': row['Opposing Team'],
-                                            'Line': alt_line['line'],
-                                            'Odds': alt_line['odds'],
-                                            'Team Rank': alt_score_data['team_rank'],
-                                            'Score': alt_score_data['total_score'],
-                                            'L5': f"{alt_l5_over_rate*100:.1f}%",
-                                            'Over Rate': f"{alt_score_data['over_rate']*100:.1f}%",
-                                            'Player Avg': f"{alt_score_data['player_avg']:.1f}",
-                                            'Is Alternate': True
-                                        }
-                                        all_export_data.append(alt_export_row)
-                    
-                    # Create DataFrame and CSV
-                    export_df = pd.DataFrame(all_export_data)
-                    export_df = export_df.sort_values(['Stat Type', 'Player', 'Is Alternate'])
-                    
-                    # Format odds for export
-                    export_df['Odds'] = export_df['Odds'].apply(format_odds)
-                    
-                    csv = export_df.to_csv(index=False)
-                    
-                    # Show download button
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    st.download_button(
-                        label="⬇️ Download CSV",
-                        data=csv,
-                        file_name=f"nfl_props_export_{timestamp}.csv",
-                        mime="text/csv",
-                        type="primary"
-                    )
-                    
-                    st.success(f"✅ Export ready! {len(export_df)} total props (including alternates) across {len(STAT_TYPES)} stat types")
-        
-        # Filter by selected stat type
-        filtered_df = props_df[props_df['Stat Type'] == selected_stat].copy()
-        
-        if filtered_df.empty:
-            st.warning(f"No {selected_stat} props found.")
-            st.stop()
-        
-        # Pre-fetch alternate lines for the selected stat type (only if not cached)
-        if selected_stat not in alt_line_manager.alternate_lines:
-            with st.spinner(f"Fetching alternate lines for {selected_stat}..."):
-                # This will populate the cache for this stat type
-                if selected_stat in alt_line_manager.stat_market_mapping:
-                    alt_line_manager.alternate_lines[selected_stat] = alt_line_manager.fetch_alternate_lines_for_stat(selected_stat)
-                    info_messages.append(('success', f"✅ Cached alternate lines for {selected_stat}"))
-        else:
-            info_messages.append(('info', f"ℹ️ Using cached alternate lines for {selected_stat}"))
-        
-        # Calculate comprehensive scores
-        scored_props = []
-        alternate_line_props = []  # Store alternate line props separately
-        
-        for _, row in filtered_df.iterrows():
-            score_data = scorer.calculate_comprehensive_score(
-                row['Player'],
-                row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
-                row['Stat Type'],
-                row['Line'],
-                row.get('Odds', 0)
-            )
-            
-            # Calculate L5, Home, Away over rates, and Streak
-            player_name = row['Player']
-            stat_type = row['Stat Type']
-            line = row['Line']
-            
-            # Use data processor methods for all calculations
-            l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
-            streak = data_processor.get_player_streak(player_name, stat_type, line)
-            home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
-            away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
-            
-            scored_prop = {**row.to_dict(), **score_data, 'l5_over_rate': l5_over_rate, 
-                          'home_over_rate': home_over_rate, 'away_over_rate': away_over_rate, 'streak': streak}
-            scored_props.append(scored_prop)
-            
-            # Get ALL alternate lines with odds between +200 and -450
-            if stat_type in alt_line_manager.alternate_lines:
-                player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
+            with st.spinner("Generating export..."):
+                all_export_data = []
                 
-                # Filter alternate lines by odds criteria
-                for alt_line in player_alt_lines:
-                    alt_odds = alt_line.get('odds', 0)
-                    
-                    # Check if odds are between +200 and -450
-                    if -450 <= alt_odds <= 200:
-                        # Create alternate line prop row
-                        alt_score_data = scorer.calculate_comprehensive_score(
-                            player_name,
-                            row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
-                            stat_type,
-                            alt_line['line'],
-                            alt_line['odds']
-                        )
-                        
-                        # Calculate L5, streak, and home/away for alternate line using data processor
-                        alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
-                        alt_streak = data_processor.get_player_streak(player_name, stat_type, alt_line['line'])
-                        alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
-                        alt_away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, alt_line['line'])
-                        
-                        alt_prop = {
-                            **row.to_dict(),
-                            'Line': alt_line['line'],
-                            'Odds': alt_line['odds'],
-                            **alt_score_data,
-                            'l5_over_rate': alt_l5_over_rate,
-                            'home_over_rate': alt_home_over_rate,
-                            'away_over_rate': alt_away_over_rate,
-                            'streak': alt_streak,
-                            'is_alternate': True  # Flag to identify alternate lines
-                        }
-                        alternate_line_props.append(alt_prop)
+                # Convert all_props to export format
+                for prop in all_props:
+                    export_row = {
+                        'Stat Type': prop['Stat Type'],
+                        'Player': prop['Player'],
+                        'Team': prop['Team'],
+                        'Opposing Team': prop['Opposing Team'],
+                        'Line': prop['Line'],
+                        'Odds': format_odds(prop.get('Odds', 0)),
+                        'Team Rank': prop['team_rank'],
+                        'Score': prop['total_score'],
+                        'L5': f"{prop['l5_over_rate']*100:.1f}%",
+                        'Over Rate': f"{prop['over_rate']*100:.1f}%",
+                        'Player Avg': f"{prop['player_avg']:.1f}",
+                        'Is Alternate': prop.get('is_alternate', False)
+                    }
+                    all_export_data.append(export_row)
+                
+                # Create DataFrame and CSV
+                export_df = pd.DataFrame(all_export_data)
+                export_df = export_df.sort_values(['Stat Type', 'Player', 'Is Alternate'])
+                
+                csv = export_df.to_csv(index=False)
+                
+                # Show download button
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                st.download_button(
+                    label="⬇️ Download CSV",
+                    data=csv,
+                    file_name=f"nfl_props_export_{timestamp}.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
+                
+                stat_types_count = len(export_df['Stat Type'].unique())
+                st.success(f"✅ Export ready! {len(export_df)} total props (including alternates) across {stat_types_count} stat types")
         
-        # Combine main props and alternate line props
-        all_props = scored_props + alternate_line_props
-        
-        # Store info about alternate lines added
-        if alternate_line_props:
-            info_messages.append(('info', f"✨ Added {len(alternate_line_props)} alternate line(s) with odds between +200 and -450"))
-        
-        # Convert to DataFrame
+        # Prepare results dataframe
         results_df = pd.DataFrame(all_props)
         
-        # Add is_alternate flag if not present
-        if 'is_alternate' not in results_df.columns:
-            results_df['is_alternate'] = False
+        # Get available stat types
+        available_stat_types = sorted(results_df['Stat Type'].unique())
         
-        # Sort by Player name, then by is_alternate (False first, then True)
-        # This groups each player's main line with their alternate line
-        results_df = results_df.sort_values(['Player', 'is_alternate'], ascending=[True, True])
+        # Get available matchups
+        results_df['Matchup'] = results_df.apply(get_matchup_string, axis=1)
+        available_matchups = sorted([m for m in results_df['Matchup'].unique() if m is not None])
         
-        if results_df.empty:
-            st.warning(f"No props found matching the selected criteria.")
+        # Initialize session state for checkbox selections if not exists
+        if 'selected_stat_types' not in st.session_state:
+            st.session_state.selected_stat_types = {stat: True for stat in available_stat_types}
+        
+        if 'selected_games' not in st.session_state:
+            st.session_state.selected_games = {game: True for game in available_matchups}
+        
+        # Update session state with any new stat types or games
+        for stat in available_stat_types:
+            if stat not in st.session_state.selected_stat_types:
+                st.session_state.selected_stat_types[stat] = True
+        
+        for game in available_matchups:
+            if game not in st.session_state.selected_games:
+                st.session_state.selected_games[game] = True
+        
+        # Sidebar filters
+        with st.sidebar:
+            st.subheader("📊 Filters")
+            
+            # Stat Type filter with expander
+            with st.expander("🏈 Stat Types", expanded=False):
+                # Select All / Clear All buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Select All", key="select_all_stats", use_container_width=True):
+                        for stat in available_stat_types:
+                            st.session_state.selected_stat_types[stat] = True
+                        st.rerun()
+                with col2:
+                    if st.button("Clear All", key="clear_all_stats", use_container_width=True):
+                        for stat in available_stat_types:
+                            st.session_state.selected_stat_types[stat] = False
+                        st.rerun()
+                
+                st.markdown("---")
+                
+                # Individual checkboxes for stat types
+                for stat_type in available_stat_types:
+                    st.session_state.selected_stat_types[stat_type] = st.checkbox(
+                        stat_type,
+                        value=st.session_state.selected_stat_types.get(stat_type, True),
+                        key=f"stat_{stat_type}"
+                    )
+            
+            # Game filter with expander
+            with st.expander("🎮 Games", expanded=False):
+                # Select All / Clear All buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Select All", key="select_all_games", use_container_width=True):
+                        for game in available_matchups:
+                            st.session_state.selected_games[game] = True
+                        st.rerun()
+                with col2:
+                    if st.button("Clear All", key="clear_all_games", use_container_width=True):
+                        for game in available_matchups:
+                            st.session_state.selected_games[game] = False
+                        st.rerun()
+                
+                st.markdown("---")
+                
+                # Individual checkboxes for games
+                for game in available_matchups:
+                    st.session_state.selected_games[game] = st.checkbox(
+                        game,
+                        value=st.session_state.selected_games.get(game, True),
+                        key=f"game_{game}"
+                    )
+        
+        # Get selected items from session state
+        selected_stat_types = [stat for stat, selected in st.session_state.selected_stat_types.items() if selected]
+        selected_games = [game for game, selected in st.session_state.selected_games.items() if selected]
+        
+        # Filter by selected stat types
+        if selected_stat_types:
+            filtered_results_df = results_df[results_df['Stat Type'].isin(selected_stat_types)].copy()
+        else:
+            filtered_results_df = pd.DataFrame()
+        
+        # Filter by selected games
+        if selected_games and not filtered_results_df.empty:
+            # Filter to only include players from selected matchups
+            filtered_results_df = filtered_results_df[
+                filtered_results_df['Matchup'].isin(selected_games)
+            ].copy()
+        
+        # Update sidebar with stats after filtering
+        with st.sidebar:
+            st.markdown("---")
+            
+            # Show stats summary
+            st.metric("Stat Types Selected", f"{len(selected_stat_types)}/{len(available_stat_types)}")
+            st.metric("Games Selected", f"{len(selected_games)}/{len(available_matchups)}")
+            st.metric("Props Displayed", len(filtered_results_df))
+        
+        if filtered_results_df.empty:
+            st.warning("No props found matching the selected criteria.")
             st.stop()
+        
+        results_df = filtered_results_df
+        
+        # Drop the temporary Matchup column before displaying
+        if 'Matchup' in results_df.columns:
+            results_df = results_df.drop('Matchup', axis=1)
+        
+        # Sort by Stat Type, then Player name, then by is_alternate (False first, then True)
+        results_df = results_df.sort_values(['Stat Type', 'Player', 'is_alternate'], ascending=[True, True, True])
         
         # Format the display
         display_columns = [
-            'Player', 'Opposing Team', 'team_rank', 'total_score',
+            'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
             'Line', 'Odds', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
         ]
         
@@ -420,12 +525,15 @@ def main():
         
         # Rename columns for display
         display_df.columns = [
-            'Player', 'Opposing Team', 'Team Rank', 'Score',
+            'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
             'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26'
         ]
         
-        # Format the line display
-        display_df['Line'] = display_df['Line'].apply(lambda x: format_line(x, selected_stat))
+        # Format the line display (need to handle different stat types)
+        display_df['Line'] = display_df.apply(
+            lambda row: format_line(row['Line'], row['Stat Type']), 
+            axis=1
+        )
         
         # Format odds
         display_df['Odds'] = display_df['Odds'].apply(format_odds)
@@ -532,7 +640,7 @@ def main():
         styled_df = display_df.style.apply(apply_all_styles, axis=1)
         
         # Drop the numeric columns from display
-        display_columns_final = ['Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+        display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         
         # Display the results with styling
         st.dataframe(
