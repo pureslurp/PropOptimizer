@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 from typing import Dict, List
 from datetime import datetime
+import os
 
 # Import our custom modules
 from enhanced_data_processor import EnhancedFootballDataProcessor
@@ -14,6 +15,7 @@ from scoring_model import AdvancedPropScorer
 from odds_api import OddsAPI, AlternateLineManager
 from utils import clean_player_name, format_odds, format_line
 from config import ODDS_API_KEY, STAT_TYPES, CONFIDENCE_LEVELS, DEFAULT_MIN_SCORE, PREFERRED_BOOKMAKER
+from week_utils import get_current_week_from_schedule, get_available_weeks_with_data
 
 # Set page config
 st.set_page_config(
@@ -21,6 +23,83 @@ st.set_page_config(
     page_icon="🏈",
     layout="wide"
 )
+
+
+# Removed - now using get_available_weeks_with_data() from week_utils
+
+
+def load_historical_props_for_week(week_num):
+    """Load historical props data for a specific week"""
+    props_file = f"2025/WEEK{week_num}/props.csv"
+    
+    if not os.path.exists(props_file):
+        return pd.DataFrame()
+    
+    try:
+        df = pd.read_csv(props_file)
+        return df
+    except Exception as e:
+        print(f"Error loading historical props: {e}")
+        return pd.DataFrame()
+
+
+def load_box_score_for_week(week_num):
+    """Load box score data for a specific week"""
+    box_score_path = f"2025/WEEK{week_num}/box_score_debug.csv"
+    
+    if not os.path.exists(box_score_path):
+        return pd.DataFrame()
+    
+    try:
+        df = pd.read_csv(box_score_path)
+        # Clean player names to match the format used in props
+        df['Name_clean'] = df['Name'].apply(clean_player_name)
+        return df
+    except Exception as e:
+        print(f"Error loading box score: {e}")
+        return pd.DataFrame()
+
+
+def get_stat_column_mapping():
+    """Map stat types to box score column names"""
+    return {
+        "Passing Yards": "pass_Yds",
+        "Passing TDs": "pass_TD",
+        "Rushing Yards": "rush_Yds",
+        "Rushing TDs": "rush_TD",
+        "Receptions": "rec_Rec",
+        "Receiving Yards": "rec_Yds",
+        "Receiving TDs": "rec_TD"
+    }
+
+
+def get_actual_stat(player_name, stat_type, box_score_df):
+    """Get the actual stat value for a player from box score data"""
+    if box_score_df.empty:
+        return None
+    
+    stat_mapping = get_stat_column_mapping()
+    stat_column = stat_mapping.get(stat_type)
+    
+    if not stat_column:
+        return None
+    
+    # Clean the player name for matching
+    player_clean = clean_player_name(player_name)
+    
+    # Find the player in the box score
+    player_row = box_score_df[box_score_df['Name_clean'] == player_clean]
+    
+    if player_row.empty:
+        return None
+    
+    # Get the stat value
+    stat_value = player_row.iloc[0].get(stat_column)
+    
+    if pd.isna(stat_value):
+        return 0  # Return 0 if stat is NaN (player didn't have this stat)
+    
+    return stat_value
 
 
 def main():
@@ -64,6 +143,8 @@ def main():
             if 'odds_data_cache' in st.session_state:
                 del st.session_state.odds_data_cache
             st.rerun()
+    
+    with col3:
         export_button = st.button("📥 Export to CSV", type="secondary")
     
     st.subheader(f"Player Props - {selected_stat}")
@@ -119,110 +200,110 @@ def main():
         
         # Handle export if button was clicked
         if export_button:
-            with st.spinner("Generating export for all stat types..."):
-                all_export_data = []
-                
-                # Fetch alternate lines for all stat types
-                for stat_type in STAT_TYPES:
-                    if stat_type not in alt_line_manager.alternate_lines:
-                        with st.spinner(f"Fetching alternate lines for {stat_type}..."):
-                            alt_line_manager.alternate_lines[stat_type] = alt_line_manager.fetch_alternate_lines_for_stat(stat_type)
-                
-                # Process all stat types
-                for stat_type in STAT_TYPES:
-                    stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
+                with st.spinner("Generating export for all stat types..."):
+                    all_export_data = []
                     
-                    if stat_filtered_df.empty:
-                        continue
+                    # Fetch alternate lines for all stat types
+                    for stat_type in STAT_TYPES:
+                        if stat_type not in alt_line_manager.alternate_lines:
+                            with st.spinner(f"Fetching alternate lines for {stat_type}..."):
+                                alt_line_manager.alternate_lines[stat_type] = alt_line_manager.fetch_alternate_lines_for_stat(stat_type)
                     
-                    # Calculate scores for this stat type
-                    for _, row in stat_filtered_df.iterrows():
-                        score_data = scorer.calculate_comprehensive_score(
-                            row['Player'],
-                            row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
-                            row['Stat Type'],
-                            row['Line'],
-                            row.get('Odds', 0)
-                        )
+                    # Process all stat types
+                    for stat_type in STAT_TYPES:
+                        stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
                         
-                        # Calculate L5 over rate for export
-                        player_name = row['Player']
-                        l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, row['Line'], n=5)
+                        if stat_filtered_df.empty:
+                            continue
                         
-                        export_row = {
-                            'Stat Type': stat_type,
-                            'Player': row['Player'],
-                            'Team': row['Team'],
-                            'Opposing Team': row['Opposing Team'],
-                            'Line': row['Line'],
-                            'Odds': row.get('Odds', 0),
-                            'Team Rank': score_data['team_rank'],
-                            'Score': score_data['total_score'],
-                            'L5': f"{l5_over_rate*100:.1f}%",
-                            'Over Rate': f"{score_data['over_rate']*100:.1f}%",
-                            'Player Avg': f"{score_data['player_avg']:.1f}",
-                            'Is Alternate': False
-                        }
-                        all_export_data.append(export_row)
-                        
-                        # Add ALL alternate lines with odds between +200 and -450
-                        player_name = row['Player']
-                        if stat_type in alt_line_manager.alternate_lines:
-                            player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
+                        # Calculate scores for this stat type
+                        for _, row in stat_filtered_df.iterrows():
+                            score_data = scorer.calculate_comprehensive_score(
+                                row['Player'],
+                                row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
+                                row['Stat Type'],
+                                row['Line'],
+                                row.get('Odds', 0)
+                            )
                             
-                            # Filter alternate lines by odds criteria
-                            for alt_line in player_alt_lines:
-                                alt_odds = alt_line.get('odds', 0)
+                            # Calculate L5 over rate for export
+                            player_name = row['Player']
+                            l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, row['Line'], n=5)
+                            
+                            export_row = {
+                                'Stat Type': stat_type,
+                                'Player': row['Player'],
+                                'Team': row['Team'],
+                                'Opposing Team': row['Opposing Team'],
+                                'Line': row['Line'],
+                                'Odds': row.get('Odds', 0),
+                                'Team Rank': score_data['team_rank'],
+                                'Score': score_data['total_score'],
+                                'L5': f"{l5_over_rate*100:.1f}%",
+                                'Over Rate': f"{score_data['over_rate']*100:.1f}%",
+                                'Player Avg': f"{score_data['player_avg']:.1f}",
+                                'Is Alternate': False
+                            }
+                            all_export_data.append(export_row)
+                            
+                            # Add ALL alternate lines with odds between +200 and -450
+                            player_name = row['Player']
+                            if stat_type in alt_line_manager.alternate_lines:
+                                player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
                                 
-                                # Check if odds are between +200 and -450
-                                if -400 <= alt_odds <= 200:
-                                    alt_score_data = scorer.calculate_comprehensive_score(
-                                        player_name,
-                                        row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
-                                        stat_type,
-                                        alt_line['line'],
-                                        alt_line['odds']
-                                    )
+                                # Filter alternate lines by odds criteria
+                                for alt_line in player_alt_lines:
+                                    alt_odds = alt_line.get('odds', 0)
                                     
-                                    # Calculate L5 for alternate line
-                                    alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
-                                    
-                                    alt_export_row = {
-                                        'Stat Type': stat_type,
-                                        'Player': player_name,
-                                        'Team': row['Team'],
-                                        'Opposing Team': row['Opposing Team'],
-                                        'Line': alt_line['line'],
-                                        'Odds': alt_line['odds'],
-                                        'Team Rank': alt_score_data['team_rank'],
-                                        'Score': alt_score_data['total_score'],
-                                        'L5': f"{alt_l5_over_rate*100:.1f}%",
-                                        'Over Rate': f"{alt_score_data['over_rate']*100:.1f}%",
-                                        'Player Avg': f"{alt_score_data['player_avg']:.1f}",
-                                        'Is Alternate': True
-                                    }
-                                    all_export_data.append(alt_export_row)
-                
-                # Create DataFrame and CSV
-                export_df = pd.DataFrame(all_export_data)
-                export_df = export_df.sort_values(['Stat Type', 'Player', 'Is Alternate'])
-                
-                # Format odds for export
-                export_df['Odds'] = export_df['Odds'].apply(format_odds)
-                
-                csv = export_df.to_csv(index=False)
-                
-                # Show download button
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                st.download_button(
-                    label="⬇️ Download CSV",
-                    data=csv,
-                    file_name=f"nfl_props_export_{timestamp}.csv",
-                    mime="text/csv",
-                    type="primary"
-                )
-                
-                st.success(f"✅ Export ready! {len(export_df)} total props (including alternates) across {len(STAT_TYPES)} stat types")
+                                    # Check if odds are between +200 and -450
+                                    if -400 <= alt_odds <= 200:
+                                        alt_score_data = scorer.calculate_comprehensive_score(
+                                            player_name,
+                                            row.get('Opposing Team Full', row['Opposing Team']),  # Use full name for lookups
+                                            stat_type,
+                                            alt_line['line'],
+                                            alt_line['odds']
+                                        )
+                                        
+                                        # Calculate L5 for alternate line
+                                        alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
+                                        
+                                        alt_export_row = {
+                                            'Stat Type': stat_type,
+                                            'Player': player_name,
+                                            'Team': row['Team'],
+                                            'Opposing Team': row['Opposing Team'],
+                                            'Line': alt_line['line'],
+                                            'Odds': alt_line['odds'],
+                                            'Team Rank': alt_score_data['team_rank'],
+                                            'Score': alt_score_data['total_score'],
+                                            'L5': f"{alt_l5_over_rate*100:.1f}%",
+                                            'Over Rate': f"{alt_score_data['over_rate']*100:.1f}%",
+                                            'Player Avg': f"{alt_score_data['player_avg']:.1f}",
+                                            'Is Alternate': True
+                                        }
+                                        all_export_data.append(alt_export_row)
+                    
+                    # Create DataFrame and CSV
+                    export_df = pd.DataFrame(all_export_data)
+                    export_df = export_df.sort_values(['Stat Type', 'Player', 'Is Alternate'])
+                    
+                    # Format odds for export
+                    export_df['Odds'] = export_df['Odds'].apply(format_odds)
+                    
+                    csv = export_df.to_csv(index=False)
+                    
+                    # Show download button
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    st.download_button(
+                        label="⬇️ Download CSV",
+                        data=csv,
+                        file_name=f"nfl_props_export_{timestamp}.csv",
+                        mime="text/csv",
+                        type="primary"
+                    )
+                    
+                    st.success(f"✅ Export ready! {len(export_df)} total props (including alternates) across {len(STAT_TYPES)} stat types")
         
         # Filter by selected stat type
         filtered_df = props_df[props_df['Stat Type'] == selected_stat].copy()

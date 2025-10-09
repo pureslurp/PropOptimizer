@@ -5,6 +5,8 @@ A comprehensive Streamlit application for analyzing NFL player props using match
 ## Features
 
 - **Real-time Odds Integration**: Fetches player prop odds from The Odds API (FanDuel prioritized)
+- **Historical Props Database**: Save weekly props and view past performance with actual results
+- **Week Selection**: View current week props or review past weeks with color-coded outcomes
 - **Advanced Scoring Model**: Combines matchup data, player history, and betting value
 - **Interactive Dashboard**: Filter by stat type, score threshold, and confidence level
 - **Comprehensive Analysis**: Provides detailed breakdowns of scoring factors
@@ -30,6 +32,29 @@ A comprehensive Streamlit application for analyzing NFL player props using match
 
 ## Usage
 
+### Saving Weekly Props (New!) ⚠️ IMPORTANT
+
+**⚠️ CRITICAL: You MUST save props BEFORE games start each week. The Odds API only provides current props - once games are played, you cannot retrieve historical prop lines!**
+
+**Build a historical database by saving props each week:**
+
+```bash
+# Auto-detect current week and save props (run this weekly!)
+python3 save_weekly_props.py
+
+# Manually specify a week
+python3 save_weekly_props.py --week 6
+
+# Test without saving (dry run)
+python3 save_weekly_props.py --dry-run
+```
+
+**When to run:** Before games start each week (Tuesday-Friday recommended)
+
+**Data location:** Props are saved to `2025/WEEK{X}/props.csv` in each week's folder
+
+See [WEEKLY_PROPS_GUIDE.md](WEEKLY_PROPS_GUIDE.md) for detailed instructions.
+
 ### Main Interface
 
 1. **Select Stat Type**: Choose from:
@@ -41,15 +66,23 @@ A comprehensive Streamlit application for analyzing NFL player props using match
    - Receiving Yards
    - Receiving TDs
 
-2. **Apply Filters**:
+2. **Select Week**: 
+   - **Current Week (X)**: Live props from Odds API
+   - **Week 1, 2, 3...**: Historical props with actual results (requires saved data)
+
+3. **Apply Filters**:
    - **Minimum Score**: Filter results by score threshold (0-100)
    - **Confidence Level**: Filter by High/Medium/Low confidence predictions
 
-3. **View Results**: The dashboard displays:
+4. **View Results**: The dashboard displays:
    - Player name and opposing team
    - Team defensive ranking
+   - Prop line and odds
+   - **Actual stat** (past weeks only): Color-coded result vs. prop line
+     - 🟢 Green = went OVER the line
+     - 🔴 Red = went UNDER the line
    - Overall score (0-100)
-   - Line and odds
+   - Key statistics: L5, Home/Away performance, Season over rate
    - Confidence level
    - Historical over rate
    - Analysis summary
