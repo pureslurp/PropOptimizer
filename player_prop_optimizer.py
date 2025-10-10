@@ -656,6 +656,76 @@ def main():
             elif msg_type == 'success':
                 st.success(msg_text)
         
+        # Function to display prop picks based on score threshold
+        def display_prop_picks(df, score_min, score_max, odds_min=-400, odds_max=-150):
+            """Display top 5 props based on score threshold with parlay odds"""
+            # Filter: score in range and odds between odds_min and odds_max
+            filtered_df = df[
+                (df['total_score'] >= score_min) & 
+                (df['total_score'] < score_max) &
+                (df['Odds'] >= odds_min) & 
+                (df['Odds'] <= odds_max)
+            ].copy()
+            
+            if not filtered_df.empty:
+                # Keep only highest score per player+stat type combination
+                filtered_df = filtered_df.sort_values('total_score', ascending=False)
+                filtered_df = filtered_df.drop_duplicates(subset=['Player', 'Stat Type'], keep='first')
+                
+                # Get top 5
+                top_5 = filtered_df.head(5)
+                
+                # Display as condensed bullets
+                for _, row in top_5.iterrows():
+                    # Abbreviate stat type
+                    stat_abbrev = row['Stat Type'].replace('Passing Yards', 'PassYds') \
+                                                  .replace('Rushing Yards', 'RushYds') \
+                                                  .replace('Receiving Yards', 'RecYds') \
+                                                  .replace('Passing TDs', 'PassTD') \
+                                                  .replace('Rushing TDs', 'RushTD') \
+                                                  .replace('Receiving TDs', 'RecTD') \
+                                                  .replace('Receptions', 'Rec')
+                    
+                    st.markdown(f"• **{row['Player']}** {row['Line']}+ {stat_abbrev} {format_odds(row['Odds'])} odds")
+                
+                # Calculate parlay odds
+                parlay_decimal = 1.0
+                for _, row in top_5.iterrows():
+                    odds = row['Odds']
+                    # Convert American odds to decimal
+                    if odds < 0:
+                        decimal = 1 + (100 / abs(odds))
+                    else:
+                        decimal = 1 + (odds / 100)
+                    parlay_decimal *= decimal
+                
+                # Convert parlay decimal back to American odds
+                if parlay_decimal >= 2.0:
+                    parlay_american = int((parlay_decimal - 1) * 100)
+                    parlay_odds_str = f"+{parlay_american}"
+                else:
+                    parlay_american = int(-100 / (parlay_decimal - 1))
+                    parlay_odds_str = str(parlay_american)
+                
+                st.markdown(f"• **If Parlayed:** {parlay_odds_str} odds")
+            else:
+                st.markdown("*No props meet the criteria*")
+        
+        # Three prop strategy sections in columns
+        col_1, col_2, col_3 = st.columns(3)
+        
+        with col_1:
+            with st.expander("🎯 Optimal", expanded=False):
+                display_prop_picks(results_df, score_min=70, score_max=float('inf'))
+        
+        with col_2:
+            with st.expander("🧈 Greasy", expanded=False):
+                display_prop_picks(results_df, score_min=50, score_max=70)
+        
+        with col_3:
+            with st.expander("🎲 Degen", expanded=False):
+                display_prop_picks(results_df, score_min=0, score_max=50)
+        
         # Column Explanations Section
         with st.expander("📖 Column Explanations", expanded=False):
             st.markdown("""
