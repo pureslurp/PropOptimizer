@@ -19,12 +19,14 @@ warnings.filterwarnings('ignore')
 class EnhancedFootballDataProcessor:
     """Enhanced data processor that uses real FootballDB data"""
     
-    def __init__(self, data_dir: str = "data"):
+    def __init__(self, data_dir: str = "data", max_week: int = None):
         self.data_dir = data_dir
         self.team_defensive_stats = {}
+        self.historical_defensive_stats = {}  # Store historical defensive rankings
         self.player_season_stats = {}
         self.player_name_index = {}  # Index: cleaned_name -> actual_player_key
         self.current_week = self._get_current_week()
+        self.max_week = max_week  # Used for filtering historical data (None = use all weeks)
         self.schedule_data = self._load_schedule()
         
         # Create data directory if it doesn't exist
@@ -32,6 +34,10 @@ class EnhancedFootballDataProcessor:
         
         # Load cached data if available
         self._load_cached_data()
+        
+        # If max_week is set, load or calculate historical defensive rankings
+        if self.max_week is not None:
+            self._load_historical_defensive_rankings()
         
     def _get_current_week(self) -> int:
         """Get current NFL week"""
@@ -121,8 +127,21 @@ class EnhancedFootballDataProcessor:
             try:
                 with open(player_cache_file, 'rb') as f:
                     self.player_season_stats = pickle.load(f)
-                self._rebuild_player_name_index()
-                print(f"✅ Loaded cached player season stats")
+                
+                # Validate cache has week data (needed for historical filtering)
+                cache_has_weeks = False
+                if self.player_season_stats:
+                    # Check first player's data for week information
+                    first_player = next(iter(self.player_season_stats.values()))
+                    cache_has_weeks = any(key.endswith('_weeks') for key in first_player.keys())
+                
+                if not cache_has_weeks:
+                    print(f"⚠️ Cache is outdated (missing week tracking). Clearing cache...")
+                    self.player_season_stats = {}
+                    os.remove(player_cache_file)
+                else:
+                    self._rebuild_player_name_index()
+                    print(f"✅ Loaded cached player season stats")
             except Exception as e:
                 print(f"⚠️ Could not load player season cache: {e}")
     
@@ -135,6 +154,184 @@ class EnhancedFootballDataProcessor:
             print(f"💾 Cached {data_type} data")
         except Exception as e:
             print(f"⚠️ Could not save cache for {data_type}: {e}")
+    
+    def _load_historical_defensive_rankings(self):
+        """Load or calculate defensive rankings through max_week"""
+        if self.max_week is None:
+            return
+        
+        # Check cache first
+        cache_file = os.path.join(self.data_dir, f'defensive_rankings_week{self.max_week}.pkl')
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'rb') as f:
+                    self.historical_defensive_stats = pickle.load(f)
+                print(f"✅ Loaded historical defensive rankings for Week {self.max_week} from cache")
+                return
+            except Exception as e:
+                print(f"⚠️ Could not load historical defensive cache: {e}")
+        
+        # Calculate from box scores
+        print(f"📊 Calculating defensive rankings through Week {self.max_week-1}...")
+        self.historical_defensive_stats = self._calculate_defensive_rankings_through_week(self.max_week)
+        
+        # Save to cache
+        try:
+            with open(cache_file, 'wb') as f:
+                pickle.dump(self.historical_defensive_stats, f)
+            print(f"💾 Cached historical defensive rankings for Week {self.max_week}")
+        except Exception as e:
+            print(f"⚠️ Could not save historical defensive cache: {e}")
+    
+    def _calculate_defensive_rankings_through_week(self, target_week: int) -> Dict:
+        """
+        Calculate defensive rankings based on stats allowed through week N-1
+        
+        Args:
+            target_week: Calculate rankings through week N-1 (for predicting week N)
+        
+        Returns:
+            Dictionary of {team: {stat_type: rank}}
+        """
+        # Initialize defensive stats tracking
+        defensive_stats = {}
+        
+        # Process weeks 1 through target_week-1
+        for week in range(1, target_week):
+            box_score_path = f"2025/WEEK{week}/box_score_debug.csv"
+            
+            if not os.path.exists(box_score_path):
+                print(f"⚠️ Box score not found for Week {week}: {box_score_path}")
+                continue
+            
+            try:
+                df = pd.read_csv(box_score_path)
+                
+                # Get opponent mapping for this week from schedule
+                opponent_map = self._get_opponent_map_for_week(week)
+                
+                # For each player's stats, attribute them to the opposing defense
+                for _, row in df.iterrows():
+                    player_team = row.get('team', '')
+                    
+                    if not player_team or pd.isna(player_team):
+                        continue
+                    
+                    # Get opponent from mapping
+                    opponent = opponent_map.get(player_team)
+                    
+                    if not opponent or opponent == 'BYE':
+                        continue
+                    
+                    # Initialize opponent in defensive stats if not exists
+                    if opponent not in defensive_stats:
+                        defensive_stats[opponent] = {
+                            'Passing Yards Allowed': 0,
+                            'Passing TDs Allowed': 0,
+                            'Rushing Yards Allowed': 0,
+                            'Rushing TDs Allowed': 0,
+                            'games': 0
+                        }
+                    
+                    # Aggregate offensive stats as defensive stats allowed
+                    # Passing
+                    if pd.notna(row.get('pass_Yds')):
+                        defensive_stats[opponent]['Passing Yards Allowed'] += float(row['pass_Yds'])
+                    if pd.notna(row.get('pass_TD')):
+                        defensive_stats[opponent]['Passing TDs Allowed'] += float(row['pass_TD'])
+                    
+                    # Rushing
+                    if pd.notna(row.get('rush_Yds')):
+                        defensive_stats[opponent]['Rushing Yards Allowed'] += float(row['rush_Yds'])
+                    if pd.notna(row.get('rush_TD')):
+                        defensive_stats[opponent]['Rushing TDs Allowed'] += float(row['rush_TD'])
+                
+                # Count games per team (number of unique opponents they faced)
+                for team in opponent_map.keys():
+                    opponent = opponent_map.get(team)
+                    if opponent and opponent != 'BYE' and opponent in defensive_stats:
+                        defensive_stats[opponent]['games'] += 1
+                        
+            except Exception as e:
+                print(f"⚠️ Error processing Week {week} box score: {e}")
+                continue
+        
+        # Calculate rankings for each stat type
+        rankings = {}
+        
+        stat_types = ['Passing Yards Allowed', 'Passing TDs Allowed', 
+                     'Rushing Yards Allowed', 'Rushing TDs Allowed']
+        
+        for stat_type in stat_types:
+            # Create list of (team, average_stat) tuples
+            team_stats = []
+            for team, stats in defensive_stats.items():
+                if stats['games'] > 0:
+                    avg_stat = stats[stat_type] / stats['games']
+                    team_stats.append((team, avg_stat))
+            
+            # Sort by stat (ascending - lower is better for defense)
+            team_stats.sort(key=lambda x: x[1])
+            
+            # Assign ranks
+            for rank, (team, _) in enumerate(team_stats, 1):
+                if team not in rankings:
+                    rankings[team] = {}
+                rankings[team][stat_type] = rank
+        
+        print(f"✅ Calculated defensive rankings for {len(rankings)} teams through Week {target_week-1}")
+        return rankings
+    
+    def _get_opponent_map_for_week(self, week: int) -> Dict[str, str]:
+        """
+        Get mapping of team -> opponent for a specific week
+        First tries schedule data, then falls back to historical odds JSON files
+        
+        Args:
+            week: Week number
+            
+        Returns:
+            Dictionary mapping team name to opponent name
+        """
+        opponent_map = {}
+        
+        # Try schedule data first
+        if self.schedule_data is not None and not self.schedule_data.empty:
+            week_games = self.schedule_data[self.schedule_data['week'] == week]
+            
+            for _, game in week_games.iterrows():
+                home_team = game.get('home_team', '')
+                away_team = game.get('away_team', '')
+                
+                if home_team and away_team:
+                    opponent_map[home_team] = away_team
+                    opponent_map[away_team] = home_team
+            
+            if opponent_map:
+                return opponent_map
+        
+        # Fallback: Load from historical odds JSON files in game_data folder
+        game_data_path = f"2025/WEEK{week}/game_data"
+        if os.path.exists(game_data_path):
+            json_files = [f for f in os.listdir(game_data_path) if f.endswith('_historical_odds.json')]
+            
+            for json_file in json_files:
+                try:
+                    with open(os.path.join(game_data_path, json_file), 'r') as f:
+                        data = json.load(f)
+                    
+                    event_data = data.get('data', {})
+                    home_team = event_data.get('home_team', '')
+                    away_team = event_data.get('away_team', '')
+                    
+                    if home_team and away_team:
+                        opponent_map[home_team] = away_team
+                        opponent_map[away_team] = home_team
+                except Exception as e:
+                    continue
+        
+        return opponent_map
     
     def scrape_week_data(self, week: int, force_refresh: bool = False) -> Dict[str, pd.DataFrame]:
         """Load data for a specific week from existing files (no re-scraping)"""
@@ -281,12 +478,15 @@ class EnhancedFootballDataProcessor:
                         stat_data = stat_data.dropna(subset=[stat])
                         
                         if len(stat_data) > 0:
-                            # All games
+                            # All games - store both values and week numbers
                             player_stats[player][stat] = stat_data[stat].tolist()
+                            player_stats[player][f"{stat}_weeks"] = stat_data['week'].tolist()
                             
                             # Split by home/away
                             home_values = []
+                            home_weeks = []
                             away_values = []
+                            away_weeks = []
                             
                             for _, row in stat_data.iterrows():
                                 team = row['team']
@@ -296,15 +496,19 @@ class EnhancedFootballDataProcessor:
                                 is_home = self.is_home_game(team, week)
                                 if is_home == True:
                                     home_values.append(value)
+                                    home_weeks.append(week)
                                 elif is_home == False:
                                     away_values.append(value)
+                                    away_weeks.append(week)
                                 # If None (bye week or not found), we skip it
                             
-                            # Store home/away splits
+                            # Store home/away splits with week numbers
                             if home_values:
                                 player_stats[player][f"{stat}_home"] = home_values
+                                player_stats[player][f"{stat}_home_weeks"] = home_weeks
                             if away_values:
                                 player_stats[player][f"{stat}_away"] = away_values
+                                player_stats[player][f"{stat}_away_weeks"] = away_weeks
         
         self.player_season_stats = player_stats
         self._rebuild_player_name_index()
@@ -513,6 +717,11 @@ class EnhancedFootballDataProcessor:
     # Interface methods that match the original data processor
     def get_team_defensive_rank(self, team: str, stat_type: str) -> int:
         """Get team defensive ranking for a specific stat"""
+        # Use historical rankings if max_week is set and we have the data
+        if self.max_week is not None and self.historical_defensive_stats:
+            return self._get_historical_team_defensive_rank(team, stat_type)
+        
+        # Otherwise use season-long rankings
         if not self.team_defensive_stats:
             self.update_season_data()
         
@@ -542,6 +751,50 @@ class EnhancedFootballDataProcessor:
         
         return 16  # Default middle ranking if team not found
     
+    def _get_historical_team_defensive_rank(self, team: str, stat_type: str) -> int:
+        """Get historical defensive ranking for a team (used when max_week is set)"""
+        # Map stat types to defensive stat format
+        stat_mapping = {
+            'Passing Yards': 'Passing Yards Allowed',
+            'Passing TDs': 'Passing TDs Allowed',
+            'Rushing Yards': 'Rushing Yards Allowed',
+            'Rushing TDs': 'Rushing TDs Allowed',
+            'Receptions': 'Passing Yards Allowed',
+            'Receiving Yards': 'Passing Yards Allowed',
+            'Receiving TDs': 'Passing TDs Allowed'
+        }
+        
+        defensive_stat = stat_mapping.get(stat_type, stat_type + ' Allowed')
+        
+        # Look up in historical rankings
+        if team in self.historical_defensive_stats and defensive_stat in self.historical_defensive_stats[team]:
+            return self.historical_defensive_stats[team][defensive_stat]
+        
+        # Try case-insensitive matching
+        for team_name, stats in self.historical_defensive_stats.items():
+            if team_name.lower() == team.lower() and defensive_stat in stats:
+                return stats[defensive_stat]
+        
+        return 16  # Default middle ranking if team not found
+    
+    def _filter_games_by_week(self, games: list, weeks: list) -> list:
+        """
+        Filter games to include only those before max_week
+        
+        Args:
+            games: List of game stats
+            weeks: List of week numbers (same length as games)
+            
+        Returns:
+            Filtered list of games
+        """
+        if self.max_week is None or not weeks:
+            return games
+        
+        # Filter to only include games before max_week
+        filtered_games = [game for game, week in zip(games, weeks) if week < self.max_week]
+        return filtered_games if filtered_games else games  # Return all if filtered is empty
+    
     def get_player_over_rate(self, player: str, stat_type: str, line: float) -> float:
         """Calculate how often a player has gone over a specific line this season"""
         if not self.player_season_stats:
@@ -556,6 +809,11 @@ class EnhancedFootballDataProcessor:
         
         if player_key and stat_type in self.player_season_stats[player_key]:
             games = self.player_season_stats[player_key][stat_type]
+            weeks = self.player_season_stats[player_key].get(f"{stat_type}_weeks", [])
+            
+            # Filter by max_week if set
+            games = self._filter_games_by_week(games, weeks)
+            
             over_count = sum(1 for game_stat in games if game_stat > line)
             return over_count / len(games) if games else 0.5
         
@@ -577,6 +835,11 @@ class EnhancedFootballDataProcessor:
         
         if player_key and home_stat_key in self.player_season_stats[player_key]:
             games = self.player_season_stats[player_key][home_stat_key]
+            weeks = self.player_season_stats[player_key].get(f"{home_stat_key}_weeks", [])
+            
+            # Filter by max_week if set
+            games = self._filter_games_by_week(games, weeks)
+            
             over_count = sum(1 for game_stat in games if game_stat > line)
             return over_count / len(games) if games else 0.5
         
@@ -598,6 +861,11 @@ class EnhancedFootballDataProcessor:
         
         if player_key and away_stat_key in self.player_season_stats[player_key]:
             games = self.player_season_stats[player_key][away_stat_key]
+            weeks = self.player_season_stats[player_key].get(f"{away_stat_key}_weeks", [])
+            
+            # Filter by max_week if set
+            games = self._filter_games_by_week(games, weeks)
+            
             over_count = sum(1 for game_stat in games if game_stat > line)
             return over_count / len(games) if games else 0.5
         
@@ -683,11 +951,15 @@ class EnhancedFootballDataProcessor:
             return 0.5
         
         player_stats = self.player_season_stats[player_key][stat_type]
+        weeks = self.player_season_stats[player_key].get(f"{stat_type}_weeks", [])
+        
+        # Filter by max_week if set
+        player_stats = self._filter_games_by_week(player_stats, weeks)
         
         if not player_stats or len(player_stats) == 0:
             return 0.5
         
-        # Get the last N games
+        # Get the last N games (from filtered data)
         last_n_games = player_stats[-n:] if len(player_stats) >= n else player_stats
         
         # Calculate over rate
@@ -716,12 +988,16 @@ class EnhancedFootballDataProcessor:
             return 0
         
         player_stats = self.player_season_stats[player_key][stat_type]
+        weeks = self.player_season_stats[player_key].get(f"{stat_type}_weeks", [])
+        
+        # Filter by max_week if set
+        player_stats = self._filter_games_by_week(player_stats, weeks)
         
         if not player_stats or len(player_stats) == 0:
             return 0
         
         streak = 0
-        # Count backwards from most recent game
+        # Count backwards from most recent game (after filtering)
         for stat in reversed(player_stats):
             if stat > line:
                 streak += 1

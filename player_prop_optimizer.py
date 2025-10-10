@@ -10,6 +10,8 @@ from datetime import datetime
 import os
 import plotly.graph_objects as go
 import sys
+import json
+import glob
 
 # Import our custom modules
 from enhanced_data_processor import EnhancedFootballDataProcessor
@@ -100,6 +102,116 @@ def load_props_from_csv(week_num):
 def load_historical_props_for_week(week_num):
     """Load historical props data for a specific week (legacy function)"""
     return load_props_from_csv(week_num)
+
+
+def load_historical_props_from_game_data(week_num):
+    """
+    Load historical props from game_data folder JSON files
+    Returns DataFrame in the same format as API props_df
+    """
+    game_data_folder = f"2025/WEEK{week_num}/game_data"
+    
+    if not os.path.exists(game_data_folder):
+        return pd.DataFrame()
+    
+    # Market key mapping to stat types
+    market_to_stat_type = {
+        'player_pass_yds_alternate': 'Passing Yards',
+        'player_rush_yds_alternate': 'Rushing Yards',
+        'player_reception_yds_alternate': 'Receiving Yards',
+        'player_receptions_alternate': 'Receptions',
+        'player_pass_tds_alternate': 'Passing TDs',
+        'player_rush_tds_alternate': 'Rushing TDs',
+        'player_reception_tds_alternate': 'Receiving TDs'
+    }
+    
+    all_props = []
+    
+    # Load all JSON files from the game_data folder
+    json_files = glob.glob(os.path.join(game_data_folder, "*_historical_odds.json"))
+    
+    for json_file in json_files:
+        try:
+            with open(json_file, 'r') as f:
+                data = json.load(f)
+            
+            event_data = data.get('data', {})
+            home_team = event_data.get('home_team', '')
+            away_team = event_data.get('away_team', '')
+            commence_time = event_data.get('commence_time', '')
+            
+            # Process each bookmaker
+            for bookmaker in event_data.get('bookmakers', []):
+                bookmaker_key = bookmaker.get('key', '')
+                
+                # Process each market
+                for market in bookmaker.get('markets', []):
+                    market_key = market.get('key', '')
+                    stat_type = market_to_stat_type.get(market_key)
+                    
+                    if not stat_type:
+                        continue
+                    
+                    # Process each outcome (player prop)
+                    for outcome in market.get('outcomes', []):
+                        if outcome.get('name') != 'Over':
+                            continue
+                        
+                        player_name = outcome.get('description', '')
+                        line = outcome.get('point', 0)
+                        odds = outcome.get('price', 0)
+                        
+                        # Determine player's team and opposing team
+                        # We don't have this info directly, so we'll need to look it up
+                        # For now, we'll leave it blank and let the team assignment logic handle it
+                        
+                        prop_row = {
+                            'Player': player_name,
+                            'Team': '',  # Will be filled in later
+                            'Opposing Team': '',
+                            'Opposing Team Full': '',
+                            'Stat Type': stat_type,
+                            'Line': line,
+                            'Odds': odds,
+                            'Bookmaker': bookmaker_key,
+                            'Home Team': home_team,
+                            'Away Team': away_team,
+                            'Commence Time': commence_time,
+                            'is_alternate': True
+                        }
+                        
+                        all_props.append(prop_row)
+        
+        except Exception as e:
+            print(f"Error loading {json_file}: {e}")
+            continue
+    
+    if not all_props:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(all_props)
+    
+    # Filter odds between -450 and +200 (same as API mode)
+    df = df[(df['Odds'] >= -450) & (df['Odds'] <= 200)]
+    
+    return df
+
+
+def get_available_historical_weeks():
+    """
+    Get list of weeks that have historical game_data available
+    Returns list of week numbers
+    """
+    available_weeks = []
+    
+    for week in range(1, 19):  # NFL has 18 weeks
+        game_data_folder = f"2025/WEEK{week}/game_data"
+        if os.path.exists(game_data_folder):
+            json_files = glob.glob(os.path.join(game_data_folder, "*_historical_odds.json"))
+            if json_files:
+                available_weeks.append(week)
+    
+    return available_weeks
 
 
 def fetch_props_with_fallback(odds_api, progress_bar):
@@ -372,13 +484,70 @@ def main():
         """)
         st.stop()
     
-    # Initialize components
+    # Get current week and available historical weeks first
+    current_week_temp = get_current_week_from_schedule()
+    historical_weeks = get_available_historical_weeks()
+    
+    # Create week selector options
+    week_options = [f"Week {current_week_temp} (Current)"]
+    for week in sorted(historical_weeks, reverse=True):
+        if week != current_week_temp:
+            week_options.append(f"Week {week}")
+    
+    # Week selector dropdown at the top
+    selected_week_display = st.selectbox(
+        "📅 Select Week",
+        options=week_options,
+        index=0,
+        help="View current week props or historical data from previous weeks"
+    )
+    
+    # Extract week number from selection
+    selected_week = int(selected_week_display.split()[1])
+    is_historical = selected_week != current_week_temp
+    
+    # Initialize components with max_week for historical filtering
     odds_api = OddsAPI(ODDS_API_KEY)
-    data_processor = EnhancedFootballDataProcessor()
+    # For historical weeks, set max_week to the selected week so stats only include games before it
+    max_week_for_processor = selected_week if is_historical else None
+    data_processor = EnhancedFootballDataProcessor(max_week=max_week_for_processor)
     scorer = AdvancedPropScorer(data_processor)
     
     # Store odds_api in session state for accessing usage info
     st.session_state.odds_api = odds_api
+    
+    # Clear cache if week changes
+    if 'selected_week' not in st.session_state or st.session_state.selected_week != selected_week:
+        old_week = st.session_state.get('selected_week')
+        st.session_state.selected_week = selected_week
+        
+        # If switching FROM current week TO historical week, preserve current week data
+        if old_week == current_week_temp and is_historical:
+            # Save current week data before clearing
+            st.session_state.current_week_cache = {
+                'alt_line_manager': st.session_state.get('alt_line_manager'),
+                'all_scored_props': st.session_state.get('all_scored_props'),
+                'props_df_cache': st.session_state.get('props_df_cache'),
+                'odds_data_cache': st.session_state.get('odds_data_cache')
+            }
+        
+        # If switching TO current week FROM historical week, restore cached data
+        elif selected_week == current_week_temp and 'current_week_cache' in st.session_state:
+            # Restore current week data from cache
+            cache = st.session_state.current_week_cache
+            if cache.get('alt_line_manager') is not None:
+                st.session_state.alt_line_manager = cache['alt_line_manager']
+            if cache.get('all_scored_props') is not None:
+                st.session_state.all_scored_props = cache['all_scored_props']
+            if cache.get('props_df_cache') is not None:
+                st.session_state.props_df_cache = cache['props_df_cache']
+            if cache.get('odds_data_cache') is not None:
+                st.session_state.odds_data_cache = cache['odds_data_cache']
+        else:
+            # Clear all cached data when switching between different weeks
+            for key in ['alt_line_manager', 'all_scored_props', 'props_df_cache', 'odds_data_cache']:
+                if key in st.session_state:
+                    del st.session_state[key]
     
     # Sidebar configuration with control buttons
     with st.sidebar:
@@ -422,13 +591,33 @@ def main():
             all_props = st.session_state.all_scored_props
             odds_data = st.session_state.odds_data_cache
             alt_line_manager = st.session_state.alt_line_manager
-            info_messages.append(('info', f"ℹ️ Using cached data ({len(all_props)} total props)"))
+            
+            if is_historical:
+                info_messages.append(('info', f"ℹ️ Using cached Week {selected_week} historical data ({len(all_props)} total props)"))
+            else:
+                info_messages.append(('info', f"ℹ️ Using cached data ({len(all_props)} total props)"))
         else:
             # Fetch fresh data with progress bars
             progress_bar = st.progress(0, text="Fetching player props data...")
             
-            # Fetch props with automatic CSV fallback
-            props_df, odds_data, fallback_used = fetch_props_with_fallback(odds_api, progress_bar)
+            # Check if we're loading historical data
+            if is_historical:
+                progress_bar.progress(10, text=f"Loading Week {selected_week} historical data...")
+                props_df = load_historical_props_from_game_data(selected_week)
+                
+                if props_df.empty:
+                    st.error(f"❌ No historical data found for Week {selected_week}. Please check the game_data folder.")
+                    st.stop()
+                
+                # Update team assignments using data processor
+                props_df = odds_api.update_team_assignments(props_df, data_processor)
+                
+                fallback_used = True  # Treat as fallback mode
+                odds_data = []  # Empty for compatibility
+                progress_bar.progress(30, text=f"Loaded {len(props_df)} props from Week {selected_week} historical data...")
+            else:
+                # Fetch props with automatic CSV fallback
+                props_df, odds_data, fallback_used = fetch_props_with_fallback(odds_api, progress_bar)
             
             # Cache the raw data
             st.session_state.props_df_cache = props_df
@@ -439,7 +628,10 @@ def main():
             st.session_state.alt_line_manager = alt_line_manager
             
             # Handle alternate lines based on data source
-            if fallback_used:
+            if is_historical:
+                # Historical data already loaded, skip alternate line fetching
+                progress_bar.progress(40, text="Using historical alternate lines...")
+            elif fallback_used:
                 # CSV already has alternate lines, no need to fetch
                 progress_bar.progress(30, text="Using saved alternate lines from CSV...")
             else:
@@ -468,6 +660,28 @@ def main():
                 alt_line_manager, fallback_used, progress_bar
             )
             
+            # If viewing historical data, add actual results from box score
+            if is_historical:
+                progress_bar.progress(90, text="Loading actual results from box score...")
+                box_score_df = load_box_score_for_week(selected_week)
+                
+                if not box_score_df.empty:
+                    for prop in all_props:
+                        actual_stat = get_actual_stat(
+                            prop['Player'],
+                            prop['Stat Type'],
+                            box_score_df
+                        )
+                        prop['actual_result'] = actual_stat
+                else:
+                    # No box score data available
+                    for prop in all_props:
+                        prop['actual_result'] = None
+            else:
+                # Current week - no results yet
+                for prop in all_props:
+                    prop['actual_result'] = None
+            
             progress_bar.progress(100, text="Complete!")
             progress_bar.empty()
             
@@ -475,7 +689,9 @@ def main():
             st.session_state.all_scored_props = all_props
             
             # Add appropriate success message based on data source
-            if fallback_used:
+            if is_historical:
+                info_messages.append(('info', f"📜 Loaded {len(all_props)} historical props from Week {selected_week}"))
+            elif fallback_used:
                 current_week = get_current_week_from_schedule()
                 info_messages.append(('warning', f"📁 Loaded {len(all_props)} props from saved Week {current_week} CSV (API unavailable)"))
             else:
@@ -642,19 +858,36 @@ def main():
         # Sort by Score (descending), then by Stat Type and Player name
         results_df = results_df.sort_values(['total_score'], ascending=[False])
         
-        # Format the display
-        display_columns = [
-            'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
-            'Line', 'Odds', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
-        ]
+        # Format the display - include Result column if viewing historical data
+        if is_historical:
+            display_columns = [
+                'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
+                'Line', 'Odds', 'actual_result', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
+            ]
+        else:
+            display_columns = [
+                'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
+                'Line', 'Odds', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
+            ]
         
         display_df = results_df[display_columns].copy()
         
         # Rename columns for display
-        display_df.columns = [
-            'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
-            'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26'
-        ]
+        if is_historical:
+            display_df.columns = [
+                'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
+                'Line', 'Odds', 'Result', 'Streak', 'L5', 'Home', 'Away', '25/26'
+            ]
+        else:
+            display_df.columns = [
+                'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
+                'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26'
+            ]
+        
+        # Store numeric Line value BEFORE formatting (needed for Result comparison)
+        if is_historical and 'Result' in display_df.columns:
+            display_df['Line_numeric'] = display_df['Line'].copy()
+            display_df['Result_numeric'] = display_df['Result'].copy()
         
         # Format the line display (need to handle different stat types)
         display_df['Line'] = display_df.apply(
@@ -664,6 +897,13 @@ def main():
         
         # Format odds
         display_df['Odds'] = display_df['Odds'].apply(format_odds)
+        
+        # Format Result column if viewing historical data
+        if is_historical and 'Result' in display_df.columns:
+            # Format Result display - show as number or "-" if None
+            display_df['Result'] = display_df['Result'].apply(
+                lambda x: f"{x:.1f}" if pd.notna(x) and x is not None else "-"
+            )
         
         # Format Score as decimal with 2 decimal places
         display_df['Score_numeric'] = display_df['Score']  # Store for styling
@@ -736,6 +976,19 @@ def main():
                 except:
                     pass
             
+            # Style Result (green if over, red if under)
+            if 'Result_numeric' in row.index and 'Line_numeric' in row.index:
+                try:
+                    result = row['Result_numeric']
+                    line = row['Line_numeric']
+                    if pd.notna(result) and result is not None and pd.notna(line):
+                        if result > line:
+                            styles['Result'] = 'background-color: #d4edda; color: #155724'  # Green - hit over
+                        else:
+                            styles['Result'] = 'background-color: #f8d7da; color: #721c24'  # Red - missed
+                except:
+                    pass
+            
             # Style Streak (green if 3 or more consecutive overs)
             if 'Streak' in row.index:
                 try:
@@ -767,7 +1020,10 @@ def main():
         styled_df = display_df.style.apply(apply_all_styles, axis=1)
         
         # Drop the numeric columns from display
-        display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+        if is_historical:
+            display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Result', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+        else:
+            display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         
         # Display API usage info above the table
         usage_caption = f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)"
@@ -793,15 +1049,25 @@ def main():
         
         st.caption(usage_caption)
         
-        # Display the results with styling and selection
-        event = st.dataframe(
-            styled_df,
-            use_container_width=True,
-            hide_index=True,
-            column_order=display_columns_final,
-            on_select="rerun",
-            selection_mode="single-row"
-        )
+        # Display the results with styling and selection (disable selection for historical weeks)
+        if is_historical:
+            # Historical view - no row selection
+            event = st.dataframe(
+                styled_df,
+                use_container_width=True,
+                hide_index=True,
+                column_order=display_columns_final
+            )
+        else:
+            # Current week - enable row selection for detailed player analysis
+            event = st.dataframe(
+                styled_df,
+                use_container_width=True,
+                hide_index=True,
+                column_order=display_columns_final,
+                on_select="rerun",
+                selection_mode="single-row"
+            )
         
         # Display info messages below the table
         for msg_type, msg_text in info_messages:
@@ -812,8 +1078,8 @@ def main():
             elif msg_type == 'warning':
                 st.warning(msg_text)
         
-        # Display selected player details
-        if event.selection and event.selection.get("rows"):
+        # Display selected player details (only for current week)
+        if not is_historical and event.selection and event.selection.get("rows"):
             selected_row_idx = event.selection["rows"][0]
             
             # Get the selected row from the original results_df (before display formatting)
@@ -934,6 +1200,9 @@ def main():
                 # Get top 5
                 top_5 = filtered_df.head(5)
                 
+                # Track if all props hit (for parlay result)
+                all_props_hit = True
+                
                 # Display as condensed bullets
                 for _, row in top_5.iterrows():
                     # Abbreviate stat type
@@ -945,7 +1214,23 @@ def main():
                                                   .replace('Receiving TDs', 'RecTD') \
                                                   .replace('Receptions', 'Rec')
                     
-                    st.markdown(f"• **{row['Player']}** {row['Line']}+ {stat_abbrev} {format_odds(row['Odds'])} odds")
+                    # Check if historical and if we have actual result
+                    result_text = ""
+                    if is_historical and 'actual_result' in row and pd.notna(row['actual_result']) and row['actual_result'] is not None:
+                        actual = row['actual_result']
+                        line = row['Line']
+                        
+                        if actual > line:
+                            result_text = ' <span style="color: #28a745; font-weight: bold;">✓ HIT</span>'
+                        else:
+                            result_text = ' <span style="color: #dc3545; font-weight: bold;">✗ MISS</span>'
+                            all_props_hit = False
+                    elif is_historical:
+                        # Historical but no result available
+                        result_text = ' <span style="color: #6c757d;">? N/A</span>'
+                        all_props_hit = False
+                    
+                    st.markdown(f"• **{row['Player']}** {row['Line']}+ {stat_abbrev} {format_odds(row['Odds'])} odds{result_text}", unsafe_allow_html=True)
                 
                 # Calculate parlay odds
                 parlay_decimal = 1.0
@@ -966,7 +1251,15 @@ def main():
                     parlay_american = int(-100 / (parlay_decimal - 1))
                     parlay_odds_str = str(parlay_american)
                 
-                st.markdown(f"• **If Parlayed:** {parlay_odds_str} odds")
+                # Add parlay result indicator if historical
+                parlay_result = ""
+                if is_historical:
+                    if all_props_hit:
+                        parlay_result = ' <span style="color: #28a745; font-weight: bold; font-size: 1.2em;">✓</span>'
+                    else:
+                        parlay_result = ' <span style="color: #dc3545; font-weight: bold; font-size: 1.2em;">✗</span>'
+                
+                st.markdown(f"• **If Parlayed:** {parlay_odds_str} odds{parlay_result}", unsafe_allow_html=True)
             else:
                 st.markdown("*No props meet the criteria*")
         

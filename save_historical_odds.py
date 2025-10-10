@@ -30,10 +30,30 @@ class HistoricalOddsSaver:
         print(f"   💳 Cost: {requests_last} credits | Remaining: {self.requests_remaining}")
     
     def get_week_folder(self, week_number: int) -> str:
-        """Get the folder path for a given week"""
-        folder = os.path.join(self.base_year, f"WEEK{week_number}")
+        """Get the folder path for a given week with game_data subfolder"""
+        folder = os.path.join(self.base_year, f"WEEK{week_number}", "game_data")
         os.makedirs(folder, exist_ok=True)
         return folder
+    
+    def game_data_exists(self, week_number: int, event_id: str) -> bool:
+        """
+        Check if game data already exists for the given event ID
+        
+        Args:
+            week_number: Week number
+            event_id: Event ID to check
+        
+        Returns:
+            True if a file with this event_id prefix exists
+        """
+        folder = self.get_week_folder(week_number)
+        
+        # Check if any file starts with the event_id
+        if os.path.exists(folder):
+            for filename in os.listdir(folder):
+                if filename.startswith(event_id) and filename.endswith('.json'):
+                    return True
+        return False
     
     def get_historical_events(self, commence_from: str, commence_to: str) -> List[Dict]:
         """
@@ -211,6 +231,7 @@ class HistoricalOddsSaver:
         print("-" * 100)
         
         saved_files = []
+        skipped_files = []
         total_cost = 0
         
         for idx, event in enumerate(events, 1):
@@ -227,6 +248,15 @@ class HistoricalOddsSaver:
             print(f"\n[{idx}/{len(events)}] {away_team} @ {home_team}")
             print(f"   Event ID: {event_id}")
             print(f"   Game Time: {commence_time_str}")
+            
+            # Check if data already exists for this game
+            if self.game_data_exists(week_number, event_id):
+                print(f"   ⏭️  SKIPPED: Data already exists for this game")
+                skipped_files.append({
+                    'event_id': event_id,
+                    'game': f"{away_team} @ {home_team}"
+                })
+                continue
             
             # Calculate odds fetch time (X hours before game)
             try:
@@ -275,6 +305,7 @@ class HistoricalOddsSaver:
         print(f"   Week: {week_number}")
         print(f"   Events Processed: {len(events)}")
         print(f"   Files Saved: {len(saved_files)}")
+        print(f"   Files Skipped: {len(skipped_files)}")
         print(f"   Location: {self.get_week_folder(week_number)}")
         
         if self.requests_used and self.requests_remaining:
@@ -287,10 +318,16 @@ class HistoricalOddsSaver:
             except:
                 pass
         
-        print(f"\n📁 Saved Files:")
-        for file_info in saved_files:
-            print(f"   ✓ {os.path.basename(file_info['filepath'])}")
-            print(f"     {file_info['game']}")
+        if skipped_files:
+            print(f"\n⏭️  Skipped Games (already have data):")
+            for file_info in skipped_files:
+                print(f"   • {file_info['game']}")
+        
+        if saved_files:
+            print(f"\n📁 Newly Saved Files:")
+            for file_info in saved_files:
+                print(f"   ✓ {os.path.basename(file_info['filepath'])}")
+                print(f"     {file_info['game']}")
         
         return {
             'success': True,
@@ -338,8 +375,8 @@ def main():
     print(f"\n📅 Available weeks: {', '.join(map(str, available_weeks))}")
     
     # CONFIGURATION - UPDATE THESE VALUES
-    week_number = 5  # ← Change this to the week you want
-    max_games = 1    # ← Set to None to fetch ALL games, or 1 for testing
+    week_number = 4  # ← Change this to the week you want
+    max_games = None    # ← Set to None to fetch ALL games, 2 for initial testing, then 3, then None
     
     # Get week start date from utils
     week_start_date = get_week_start_date(week_number)
@@ -353,12 +390,14 @@ def main():
     print(f"   Start Date: {week_start_date}")
     print(f"   Note: Game count will be determined by the events API (1 credit)")
     
-    if max_games == 1:
-        print(f"\n🧪 TEST MODE - Fetching only 1 game")
-        print(f"   Estimated Cost: ~51 credits (1 for events + 50 for odds)")
+    if max_games and max_games <= 3:
+        print(f"\n🧪 TEST MODE - Fetching only {max_games} game(s)")
+        print(f"   Estimated Cost: ~1 credit for events + 50 per game = ~{1 + (max_games * 50)} credits")
+        print(f"   Note: Games with existing data will be skipped automatically")
     else:
         print(f"\n🚀 FULL MODE - Fetching all games for the week")
         print(f"   Estimated Cost: ~1 credit for events + 50 per game")
+        print(f"   Note: Games with existing data will be skipped automatically")
     
     # Confirm if fetching all games
     if max_games is None or max_games > 1:
@@ -381,10 +420,18 @@ def main():
     
     if result['success']:
         print(f"\n✅ Complete! Check the folder: {result['folder']}")
-        if max_games == 1:
-            print(f"\n💡 To fetch ALL games for this week:")
-            print(f"   1. Edit the script and change: max_games = None")
-            print(f"   2. Re-run the script")
+        if max_games and max_games <= 3:
+            print(f"\n💡 Next steps:")
+            if max_games == 2:
+                print(f"   ✓ You just tested with 2 games")
+                print(f"   → To test with 3 games, change: max_games = 3")
+                print(f"   → To fetch ALL remaining games, change: max_games = None")
+            elif max_games == 3:
+                print(f"   ✓ You just tested with 3 games")
+                print(f"   → To fetch ALL remaining games, change: max_games = None")
+            else:
+                print(f"   → To fetch ALL remaining games, change: max_games = None")
+            print(f"   → Already fetched games will be skipped automatically")
 
 
 if __name__ == "__main__":

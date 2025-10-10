@@ -1,0 +1,1426 @@
+{
+  "timestamp": "2025-10-05T11:30:38Z",
+  "previous_timestamp": "2025-10-05T11:25:38Z",
+  "next_timestamp": "2025-10-05T11:35:38Z",
+  "data": {
+    "id": "6e206c7bc9379b07d27298a393305384",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2025-10-05T13:31:00Z",
+    "home_team": "Cleveland Browns",
+    "away_team": "Minnesota Vikings",
+    "bookmakers": [
+      {
+        "key": "fanduel",
+        "title": "FanDuel",
+        "last_update": "2025-10-05T11:30:10Z",
+        "markets": [
+          {
+            "key": "player_pass_tds_alternate",
+            "last_update": "2025-10-05T11:31:03Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": -320,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 182,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 700,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -158,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 370,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 1400,
+                "point": 2.5
+              }
+            ]
+          },
+          {
+            "key": "player_pass_yds_alternate",
+            "last_update": "2025-10-05T11:31:03Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": -850,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": -400,
+                "point": 149.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": -198,
+                "point": 174.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 102,
+                "point": 199.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 194,
+                "point": 224.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 350,
+                "point": 249.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 630,
+                "point": 274.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 1000,
+                "point": 299.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 1700,
+                "point": 324.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -1200,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -470,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -215,
+                "point": 149.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -102,
+                "point": 174.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 194,
+                "point": 199.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 360,
+                "point": 224.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 640,
+                "point": 249.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 1100,
+                "point": 274.5
+              }
+            ]
+          },
+          {
+            "key": "player_reception_yds_alternate",
+            "last_update": "2025-10-05T11:31:03Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -850,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -430,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -260,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -164,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -108,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": 180,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": 320,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": 540,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -400,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -186,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 100,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 162,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 250,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 350,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": -225,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 102,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 186,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 300,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 450,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 630,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": -205,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 102,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 176,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 280,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 400,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 560,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 1060,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": -750,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": -390,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": -230,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": -156,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": -104,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": 182,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": 320,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": 540,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -1100,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -480,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -280,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -164,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -104,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 144,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 215,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 300,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 430,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 700,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 1400,
+                "point": 149.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -1800,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -850,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -500,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -330,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -230,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -125,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 134,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 215,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 320,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 480,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 700,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 1060,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 1400,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -1600,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -620,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -340,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -220,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -150,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -106,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 176,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 285,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 440,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 680,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 1060,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 1400,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": -1600,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": -560,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": -320,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": -188,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": -122,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": 122,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": 235,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": 430,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": 750,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerome Ford",
+                "price": -210,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerome Ford",
+                "price": 102,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerome Ford",
+                "price": 182,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerome Ford",
+                "price": 290,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Adam Thielen",
+                "price": -150,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Adam Thielen",
+                "price": 132,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Adam Thielen",
+                "price": 230,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Adam Thielen",
+                "price": 360,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Adam Thielen",
+                "price": 540,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Adam Thielen",
+                "price": 800,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Adam Thielen",
+                "price": 1400,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -1800,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -900,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -520,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -350,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -260,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -140,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 124,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 190,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 285,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 400,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 600,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 830,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 1100,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 1500,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": -320,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": -166,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 100,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 154,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 230,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 310,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 560,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 900,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 1400,
+                "point": 59.5
+              }
+            ]
+          },
+          {
+            "key": "player_receptions_alternate",
+            "last_update": "2025-10-05T11:31:03Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -420,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": -138,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 178,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 370,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Isaiah Bond",
+                "price": 750,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": -550,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": -188,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": 134,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": 280,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "David Njoku",
+                "price": 550,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -1450,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -270,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 108,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 235,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 490,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 880,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": -550,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": -120,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 230,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 550,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -1200,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -320,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": -125,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 178,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 350,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Addison",
+                "price": 640,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -850,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -260,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": -102,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": 205,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "T.J. Hockenson",
+                "price": 390,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -1100,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -320,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": -130,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 174,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 350,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Jerry Jeudy",
+                "price": 640,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": -650,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": -205,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": 118,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": 250,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Harold Fannin Jr.",
+                "price": 520,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -670,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -275,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": -138,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 140,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 240,
+                "point": 7.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 410,
+                "point": 8.5
+              },
+              {
+                "name": "Over",
+                "description": "Justin Jefferson",
+                "price": 680,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": -490,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": -106,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 280,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Jalen Nailor",
+                "price": 700,
+                "point": 3.5
+              }
+            ]
+          },
+          {
+            "key": "player_rush_yds_alternate",
+            "last_update": "2025-10-05T11:31:03Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": -440,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": -174,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 112,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 188,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 280,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 410,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 800,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Zavier Scott",
+                "price": 1260,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -900,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -310,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": -146,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 120,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 198,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Dillon Gabriel",
+                "price": 310,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -1100,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -470,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -250,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": -154,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 104,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 162,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 235,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 350,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 580,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Quinshon Judkins",
+                "price": 1200,
+                "point": 149.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": -1200,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": -450,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": -240,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": -136,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 124,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 194,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 280,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 410,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 630,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Jordan Mason",
+                "price": 920,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": -230,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 102,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 194,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 320,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Carson Wentz",
+                "price": 550,
+                "point": 24.5
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
