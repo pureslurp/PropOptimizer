@@ -377,6 +377,9 @@ def main():
     data_processor = EnhancedFootballDataProcessor()
     scorer = AdvancedPropScorer(data_processor)
     
+    # Store odds_api in session state for accessing usage info
+    st.session_state.odds_api = odds_api
+    
     # Sidebar configuration with control buttons
     with st.sidebar:
         st.header("⚙️ Settings")
@@ -407,9 +410,6 @@ def main():
             export_button = st.button("Export to CSV", type="secondary", use_container_width=True)
         
         st.markdown("---")
-    
-    st.caption(f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)")
-    
     
     # Fetch and display data
     try:
@@ -768,6 +768,30 @@ def main():
         
         # Drop the numeric columns from display
         display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+        
+        # Display API usage info above the table
+        usage_caption = f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)"
+        
+        # Get usage info from odds_api or alt_line_manager
+        if 'all_scored_props' in st.session_state and 'alt_line_manager' in st.session_state:
+            alt_line_manager = st.session_state.alt_line_manager
+            usage_info = alt_line_manager.get_usage_info()
+            
+            if usage_info.get('requests_used') and usage_info.get('requests_remaining'):
+                used = usage_info['requests_used']
+                remaining = usage_info['requests_remaining']
+                total = usage_info.get('total_quota', int(used) + int(remaining))
+                percentage = usage_info.get('percentage_used', 0)
+                
+                # Add usage to caption with color coding
+                if percentage > 80:
+                    usage_caption += f" • 🔴 API Usage: {used}/{total} ({percentage:.1f}%) - {remaining} remaining"
+                elif percentage > 50:
+                    usage_caption += f" • 🟡 API Usage: {used}/{total} ({percentage:.1f}%) - {remaining} remaining"
+                else:
+                    usage_caption += f" • 🟢 API Usage: {used}/{total} ({percentage:.1f}%) - {remaining} remaining"
+        
+        st.caption(usage_caption)
         
         # Display the results with styling and selection
         event = st.dataframe(

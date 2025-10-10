@@ -357,6 +357,9 @@ class AlternateLineManager:
         self.base_url = "https://api.the-odds-api.com/v4"
         self.alternate_lines = {}
         self.odds_data = odds_data or []
+        self.requests_used = None
+        self.requests_remaining = None
+        self.last_request_time = None
         
         # Map stat types to alternate market names
         self.stat_market_mapping = {
@@ -368,6 +371,33 @@ class AlternateLineManager:
             'Rushing TDs': 'player_rush_tds_alternate',
             'Receiving TDs': 'player_reception_tds_alternate'
         }
+    
+    def _update_usage_from_headers(self, headers):
+        """Update usage statistics from API response headers"""
+        self.requests_used = headers.get('x-requests-used')
+        self.requests_remaining = headers.get('x-requests-remaining')
+        self.last_request_time = headers.get('x-requests-last')
+    
+    def get_usage_info(self) -> Dict:
+        """Get current API usage information"""
+        usage_info = {
+            'requests_used': self.requests_used,
+            'requests_remaining': self.requests_remaining,
+            'last_request_time': self.last_request_time
+        }
+        
+        # Calculate percentage if we have the data
+        if self.requests_used and self.requests_remaining:
+            try:
+                used = int(self.requests_used)
+                remaining = int(self.requests_remaining)
+                total = used + remaining
+                usage_info['total_quota'] = total
+                usage_info['percentage_used'] = (used / total) * 100 if total > 0 else 0
+            except ValueError:
+                pass
+        
+        return usage_info
     
     def fetch_all_alternate_lines_optimized(self, bookmaker: str = 'fanduel', progress_callback=None) -> Dict[str, Dict]:
         """
@@ -425,6 +455,9 @@ class AlternateLineManager:
                 }
                 
                 response = requests.get(odds_url, params=odds_params, timeout=30)
+                
+                # Update usage info from response headers
+                self._update_usage_from_headers(response.headers)
                 
                 if response.status_code == 200:
                     event_data = response.json()
