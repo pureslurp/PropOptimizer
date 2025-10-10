@@ -387,11 +387,6 @@ def main():
     st.title("🏈 NFL Player Prop Optimizer")
     st.markdown("Analyze NFL player props using matchup data and player history")
     
-    # Sidebar configuration
-    with st.sidebar:
-        st.header("⚙️ Settings")
-        st.markdown("---")
-    
     # Check if API key is configured
     if ODDS_API_KEY == "YOUR_API_KEY_HERE":
         st.error("⚠️ API Key not configured!")
@@ -408,29 +403,36 @@ def main():
     data_processor = EnhancedFootballDataProcessor()
     scorer = AdvancedPropScorer(data_processor)
     
-    # Control buttons at the top
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        if st.button("🔄 Refresh", type="primary"):
-            # Clear all cached data on refresh
-            if 'alt_line_manager' in st.session_state:
-                del st.session_state.alt_line_manager
-            if 'all_scored_props' in st.session_state:
-                del st.session_state.all_scored_props
-            if 'props_df_cache' in st.session_state:
-                del st.session_state.props_df_cache
-            if 'odds_data_cache' in st.session_state:
-                del st.session_state.odds_data_cache
-            # Clear filter selections
-            if 'selected_stat_types' in st.session_state:
-                del st.session_state.selected_stat_types
-            if 'selected_games' in st.session_state:
-                del st.session_state.selected_games
-            st.rerun()
-    
-    with col2:
-        export_button = st.button("📥 Export to CSV", type="secondary")
+    # Sidebar configuration with control buttons
+    with st.sidebar:
+        st.header("⚙️ Settings")
+        st.markdown("---")
+        
+        # Control buttons
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            if st.button("🔄 Refresh", type="primary", use_container_width=True):
+                # Clear all cached data on refresh
+                if 'alt_line_manager' in st.session_state:
+                    del st.session_state.alt_line_manager
+                if 'all_scored_props' in st.session_state:
+                    del st.session_state.all_scored_props
+                if 'props_df_cache' in st.session_state:
+                    del st.session_state.props_df_cache
+                if 'odds_data_cache' in st.session_state:
+                    del st.session_state.odds_data_cache
+                # Clear filter selections
+                if 'selected_stat_types' in st.session_state:
+                    del st.session_state.selected_stat_types
+                if 'selected_games' in st.session_state:
+                    del st.session_state.selected_games
+                st.rerun()
+        
+        with col2:
+            export_button = st.button("Export to CSV", type="secondary", use_container_width=True)
+        
+        st.markdown("---")
     
     st.caption(f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)")
     
