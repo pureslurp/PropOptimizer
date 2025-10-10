@@ -185,7 +185,9 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                     row.get('Opposing Team Full', row['Opposing Team']),
                     row['Stat Type'],
                     row['Line'],
-                    row.get('Odds', 0)
+                    row.get('Odds', 0),
+                    home_team=row.get('Home Team'),
+                    away_team=row.get('Away Team')
                 )
                 
                 # score_data already includes l5_over_rate, home_over_rate, away_over_rate, and streak
@@ -218,7 +220,9 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                         row.get('Opposing Team Full', row['Opposing Team']),
                         row['Stat Type'],
                         row['Line'],
-                        odds
+                        odds,
+                        home_team=row.get('Home Team'),
+                        away_team=row.get('Away Team')
                     )
                     
                     scored_prop = {

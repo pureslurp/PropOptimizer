@@ -18,7 +18,9 @@ class AdvancedPropScorer:
                                     opposing_team: str, 
                                     stat_type: str, 
                                     line: float,
-                                    odds: float = 0) -> Dict:
+                                    odds: float = 0,
+                                    home_team: str = None,
+                                    away_team: str = None) -> Dict:
         """
         Calculate a comprehensive score for a player prop
         
@@ -28,6 +30,8 @@ class AdvancedPropScorer:
             stat_type: Type of stat (e.g., "Passing Yards")
             line: The line to beat
             odds: American odds format
+            home_team: Home team name (optional, from API data)
+            away_team: Away team name (optional, from API data)
             
         Returns:
             Dictionary with score breakdown and analysis
@@ -38,8 +42,16 @@ class AdvancedPropScorer:
         
         # Get player's team and determine home/away status
         player_team = self.data_processor.get_player_team(player)
-        week = self.data_processor.get_week_from_matchup(player_team, opposing_team)
-        is_home = self.data_processor.is_home_game(player_team, week) if week else None
+        week = None  # Initialize week variable
+        
+        # Determine if home game - use API data if available
+        if home_team and away_team and player_team:
+            # Player is home if their team matches the home_team
+            is_home = (player_team == home_team)
+        else:
+            # Fallback to old method (requires nfl_schedule.csv - will be None if missing)
+            week = self.data_processor.get_week_from_matchup(player_team, opposing_team)
+            is_home = self.data_processor.is_home_game(player_team, week) if week else None
         
         # Get player statistics
         season_over_rate = self.data_processor.get_player_over_rate(player, stat_type, line)
@@ -263,7 +275,9 @@ class AdvancedPropScorer:
                 prop['Opposing Team'],
                 prop['Stat Type'],
                 prop['Line'],
-                prop.get('Odds', 0)
+                prop.get('Odds', 0),
+                home_team=prop.get('Home Team'),
+                away_team=prop.get('Away Team')
             )
             
             scored_prop = {**prop, **score_data}

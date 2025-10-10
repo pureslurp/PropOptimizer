@@ -42,7 +42,7 @@ class EnhancedFootballDataProcessor:
         return min(max(1, weeks_elapsed), 18)  # NFL regular season is 18 weeks max
     
     def _load_schedule(self) -> pd.DataFrame:
-        """Load the NFL schedule from CSV"""
+        """Load the NFL schedule from CSV (optional - only used as fallback)"""
         try:
             schedule_path = "2025/nfl_schedule.csv"
             if os.path.exists(schedule_path):
@@ -50,10 +50,10 @@ class EnhancedFootballDataProcessor:
                 print(f"✅ Loaded NFL schedule with {len(df)} games")
                 return df
             else:
-                print(f"⚠️ Schedule file not found: {schedule_path}")
+                # Schedule is optional - home/away detection uses API data
                 return pd.DataFrame()
         except Exception as e:
-            print(f"⚠️ Error loading schedule: {e}")
+            # Schedule is optional, silently return empty DataFrame
             return pd.DataFrame()
     
     def is_home_game(self, team: str, week: int) -> Optional[bool]:

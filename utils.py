@@ -312,20 +312,162 @@ def get_team_variations(team_name: str) -> list:
 
 
 # ============================================================================
+# NFL SEASON WEEK DATES
+# ============================================================================
+
+# NFL 2025 Season Week Start Dates (typically Thursday of each week)
+# These dates represent the start of each NFL week
+NFL_2025_WEEK_DATES = {
+    1: '2025-09-04',   # Week 1 starts Sep 4 (Thursday Night Football)
+    2: '2025-09-11',   # Week 2
+    3: '2025-09-18',   # Week 3
+    4: '2025-09-25',   # Week 4
+    5: '2025-10-02',   # Week 5
+    6: '2025-10-09',   # Week 6
+    7: '2025-10-16',   # Week 7
+    8: '2025-10-23',   # Week 8
+    9: '2025-10-30',   # Week 9
+    10: '2025-11-06',  # Week 10
+    11: '2025-11-13',  # Week 11
+    12: '2025-11-20',  # Week 12 (Thanksgiving week)
+    13: '2025-11-27',  # Week 13
+    14: '2025-12-04',  # Week 14
+    15: '2025-12-11',  # Week 15
+    16: '2025-12-18',  # Week 16
+    17: '2025-12-25',  # Week 17 (Christmas week)
+    18: '2026-01-01',  # Week 18
+}
+
+
+def get_week_start_date(week_number: int, year: str = "2025") -> Optional[str]:
+    """
+    Get the start date for a given NFL week
+    
+    Args:
+        week_number: NFL week number (1-18)
+        year: Season year (default: "2025")
+    
+    Returns:
+        ISO format date string (e.g., '2025-10-02T00:00:00Z') or None if week not found
+    """
+    # For now, only support 2025
+    if year != "2025":
+        return None
+    
+    date_str = NFL_2025_WEEK_DATES.get(week_number)
+    if date_str:
+        return f"{date_str}T00:00:00Z"
+    return None
+
+
+def get_week_date_range(week_number: int, year: str = "2025") -> tuple[Optional[str], Optional[str]]:
+    """
+    Get the start and end dates for a given NFL week
+    
+    Args:
+        week_number: NFL week number (1-18)
+        year: Season year (default: "2025")
+    
+    Returns:
+        Tuple of (start_date, end_date) in ISO format, or (None, None) if week not found
+    """
+    from datetime import timedelta
+    
+    start_date = get_week_start_date(week_number, year)
+    if not start_date:
+        return None, None
+    
+    # Calculate end date (6 days after start to include Monday night)
+    start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+    end_dt = start_dt + timedelta(days=6)
+    end_date = end_dt.strftime('%Y-%m-%dT23:59:59Z')
+    
+    return start_date, end_date
+
+
+def get_available_weeks(year: str = "2025") -> list[int]:
+    """
+    Get list of all available NFL weeks
+    
+    Args:
+        year: Season year (default: "2025")
+    
+    Returns:
+        List of week numbers
+    """
+    # For now, only support 2025
+    if year != "2025":
+        return []
+    
+    return sorted(NFL_2025_WEEK_DATES.keys())
+
+
+def get_current_week_from_dates(year: str = "2025") -> int:
+    """
+    Determine the current NFL week based on week start dates and today's date
+    
+    Args:
+        year: Season year (default: "2025")
+    
+    Returns:
+        int: Current NFL week number (1-18)
+    """
+    if year != "2025":
+        # Fallback to folder-based detection
+        return get_current_week_from_folders()
+    
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Find which week we're in based on start dates
+    weeks = sorted(NFL_2025_WEEK_DATES.keys())
+    
+    for i, week in enumerate(weeks):
+        week_start_str = NFL_2025_WEEK_DATES[week]
+        week_start = datetime.strptime(week_start_str, '%Y-%m-%d')
+        
+        # Get next week's start date (or add 7 days if it's the last week)
+        if i + 1 < len(weeks):
+            next_week_start_str = NFL_2025_WEEK_DATES[weeks[i + 1]]
+            next_week_start = datetime.strptime(next_week_start_str, '%Y-%m-%d')
+        else:
+            # Last week - use 7 days as the range
+            from datetime import timedelta
+            next_week_start = week_start + timedelta(days=7)
+        
+        # If today is between this week's start and next week's start, it's this week
+        if week_start <= today < next_week_start:
+            return week
+    
+    # If we're past all weeks, return the last week + 1
+    return weeks[-1] + 1
+
+
+# ============================================================================
 # WEEK DETECTION UTILITIES
 # ============================================================================
 
 def get_current_week_from_schedule(schedule_file="2025/nfl_schedule.csv"):
     """
-    Determine the current NFL week based on the schedule and today's date.
+    Determine the current NFL week based on week dates and today's date.
+    
+    This function now uses the centralized NFL_2025_WEEK_DATES first,
+    then falls back to schedule file parsing if needed.
     
     Logic:
-    - If today is between week X-1's last game and week X's last game, it's week X
-    - This works regardless of whether folders exist or not
+    - Primary: Use NFL_2025_WEEK_DATES to determine week based on today's date
+    - Fallback 1: Parse schedule file if dates don't match
+    - Fallback 2: Use folder-based detection
     
     Returns:
         int: Current NFL week number (1-18)
     """
+    # Try date-based detection first (fastest and most reliable for 2025)
+    try:
+        return get_current_week_from_dates()
+    except Exception as e:
+        print(f"⚠️ Date-based detection failed: {e}")
+    
+    # Fallback to schedule file parsing
     if not os.path.exists(schedule_file):
         print(f"⚠️ Schedule file not found: {schedule_file}")
         print("   Falling back to folder-based detection")
