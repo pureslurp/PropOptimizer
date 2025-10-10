@@ -19,6 +19,9 @@ class OddsAPI:
         self.api_key = api_key
         self.base_url = "https://api.the-odds-api.com/v4"
         self.player_teams = {}  # Cache for player team assignments
+        self.requests_used = None
+        self.requests_remaining = None
+        self.last_request_time = None
         
         # Map team abbreviations to full names (as used by Odds API)
         self.team_name_mapping = {
@@ -58,6 +61,50 @@ class OddsAPI:
         
         # Create reverse mapping (full name to abbreviation)
         self.team_abbrev_mapping = {v: k for k, v in self.team_name_mapping.items()}
+    
+    def _update_usage_from_headers(self, headers):
+        """Update usage statistics from API response headers"""
+        self.requests_used = headers.get('x-requests-used')
+        self.requests_remaining = headers.get('x-requests-remaining')
+        self.last_request_time = headers.get('x-requests-last')
+    
+    def get_usage_info(self) -> Dict:
+        """Get current API usage information"""
+        usage_info = {
+            'requests_used': self.requests_used,
+            'requests_remaining': self.requests_remaining,
+            'last_request_time': self.last_request_time
+        }
+        
+        # Calculate percentage if we have the data
+        if self.requests_used and self.requests_remaining:
+            try:
+                used = int(self.requests_used)
+                remaining = int(self.requests_remaining)
+                total = used + remaining
+                usage_info['total_quota'] = total
+                usage_info['percentage_used'] = (used / total) * 100 if total > 0 else 0
+            except ValueError:
+                pass
+        
+        return usage_info
+    
+    def print_usage_warning(self):
+        """Print warning if API usage is high"""
+        if self.requests_used and self.requests_remaining:
+            try:
+                used = int(self.requests_used)
+                remaining = int(self.requests_remaining)
+                total = used + remaining
+                percentage_used = (used / total) * 100 if total > 0 else 0
+                
+                if percentage_used > 80:
+                    print(f"⚠️  WARNING: API usage at {percentage_used:.1f}% ({used}/{total} requests used)")
+                    print(f"   Only {remaining} requests remaining!")
+                elif percentage_used > 50:
+                    print(f"⚡ NOTICE: API usage at {percentage_used:.1f}% ({used}/{total} requests used)")
+            except ValueError:
+                pass
         
     def get_player_props(self, sport: str = "americanfootball_nfl") -> List[Dict]:
         """Fetch player props from The Odds API using the event-based approach"""
@@ -71,6 +118,10 @@ class OddsAPI:
             
             events_response = requests.get(events_url, params=events_params, timeout=30)
             events_response.raise_for_status()
+            
+            # Update usage info from response headers
+            self._update_usage_from_headers(events_response.headers)
+            
             events = events_response.json()
             
             if not events:
@@ -129,6 +180,9 @@ class OddsAPI:
                     }
                     
                     odds_response = requests.get(odds_url, params=odds_params, timeout=30)
+                    
+                    # Update usage info from response headers
+                    self._update_usage_from_headers(odds_response.headers)
                     
                     if odds_response.status_code == 200:
                         event_data = odds_response.json()
@@ -456,8 +510,117 @@ class AlternateLineManager:
             'Receiving TDs': 'player_reception_tds_alternate'
         }
     
+    def fetch_all_alternate_lines_optimized(self, bookmaker: str = 'fanduel', progress_callback=None) -> Dict[str, Dict]:
+        """
+        OPTIMIZED: Fetch ALL alternate lines for ALL stat types in one pass
+        
+        This makes 1 API call per game instead of 1 call per stat type per game
+        Reduces API calls from ~35 to ~5 per refresh!
+        
+        Args:
+            bookmaker: The bookmaker to use (default: 'fanduel')
+            progress_callback: Optional callback function to report progress
+            
+        Returns:
+            Dict mapping stat types to player alternate lines
+        """
+        # Filter out events that have already started or finished
+        current_time = datetime.now(timezone.utc)
+        active_events = []
+        for event in self.odds_data:
+            if event.get('id'):
+                commence_time_str = event.get('commence_time')
+                if commence_time_str:
+                    try:
+                        commence_time = datetime.fromisoformat(commence_time_str.replace('Z', '+00:00'))
+                        if commence_time > current_time:
+                            active_events.append(event)
+                    except (ValueError, AttributeError):
+                        continue
+        
+        event_ids = [event.get('id') for event in active_events]
+        if not event_ids:
+            return {}
+        
+        # Initialize result structure for all stat types
+        all_alternate_lines = {stat_type: {} for stat_type in self.stat_market_mapping.keys()}
+        
+        # Get all alternate market keys
+        all_alternate_markets = ','.join(self.stat_market_mapping.values())
+        total_events = len(event_ids)
+        
+        # Fetch alternate lines for each event (ONE CALL PER GAME instead of 7!)
+        for idx, event_id in enumerate(event_ids, 1):
+            if progress_callback:
+                progress_callback(f"Fetching all alternate lines... ({idx}/{total_events})")
+            
+            try:
+                odds_url = f"{self.base_url}/sports/americanfootball_nfl/events/{event_id}/odds"
+                odds_params = {
+                    'apiKey': self.api_key,
+                    'regions': 'us',
+                    'bookmakers': bookmaker,
+                    'markets': all_alternate_markets,  # ALL markets in one call!
+                    'oddsFormat': 'american',
+                    'includeAltLines': 'true'
+                }
+                
+                response = requests.get(odds_url, params=odds_params, timeout=30)
+                
+                if response.status_code == 200:
+                    event_data = response.json()
+                    
+                    # Parse alternate lines from ALL markets in this response
+                    for bookmaker_data in event_data.get('bookmakers', []):
+                        if bookmaker_data.get('key') == bookmaker:
+                            for market in bookmaker_data.get('markets', []):
+                                market_key = market.get('key')
+                                
+                                # Find which stat type this market belongs to
+                                stat_type = None
+                                for st, mk in self.stat_market_mapping.items():
+                                    if mk == market_key:
+                                        stat_type = st
+                                        break
+                                
+                                if stat_type:
+                                    for outcome in market.get('outcomes', []):
+                                        if outcome.get('name') == 'Over':
+                                            player_name = outcome.get('description', '')
+                                            if player_name:
+                                                if player_name not in all_alternate_lines[stat_type]:
+                                                    all_alternate_lines[stat_type][player_name] = []
+                                                
+                                                line = outcome.get('point', 0)
+                                                # Fix reception lines
+                                                if stat_type == 'Receptions':
+                                                    line = line + 1
+                                                
+                                                all_alternate_lines[stat_type][player_name].append({
+                                                    'line': line,
+                                                    'odds': outcome.get('price', 0)
+                                                })
+                
+                # Rate limiting
+                time.sleep(0.3)
+                
+            except Exception as e:
+                continue
+        
+        # Sort lines by point value for each player in each stat type
+        for stat_type in all_alternate_lines:
+            for player in all_alternate_lines[stat_type]:
+                all_alternate_lines[stat_type][player] = sorted(
+                    all_alternate_lines[stat_type][player], 
+                    key=lambda x: x['line']
+                )
+        
+        return all_alternate_lines
+    
     def fetch_alternate_lines_for_stat(self, stat_type: str, bookmaker: str = 'fanduel', progress_callback=None) -> Dict:
         """
+        DEPRECATED: Use fetch_all_alternate_lines_optimized() instead
+        
         Fetch alternate lines for a specific stat type in real-time
         
         Args:
