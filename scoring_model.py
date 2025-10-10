@@ -33,16 +33,8 @@ class AdvancedPropScorer:
             Dictionary with score breakdown and analysis
         """
         # Get team defensive ranking
-        # Map stat types to defensive rankings
-        defense_stat_type = f"{stat_type} Allowed"
-        if stat_type == "Receiving Yards":
-            defense_stat_type = "Passing Yards Allowed"
-        elif stat_type == "Receiving TDs":
-            defense_stat_type = "Passing TDs Allowed"
-        elif stat_type == "Receptions":
-            defense_stat_type = "Passing Yards Allowed"  # Receptions correlate with passing defense
-        
-        team_rank = self.data_processor.get_team_defensive_rank(opposing_team, defense_stat_type)
+        # Pass the base stat type - get_team_defensive_rank will handle the conversion
+        team_rank = self.data_processor.get_team_defensive_rank(opposing_team, stat_type)
         
         # Get player's team and determine home/away status
         player_team = self.data_processor.get_player_team(player)
@@ -104,6 +96,7 @@ class AdvancedPropScorer:
             'l5_over_rate': l5_over_rate,
             'home_over_rate': home_over_rate,
             'away_over_rate': away_over_rate,
+            'streak': player_streak,  # Add streak to return values
             'analysis': self._generate_analysis(player, opposing_team, stat_type, line, total_score, confidence)
         }
     

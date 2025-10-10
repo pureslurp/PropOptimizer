@@ -23,6 +23,7 @@ class EnhancedFootballDataProcessor:
         self.data_dir = data_dir
         self.team_defensive_stats = {}
         self.player_season_stats = {}
+        self.player_name_index = {}  # Index: cleaned_name -> actual_player_key
         self.current_week = self._get_current_week()
         self.schedule_data = self._load_schedule()
         
@@ -94,6 +95,14 @@ class EnhancedFootballDataProcessor:
         age_hours = (datetime.now() - cache_time).total_seconds() / 3600
         return age_hours < max_age_hours
     
+    def _rebuild_player_name_index(self):
+        """Rebuild the player name index for fast lookups"""
+        from utils import clean_player_name
+        self.player_name_index = {}
+        for player_key in self.player_season_stats.keys():
+            cleaned = clean_player_name(player_key)
+            self.player_name_index[cleaned] = player_key
+    
     def _load_cached_data(self):
         """Load cached data if available and valid"""
         # Load team defensive stats
@@ -112,6 +121,7 @@ class EnhancedFootballDataProcessor:
             try:
                 with open(player_cache_file, 'rb') as f:
                     self.player_season_stats = pickle.load(f)
+                self._rebuild_player_name_index()
                 print(f"✅ Loaded cached player season stats")
             except Exception as e:
                 print(f"⚠️ Could not load player season cache: {e}")
@@ -297,6 +307,7 @@ class EnhancedFootballDataProcessor:
                                 player_stats[player][f"{stat}_away"] = away_values
         
         self.player_season_stats = player_stats
+        self._rebuild_player_name_index()
         print(f"✅ Built season stats for {len(player_stats)} players with home/away splits")
     
     def _build_team_defensive_stats(self, all_week_data: Dict[str, pd.DataFrame]):
@@ -539,20 +550,14 @@ class EnhancedFootballDataProcessor:
         # Import clean function
         from utils import clean_player_name
         
-        # Try exact match first
-        if player in self.player_season_stats and stat_type in self.player_season_stats[player]:
-            games = self.player_season_stats[player][stat_type]
+        # Use index for fast lookup
+        cleaned_input = clean_player_name(player)
+        player_key = self.player_name_index.get(cleaned_input)
+        
+        if player_key and stat_type in self.player_season_stats[player_key]:
+            games = self.player_season_stats[player_key][stat_type]
             over_count = sum(1 for game_stat in games if game_stat > line)
             return over_count / len(games) if games else 0.5
-        
-        # Try case-insensitive matching with name cleaning on both sides
-        cleaned_input = clean_player_name(player)
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored.lower() == cleaned_input.lower() and stat_type in stats:
-                games = stats[stat_type]
-                over_count = sum(1 for game_stat in games if game_stat > line)
-                return over_count / len(games) if games else 0.5
         
         return 0.5  # Default 50% if no data
     
@@ -566,20 +571,14 @@ class EnhancedFootballDataProcessor:
         
         home_stat_key = f"{stat_type}_home"
         
-        # Try exact match first
-        if player in self.player_season_stats and home_stat_key in self.player_season_stats[player]:
-            games = self.player_season_stats[player][home_stat_key]
+        # Use index for fast lookup
+        cleaned_input = clean_player_name(player)
+        player_key = self.player_name_index.get(cleaned_input)
+        
+        if player_key and home_stat_key in self.player_season_stats[player_key]:
+            games = self.player_season_stats[player_key][home_stat_key]
             over_count = sum(1 for game_stat in games if game_stat > line)
             return over_count / len(games) if games else 0.5
-        
-        # Try case-insensitive matching with name cleaning on both sides
-        cleaned_input = clean_player_name(player)
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored.lower() == cleaned_input.lower() and home_stat_key in stats:
-                games = stats[home_stat_key]
-                over_count = sum(1 for game_stat in games if game_stat > line)
-                return over_count / len(games) if games else 0.5
         
         return 0.5  # Default 50% if no data
     
@@ -593,20 +592,14 @@ class EnhancedFootballDataProcessor:
         
         away_stat_key = f"{stat_type}_away"
         
-        # Try exact match first
-        if player in self.player_season_stats and away_stat_key in self.player_season_stats[player]:
-            games = self.player_season_stats[player][away_stat_key]
+        # Use index for fast lookup
+        cleaned_input = clean_player_name(player)
+        player_key = self.player_name_index.get(cleaned_input)
+        
+        if player_key and away_stat_key in self.player_season_stats[player_key]:
+            games = self.player_season_stats[player_key][away_stat_key]
             over_count = sum(1 for game_stat in games if game_stat > line)
             return over_count / len(games) if games else 0.5
-        
-        # Try case-insensitive matching with name cleaning on both sides
-        cleaned_input = clean_player_name(player)
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored.lower() == cleaned_input.lower() and away_stat_key in stats:
-                games = stats[away_stat_key]
-                over_count = sum(1 for game_stat in games if game_stat > line)
-                return over_count / len(games) if games else 0.5
         
         return 0.5  # Default 50% if no data
     
@@ -618,18 +611,13 @@ class EnhancedFootballDataProcessor:
         # Import clean function
         from utils import clean_player_name
         
-        # Try exact match first
-        if player in self.player_season_stats and stat_type in self.player_season_stats[player]:
-            games = self.player_season_stats[player][stat_type]
-            return sum(games) / len(games) if games else 0.0
-        
-        # Try case-insensitive matching with name cleaning on both sides
+        # Use index for fast lookup
         cleaned_input = clean_player_name(player)
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored.lower() == cleaned_input.lower() and stat_type in stats:
-                games = stats[stat_type]
-                return sum(games) / len(games) if games else 0.0
+        player_key = self.player_name_index.get(cleaned_input)
+        
+        if player_key and stat_type in self.player_season_stats[player_key]:
+            games = self.player_season_stats[player_key][stat_type]
+            return sum(games) / len(games) if games else 0.0
         
         return 0.0
     
@@ -641,26 +629,17 @@ class EnhancedFootballDataProcessor:
         # Import clean function
         from utils import clean_player_name
         
-        # Try exact match first
-        if player in self.player_season_stats and stat_type in self.player_season_stats[player]:
-            games = self.player_season_stats[player][stat_type]
+        # Use index for fast lookup
+        cleaned_input = clean_player_name(player)
+        player_key = self.player_name_index.get(cleaned_input)
+        
+        if player_key and stat_type in self.player_season_stats[player_key]:
+            games = self.player_season_stats[player_key][stat_type]
             if len(games) < 2:
                 return 1.0
             mean_val = sum(games) / len(games)
             variance = sum((x - mean_val) ** 2 for x in games) / len(games)
             return variance ** 0.5
-        
-        # Try case-insensitive matching with name cleaning on both sides
-        cleaned_input = clean_player_name(player)
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored.lower() == cleaned_input.lower() and stat_type in stats:
-                games = stats[stat_type]
-                if len(games) < 2:
-                    return 1.0
-                mean_val = sum(games) / len(games)
-                variance = sum((x - mean_val) ** 2 for x in games) / len(games)
-                return variance ** 0.5
         
         return 1.0  # Default high variance
     
@@ -672,16 +651,12 @@ class EnhancedFootballDataProcessor:
         # Import clean function
         from utils import clean_player_name
         
-        # Try exact match first
-        if player in self.player_season_stats and 'team' in self.player_season_stats[player]:
-            return self.player_season_stats[player]['team']
-        
-        # Try case-insensitive matching with name cleaning on both sides
+        # Use index for fast lookup
         cleaned_input = clean_player_name(player)
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored.lower() == cleaned_input.lower() and 'team' in stats:
-                return stats['team']
+        player_key = self.player_name_index.get(cleaned_input)
+        
+        if player_key and 'team' in self.player_season_stats[player_key]:
+            return self.player_season_stats[player_key]['team']
         
         return "Unknown"
     
@@ -701,13 +676,13 @@ class EnhancedFootballDataProcessor:
         from utils import clean_player_name
         cleaned_name = clean_player_name(player)
         
-        # Get player stats
-        player_stats = None
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored == cleaned_name and stat_type in stats:
-                player_stats = stats[stat_type]
-                break
+        # Use index for fast lookup
+        player_key = self.player_name_index.get(cleaned_name)
+        
+        if not player_key or stat_type not in self.player_season_stats[player_key]:
+            return 0.5
+        
+        player_stats = self.player_season_stats[player_key][stat_type]
         
         if not player_stats or len(player_stats) == 0:
             return 0.5
@@ -734,13 +709,13 @@ class EnhancedFootballDataProcessor:
         from utils import clean_player_name
         cleaned_name = clean_player_name(player)
         
-        # Get player stats
-        player_stats = None
-        for stored_player, stats in self.player_season_stats.items():
-            cleaned_stored = clean_player_name(stored_player)
-            if cleaned_stored == cleaned_name and stat_type in stats:
-                player_stats = stats[stat_type]
-                break
+        # Use index for fast lookup
+        player_key = self.player_name_index.get(cleaned_name)
+        
+        if not player_key or stat_type not in self.player_season_stats[player_key]:
+            return 0
+        
+        player_stats = self.player_season_stats[player_key][stat_type]
         
         if not player_stats or len(player_stats) == 0:
             return 0

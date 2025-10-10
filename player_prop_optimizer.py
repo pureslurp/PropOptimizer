@@ -193,22 +193,10 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                     row.get('Odds', 0)
                 )
                 
-                # Calculate L5, Home, Away over rates, and Streak
-                player_name = row['Player']
-                line = row['Line']
-                
-                l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
-                streak = data_processor.get_player_streak(player_name, stat_type, line)
-                home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
-                away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
-                
+                # score_data already includes l5_over_rate, home_over_rate, away_over_rate, and streak
                 scored_prop = {
                     **row.to_dict(),
                     **score_data,
-                    'l5_over_rate': l5_over_rate,
-                    'home_over_rate': home_over_rate,
-                    'away_over_rate': away_over_rate,
-                    'streak': streak,
                     'is_alternate': row.get('is_alternate', False)
                 }
                 all_props.append(scored_prop)
@@ -234,22 +222,12 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                     row.get('Odds', 0)
                 )
                 
-                # Calculate L5, Home, Away over rates, and Streak
+                # score_data already includes l5_over_rate, home_over_rate, away_over_rate, and streak
                 player_name = row['Player']
-                line = row['Line']
-                
-                l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
-                streak = data_processor.get_player_streak(player_name, stat_type, line)
-                home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
-                away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
                 
                 scored_prop = {
                     **row.to_dict(),
                     **score_data,
-                    'l5_over_rate': l5_over_rate,
-                    'home_over_rate': home_over_rate,
-                    'away_over_rate': away_over_rate,
-                    'streak': streak,
                     'is_alternate': False
                 }
                 all_props.append(scored_prop)
@@ -270,20 +248,12 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                                 alt_line['odds']
                             )
                             
-                            alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
-                            alt_streak = data_processor.get_player_streak(player_name, stat_type, alt_line['line'])
-                            alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
-                            alt_away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, alt_line['line'])
-                            
+                            # alt_score_data already includes all the stats we need
                             alt_prop = {
                                 **row.to_dict(),
                                 'Line': alt_line['line'],
                                 'Odds': alt_line['odds'],
                                 **alt_score_data,
-                                'l5_over_rate': alt_l5_over_rate,
-                                'home_over_rate': alt_home_over_rate,
-                                'away_over_rate': alt_away_over_rate,
-                                'streak': alt_streak,
                                 'is_alternate': True
                             }
                             all_props.append(alt_prop)
