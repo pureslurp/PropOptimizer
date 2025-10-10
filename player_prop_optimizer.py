@@ -214,7 +214,6 @@ def main():
     with col2:
         export_button = st.button("📥 Export to CSV", type="secondary")
     
-    st.subheader("Player Props - All Stat Types")
     st.caption(f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)")
     
     # Fetch and display data
