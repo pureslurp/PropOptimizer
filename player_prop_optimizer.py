@@ -530,6 +530,10 @@ def main():
                 'props_df_cache': st.session_state.get('props_df_cache'),
                 'odds_data_cache': st.session_state.get('odds_data_cache')
             }
+            # Now clear the regular cache so historical data can be loaded fresh
+            for key in ['alt_line_manager', 'all_scored_props', 'props_df_cache', 'odds_data_cache']:
+                if key in st.session_state:
+                    del st.session_state[key]
         
         # If switching TO current week FROM historical week, restore cached data
         elif selected_week == current_week_temp and 'current_week_cache' in st.session_state:
