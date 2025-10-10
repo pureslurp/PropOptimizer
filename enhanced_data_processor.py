@@ -344,7 +344,7 @@ class EnhancedFootballDataProcessor:
         for team, stats in yards_rankings.items():
             combined_rankings[team] = stats.copy()
         
-        # Add TD data
+        # Add TD rankings (already calculated by defensive_scraper)
         for team, td_stats in td_data.items():
             if team in combined_rankings:
                 combined_rankings[team].update(td_stats)
@@ -352,8 +352,8 @@ class EnhancedFootballDataProcessor:
                 # If team not in yards data, create entry with just TD data
                 combined_rankings[team] = td_stats
         
-        # Convert TD counts to rankings
-        self._convert_td_counts_to_rankings(combined_rankings)
+        # Note: TD data is already in ranking format from defensive_scraper,
+        # no need to convert again
         
         return combined_rankings
     

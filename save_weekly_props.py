@@ -12,7 +12,7 @@ import argparse
 from enhanced_data_processor import EnhancedFootballDataProcessor
 from odds_api import OddsAPI, AlternateLineManager
 from config import ODDS_API_KEY, STAT_TYPES
-from week_utils import get_current_week_from_schedule
+from utils import get_current_week_from_schedule
 
 
 def get_props_file_path(week_number):

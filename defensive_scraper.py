@@ -13,6 +13,7 @@ import time
 import os
 from typing import Dict, List, Optional
 from datetime import datetime
+from utils import normalize_team_name
 
 class DefensiveScraper:
     """
@@ -29,42 +30,6 @@ class DefensiveScraper:
         self.espn_url = "https://www.espn.com/nfl/stats/team/_/view/defense"
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        
-        # Team name normalization mapping
-        self.team_mapping = {
-            '49ers': 'San Francisco 49ers',
-            'Bears': 'Chicago Bears',
-            'Bengals': 'Cincinnati Bengals',
-            'Bills': 'Buffalo Bills',
-            'Broncos': 'Denver Broncos',
-            'Browns': 'Cleveland Browns',
-            'Buccaneers': 'Tampa Bay Buccaneers',
-            'Cardinals': 'Arizona Cardinals',
-            'Chargers': 'Los Angeles Chargers',
-            'Chiefs': 'Kansas City Chiefs',
-            'Colts': 'Indianapolis Colts',
-            'Commanders': 'Washington Commanders',
-            'Cowboys': 'Dallas Cowboys',
-            'Dolphins': 'Miami Dolphins',
-            'Eagles': 'Philadelphia Eagles',
-            'Falcons': 'Atlanta Falcons',
-            'Giants': 'New York Giants',
-            'Jaguars': 'Jacksonville Jaguars',
-            'Jets': 'New York Jets',
-            'Lions': 'Detroit Lions',
-            'Packers': 'Green Bay Packers',
-            'Panthers': 'Carolina Panthers',
-            'Patriots': 'New England Patriots',
-            'Raiders': 'Las Vegas Raiders',
-            'Rams': 'Los Angeles Rams',
-            'Ravens': 'Baltimore Ravens',
-            'Saints': 'New Orleans Saints',
-            'Seahawks': 'Seattle Seahawks',
-            'Steelers': 'Pittsburgh Steelers',
-            'Texans': 'Houston Texans',
-            'Titans': 'Tennessee Titans',
-            'Vikings': 'Minnesota Vikings'
         }
     
     def scrape_nfl_td_stats(self) -> Dict[str, Dict[str, int]]:
@@ -166,18 +131,19 @@ class DefensiveScraper:
             return {}
     
     def _extract_nfl_team_name(self, team_cell) -> Optional[str]:
-        """Extract team name from NFL.com table cell"""
+        """Extract team name from NFL.com table cell and normalize it"""
         try:
             club_info = team_cell.find('div', class_='d3-o-club-info')
             if club_info:
                 fullname_div = club_info.find('div', class_='d3-o-club-fullname')
                 if fullname_div:
                     team_name = fullname_div.get_text(strip=True)
-                    return self.team_mapping.get(team_name, team_name)
+                    return normalize_team_name(team_name)
             
+            # Fallback to getting text directly from cell
             team_text = team_cell.get_text(strip=True)
             if team_text:
-                return self.team_mapping.get(team_text, team_text)
+                return normalize_team_name(team_text)
                 
         except Exception as e:
             print(f"⚠️ Error extracting team name: {e}")
@@ -193,7 +159,9 @@ class DefensiveScraper:
         
         # Using manual ESPN data (accurate as of week data was collected)
         # Update this periodically or implement live scraping
-        defensive_stats = {
+        # All team names are normalized to ensure consistency
+        defensive_stats = {}
+        raw_stats = {
             'Atlanta Falcons': {'total_yards_per_game': 244.0, 'passing_yards_per_game': 135.0, 'rushing_yards_per_game': 109.0, 'points_allowed_per_game': 21.5},
             'Cleveland Browns': {'total_yards_per_game': 247.8, 'passing_yards_per_game': 172.2, 'rushing_yards_per_game': 75.6, 'points_allowed_per_game': 24.6},
             'Houston Texans': {'total_yards_per_game': 265.8, 'passing_yards_per_game': 175.2, 'rushing_yards_per_game': 90.6, 'points_allowed_per_game': 12.2},
@@ -228,11 +196,19 @@ class DefensiveScraper:
             'Dallas Cowboys': {'total_yards_per_game': 412.0, 'passing_yards_per_game': 284.6, 'rushing_yards_per_game': 127.4, 'points_allowed_per_game': 30.8}
         }
         
+        # Normalize all team names
+        for team, stats in raw_stats.items():
+            normalized_team = normalize_team_name(team)
+            defensive_stats[normalized_team] = stats
+        
         print(f"✅ Loaded ESPN defensive stats for {len(defensive_stats)} teams")
         return defensive_stats
     
     def calculate_rankings(self, espn_stats: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, int]]:
-        """Calculate defensive rankings from ESPN stats"""
+        """
+        Calculate defensive rankings from ESPN stats
+        Uses average rank for ties, rounded to nearest whole number
+        """
         rankings = {}
         
         # Categories to rank (lower is better for defense)
@@ -250,11 +226,35 @@ class DefensiveScraper:
                 key=lambda x: x[1].get(category, 999)
             )
             
-            # Assign rankings (1 = best defense)
-            for rank, (team_name, _) in enumerate(sorted_teams, 1):
-                if team_name not in rankings:
-                    rankings[team_name] = {}
-                rankings[team_name][display_name] = rank
+            # Assign rankings with tie handling (average rank for tied values)
+            current_position = 1
+            i = 0
+            while i < len(sorted_teams):
+                # Find all teams tied with the current team
+                current_value = sorted_teams[i][1].get(category, 999)
+                tied_teams = []
+                j = i
+                while j < len(sorted_teams) and sorted_teams[j][1].get(category, 999) == current_value:
+                    tied_teams.append(sorted_teams[j][0])
+                    j += 1
+                
+                # Calculate average rank for tied teams
+                num_tied = len(tied_teams)
+                if num_tied == 1:
+                    avg_rank = current_position
+                else:
+                    positions = list(range(current_position, current_position + num_tied))
+                    avg_rank = round(sum(positions) / len(positions))
+                
+                # Assign the average rank to all tied teams
+                for team_name in tied_teams:
+                    if team_name not in rankings:
+                        rankings[team_name] = {}
+                    rankings[team_name][display_name] = avg_rank
+                
+                # Move to next group
+                current_position += num_tied
+                i = j
         
         return rankings
     
@@ -266,26 +266,108 @@ class DefensiveScraper:
         for team, rankings in espn_rankings.items():
             combined[team] = rankings.copy()
         
-        # Add TD stats from NFL.com
+        # Calculate TD rankings from NFL.com data
+        td_rankings = self._calculate_td_rankings(nfl_td_stats)
+        
+        # Add TD stats and rankings from NFL.com
         for team, td_stats in nfl_td_stats.items():
             if team not in combined:
                 combined[team] = {}
             combined[team].update(td_stats)
+            
+            # Add TD rankings
+            if team in td_rankings:
+                combined[team].update(td_rankings[team])
         
         return combined
     
-    def save_to_cache(self, data: Dict, td_cache_file: str = "data/nfl_defensive_td_cache.pkl", 
+    def _calculate_td_rankings(self, td_stats: Dict[str, Dict[str, int]]) -> Dict[str, Dict[str, int]]:
+        """
+        Calculate rankings for TD statistics (fewer TDs allowed = better ranking)
+        Uses average rank for ties, rounded to nearest whole number
+        """
+        rankings = {}
+        
+        # Map raw stat names to rank stat names
+        td_stat_to_rank = {
+            'Passing TDs Allowed': 'Passing TDs Allowed',  # Will be used for ranking lookup
+            'Rushing TDs Allowed': 'Rushing TDs Allowed'   # Will be used for ranking lookup
+        }
+        
+        for stat_name in td_stat_to_rank.keys():
+            # Get all teams that have this stat
+            teams_with_stat = {team: stats.get(stat_name, 999) 
+                             for team, stats in td_stats.items() 
+                             if stat_name in stats}
+            
+            if not teams_with_stat:
+                continue
+            
+            # Sort teams by TDs allowed (ascending = better defense, fewer TDs = rank 1)
+            sorted_teams = sorted(teams_with_stat.items(), key=lambda x: x[1])
+            
+            # Assign rankings with tie handling (average rank for tied teams)
+            current_position = 1
+            i = 0
+            while i < len(sorted_teams):
+                # Find all teams tied with the current team
+                current_td_count = sorted_teams[i][1]
+                tied_teams = []
+                j = i
+                while j < len(sorted_teams) and sorted_teams[j][1] == current_td_count:
+                    tied_teams.append(sorted_teams[j][0])
+                    j += 1
+                
+                # Calculate average rank for tied teams
+                # If teams occupy positions current_position through (current_position + num_tied - 1)
+                num_tied = len(tied_teams)
+                if num_tied == 1:
+                    avg_rank = current_position
+                else:
+                    # Calculate mean of all positions they occupy
+                    positions = list(range(current_position, current_position + num_tied))
+                    avg_rank = round(sum(positions) / len(positions))
+                
+                # Assign the average rank to all tied teams
+                for team_name in tied_teams:
+                    if team_name not in rankings:
+                        rankings[team_name] = {}
+                    rankings[team_name][stat_name] = avg_rank
+                
+                # Move to next group
+                current_position += num_tied
+                i = j
+        
+        return rankings
+    
+    def save_to_cache(self, data: Dict, raw_td_stats: Dict = None, 
+                     td_cache_file: str = "data/nfl_defensive_td_cache.pkl", 
                      rankings_cache_file: str = "data/espn_defensive_rankings.json"):
-        """Save defensive data to cache files"""
+        """
+        Save defensive data to cache files
+        
+        Args:
+            data: Combined defensive rankings (includes all stats as rankings)
+            raw_td_stats: Raw TD counts from NFL.com (before ranking conversion)
+            td_cache_file: Path to save raw TD counts
+            rankings_cache_file: Path to save all rankings
+        """
         try:
             os.makedirs("data", exist_ok=True)
             
-            # Save TD stats (pickle format for compatibility)
-            td_stats = {team: {k: v for k, v in stats.items() if 'TDs Allowed' in k} 
-                       for team, stats in data.items()}
-            with open(td_cache_file, 'wb') as f:
-                pickle.dump(td_stats, f)
-            print(f"💾 Saved TD stats to {td_cache_file}")
+            # Save raw TD counts (if provided, otherwise extract from data)
+            if raw_td_stats:
+                # Save the raw TD counts from NFL.com scraping
+                with open(td_cache_file, 'wb') as f:
+                    pickle.dump(raw_td_stats, f)
+                print(f"💾 Saved raw TD counts to {td_cache_file}")
+            else:
+                # Fallback: extract TD data from combined data (may be rankings)
+                td_stats = {team: {k: v for k, v in stats.items() if 'TDs Allowed' in k} 
+                           for team, stats in data.items()}
+                with open(td_cache_file, 'wb') as f:
+                    pickle.dump(td_stats, f)
+                print(f"💾 Saved TD stats to {td_cache_file}")
             
             # Save full rankings (JSON format)
             with open(rankings_cache_file, 'w') as f:
@@ -325,7 +407,7 @@ class DefensiveScraper:
                 print("✅ Using cached defensive data (use --force to refresh)")
                 return cached_data
         
-        # Scrape NFL.com TD stats
+        # Scrape NFL.com TD stats (raw counts)
         nfl_td_stats = self.scrape_nfl_td_stats()
         time.sleep(1)  # Rate limiting
         
@@ -335,11 +417,11 @@ class DefensiveScraper:
         # Calculate rankings from ESPN stats
         espn_rankings = self.calculate_rankings(espn_stats)
         
-        # Combine all data
+        # Combine all data (this adds rankings to the data)
         combined_data = self.combine_defensive_data(nfl_td_stats, espn_rankings)
         
-        # Save to cache
-        self.save_to_cache(combined_data)
+        # Save to cache (pass raw TD stats separately to preserve counts)
+        self.save_to_cache(combined_data, nfl_td_stats)
         
         print("\n" + "=" * 60)
         print(f"✅ Successfully updated defensive stats for {len(combined_data)} teams")

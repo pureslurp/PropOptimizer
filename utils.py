@@ -1,88 +1,206 @@
 """
-Utility functions for the Player Prop Optimizer
+Comprehensive utility functions for the Player Prop Optimizer
+Includes player name cleaning, team name normalization, week detection, and formatting utilities
 """
 
 import re
 import pandas as pd
+from datetime import datetime
+from typing import Dict, Optional
+import os
 
 
-# Team Mapping Dictionaries
-TEAM_DICT = {
-    'TB': 'Buccaneers',
-    'SEA': 'Seahawks',
-    'SF': '49ers',
-    'LAC': 'Chargers',
-    'PIT': 'Steelers',
-    'ARI': 'Cardinals',
-    'PHI': 'Eagles',
-    'NYJ': 'Jets',
-    'NYG': 'Giants',
-    'NO': 'Saints',
-    'NE': 'Patriots',
-    'MIN': 'Vikings',
-    'MIA': 'Dolphins',
-    'LV': 'Raiders',
-    'LAR': 'Rams',
-    'KC': 'Chiefs',
-    'JAX': 'Jaguars',
-    'IND': 'Colts',
-    'TEN': 'Titans',
-    'GB': 'Packers',
-    'DET': 'Lions',
-    'DEN': 'Broncos',
-    'DAL': 'Cowboys',
-    'CLE': 'Browns',
-    'CIN': 'Bengals',
-    'CHI': 'Bears',
-    'CAR': 'Panthers',
-    'BUF': 'Bills',
-    'BAL': 'Ravens',
-    'ATL': 'Falcons',
-    'WAS': 'Commanders',
-    'HOU': 'Texans'
-}
+# ============================================================================
+# TEAM NAME NORMALIZATION
+# ============================================================================
 
-CITY_TO_TEAM = {
-    'Tampa Bay': 'Buccaneers',
-    'Seattle': 'Seahawks',
-    'San Francisco': '49ers',
-    'LA Chargers': 'Chargers',
-    'Pittsburgh': 'Steelers',
-    'Arizona': 'Cardinals',
-    'Philadelphia': 'Eagles',
-    'NY Jets': 'Jets',
-    'NY Giants': 'Giants',
-    'New Orleans': 'Saints',
-    'New England': 'Patriots',
-    'Minnesota': 'Vikings',
-    'Miami': 'Dolphins',
-    'Las Vegas': 'Raiders',
-    'LA Rams': 'Rams',
-    'Kansas City': 'Chiefs',
-    'Jacksonville': 'Jaguars',
-    'Indianapolis': 'Colts',
-    'Tennessee': 'Titans',
-    'Green Bay': 'Packers',
-    'Detroit': 'Lions',
-    'Denver': 'Broncos',
-    'Dallas': 'Cowboys',
-    'Cleveland': 'Browns',
-    'Cincinnati': 'Bengals',
-    'Chicago': 'Bears',
-    'Carolina': 'Panthers',
-    'Buffalo': 'Bills',
-    'Baltimore': 'Ravens',
-    'Atlanta': 'Falcons',
-    'Washington': 'Commanders',
-    'Houston': 'Texans'
-}
-
-
-def get_team_abbreviation_mapping():
-    """
-    Create a mapping from full team names to abbreviations.
-    """
-    return {
+class TeamNameNormalizer:
+    """Centralized team name normalization across all data sources"""
+    
+    # Master team name mapping - all variations point to canonical full name
+    TEAM_NAME_MAPPING = {
+        # Arizona Cardinals
+        'Arizona Cardinals': 'Arizona Cardinals',
+        'Cardinals': 'Arizona Cardinals',
+        'ARI': 'Arizona Cardinals',
+        'ARZ': 'Arizona Cardinals',
+        
+        # Atlanta Falcons
+        'Atlanta Falcons': 'Atlanta Falcons',
+        'Falcons': 'Atlanta Falcons',
+        'ATL': 'Atlanta Falcons',
+        
+        # Baltimore Ravens
+        'Baltimore Ravens': 'Baltimore Ravens',
+        'Ravens': 'Baltimore Ravens',
+        'BAL': 'Baltimore Ravens',
+        
+        # Buffalo Bills
+        'Buffalo Bills': 'Buffalo Bills',
+        'Bills': 'Buffalo Bills',
+        'BUF': 'Buffalo Bills',
+        
+        # Carolina Panthers
+        'Carolina Panthers': 'Carolina Panthers',
+        'Panthers': 'Carolina Panthers',
+        'CAR': 'Carolina Panthers',
+        
+        # Chicago Bears
+        'Chicago Bears': 'Chicago Bears',
+        'Bears': 'Chicago Bears',
+        'CHI': 'Chicago Bears',
+        
+        # Cincinnati Bengals
+        'Cincinnati Bengals': 'Cincinnati Bengals',
+        'Bengals': 'Cincinnati Bengals',
+        'CIN': 'Cincinnati Bengals',
+        
+        # Cleveland Browns
+        'Cleveland Browns': 'Cleveland Browns',
+        'Browns': 'Cleveland Browns',
+        'CLE': 'Cleveland Browns',
+        
+        # Dallas Cowboys
+        'Dallas Cowboys': 'Dallas Cowboys',
+        'Cowboys': 'Dallas Cowboys',
+        'DAL': 'Dallas Cowboys',
+        
+        # Denver Broncos
+        'Denver Broncos': 'Denver Broncos',
+        'Broncos': 'Denver Broncos',
+        'DEN': 'Denver Broncos',
+        
+        # Detroit Lions
+        'Detroit Lions': 'Detroit Lions',
+        'Lions': 'Detroit Lions',
+        'DET': 'Detroit Lions',
+        
+        # Green Bay Packers
+        'Green Bay Packers': 'Green Bay Packers',
+        'Packers': 'Green Bay Packers',
+        'GB': 'Green Bay Packers',
+        'GNB': 'Green Bay Packers',
+        
+        # Houston Texans
+        'Houston Texans': 'Houston Texans',
+        'Texans': 'Houston Texans',
+        'HOU': 'Houston Texans',
+        
+        # Indianapolis Colts
+        'Indianapolis Colts': 'Indianapolis Colts',
+        'Colts': 'Indianapolis Colts',
+        'IND': 'Indianapolis Colts',
+        
+        # Jacksonville Jaguars
+        'Jacksonville Jaguars': 'Jacksonville Jaguars',
+        'Jaguars': 'Jacksonville Jaguars',
+        'JAX': 'Jacksonville Jaguars',
+        'JAC': 'Jacksonville Jaguars',
+        
+        # Kansas City Chiefs
+        'Kansas City Chiefs': 'Kansas City Chiefs',
+        'Chiefs': 'Kansas City Chiefs',
+        'KC': 'Kansas City Chiefs',
+        'KAN': 'Kansas City Chiefs',
+        
+        # Las Vegas Raiders
+        'Las Vegas Raiders': 'Las Vegas Raiders',
+        'Raiders': 'Las Vegas Raiders',
+        'LV': 'Las Vegas Raiders',
+        'LVR': 'Las Vegas Raiders',
+        'Oakland Raiders': 'Las Vegas Raiders',  # Legacy
+        'OAK': 'Las Vegas Raiders',  # Legacy
+        
+        # Los Angeles Chargers
+        'Los Angeles Chargers': 'Los Angeles Chargers',
+        'Chargers': 'Los Angeles Chargers',
+        'LAC': 'Los Angeles Chargers',
+        'SD': 'Los Angeles Chargers',  # Legacy San Diego
+        'San Diego Chargers': 'Los Angeles Chargers',  # Legacy
+        
+        # Los Angeles Rams
+        'Los Angeles Rams': 'Los Angeles Rams',
+        'Rams': 'Los Angeles Rams',
+        'LAR': 'Los Angeles Rams',
+        'LA': 'Los Angeles Rams',
+        'St. Louis Rams': 'Los Angeles Rams',  # Legacy
+        'STL': 'Los Angeles Rams',  # Legacy
+        
+        # Miami Dolphins
+        'Miami Dolphins': 'Miami Dolphins',
+        'Dolphins': 'Miami Dolphins',
+        'MIA': 'Miami Dolphins',
+        
+        # Minnesota Vikings
+        'Minnesota Vikings': 'Minnesota Vikings',
+        'Vikings': 'Minnesota Vikings',
+        'MIN': 'Minnesota Vikings',
+        
+        # New England Patriots
+        'New England Patriots': 'New England Patriots',
+        'Patriots': 'New England Patriots',
+        'NE': 'New England Patriots',
+        'NWE': 'New England Patriots',
+        
+        # New Orleans Saints
+        'New Orleans Saints': 'New Orleans Saints',
+        'Saints': 'New Orleans Saints',
+        'NO': 'New Orleans Saints',
+        'NOR': 'New Orleans Saints',
+        
+        # New York Giants
+        'New York Giants': 'New York Giants',
+        'Giants': 'New York Giants',
+        'NYG': 'New York Giants',
+        
+        # New York Jets
+        'New York Jets': 'New York Jets',
+        'Jets': 'New York Jets',
+        'NYJ': 'New York Jets',
+        
+        # Philadelphia Eagles
+        'Philadelphia Eagles': 'Philadelphia Eagles',
+        'Eagles': 'Philadelphia Eagles',
+        'PHI': 'Philadelphia Eagles',
+        
+        # Pittsburgh Steelers
+        'Pittsburgh Steelers': 'Pittsburgh Steelers',
+        'Steelers': 'Pittsburgh Steelers',
+        'PIT': 'Pittsburgh Steelers',
+        
+        # San Francisco 49ers
+        'San Francisco 49ers': 'San Francisco 49ers',
+        '49ers': 'San Francisco 49ers',
+        'SF': 'San Francisco 49ers',
+        'SFO': 'San Francisco 49ers',
+        
+        # Seattle Seahawks
+        'Seattle Seahawks': 'Seattle Seahawks',
+        'Seahawks': 'Seattle Seahawks',
+        'SEA': 'Seattle Seahawks',
+        
+        # Tampa Bay Buccaneers
+        'Tampa Bay Buccaneers': 'Tampa Bay Buccaneers',
+        'Buccaneers': 'Tampa Bay Buccaneers',
+        'TB': 'Tampa Bay Buccaneers',
+        'TAM': 'Tampa Bay Buccaneers',
+        
+        # Tennessee Titans
+        'Tennessee Titans': 'Tennessee Titans',
+        'Titans': 'Tennessee Titans',
+        'TEN': 'Tennessee Titans',
+        
+        # Washington Commanders
+        'Washington Commanders': 'Washington Commanders',
+        'Commanders': 'Washington Commanders',
+        'WAS': 'Washington Commanders',
+        'WSH': 'Washington Commanders',
+        'Washington Football Team': 'Washington Commanders',  # Legacy
+        'Washington Redskins': 'Washington Commanders',  # Legacy
+    }
+    
+    # Reverse mapping: Full name to common abbreviation
+    TEAM_TO_ABBREV = {
         'Arizona Cardinals': 'ARI',
         'Atlanta Falcons': 'ATL',
         'Baltimore Ravens': 'BAL',
@@ -114,33 +232,224 @@ def get_team_abbreviation_mapping():
         'Seattle Seahawks': 'SEA',
         'Tampa Bay Buccaneers': 'TB',
         'Tennessee Titans': 'TEN',
-        'Washington Commanders': 'WAS'
+        'Washington Commanders': 'WAS',
     }
+    
+    @classmethod
+    def normalize(cls, team_name: str) -> str:
+        """
+        Normalize any team name variation to the canonical full name
+        
+        Args:
+            team_name: Any variation of a team name
+            
+        Returns:
+            Canonical full team name, or original if not found
+        """
+        if not team_name:
+            return team_name
+        
+        # Try exact match first
+        if team_name in cls.TEAM_NAME_MAPPING:
+            return cls.TEAM_NAME_MAPPING[team_name]
+        
+        # Try case-insensitive match
+        team_name_lower = team_name.lower()
+        for key, value in cls.TEAM_NAME_MAPPING.items():
+            if key.lower() == team_name_lower:
+                return value
+        
+        # Try partial match (for cases like "SF 49ers" or "49ers SF")
+        for key, value in cls.TEAM_NAME_MAPPING.items():
+            if key.lower() in team_name_lower or team_name_lower in key.lower():
+                return value
+        
+        # Return original if no match found
+        return team_name
+    
+    @classmethod
+    def to_abbreviation(cls, team_name: str) -> str:
+        """
+        Convert any team name to its common abbreviation
+        
+        Args:
+            team_name: Any variation of a team name
+            
+        Returns:
+            Team abbreviation (e.g., 'SF', 'KC', 'NE')
+        """
+        normalized = cls.normalize(team_name)
+        return cls.TEAM_TO_ABBREV.get(normalized, team_name)
+    
+    @classmethod
+    def get_all_variations(cls, team_name: str) -> list:
+        """
+        Get all known variations of a team name
+        
+        Args:
+            team_name: Any variation of a team name
+            
+        Returns:
+            List of all known variations for this team
+        """
+        normalized = cls.normalize(team_name)
+        return [k for k, v in cls.TEAM_NAME_MAPPING.items() if v == normalized]
 
 
 def normalize_team_name(team_name: str) -> str:
-    """
-    Normalize team names to consistent format
-    
-    Args:
-        team_name (str): Raw team name
-        
-    Returns:
-        str: Normalized team name
-    """
-    if pd.isna(team_name) or not team_name:
-        return ""
-    
-    team_name = str(team_name).strip()
-    
-    # Use existing mappings
-    if team_name in TEAM_DICT:
-        return TEAM_DICT[team_name]
-    elif team_name in CITY_TO_TEAM:
-        return CITY_TO_TEAM[team_name]
-    
-    return team_name
+    """Normalize team name to canonical format"""
+    return TeamNameNormalizer.normalize(team_name)
 
+
+def get_team_abbreviation(team_name: str) -> str:
+    """Get team abbreviation from any team name format"""
+    return TeamNameNormalizer.to_abbreviation(team_name)
+
+
+def get_team_variations(team_name: str) -> list:
+    """Get all variations of a team name"""
+    return TeamNameNormalizer.get_all_variations(team_name)
+
+
+# ============================================================================
+# WEEK DETECTION UTILITIES
+# ============================================================================
+
+def get_current_week_from_schedule(schedule_file="2025/nfl_schedule.csv"):
+    """
+    Determine the current NFL week based on the schedule and today's date.
+    
+    Logic:
+    - If today is between week X-1's last game and week X's last game, it's week X
+    - This works regardless of whether folders exist or not
+    
+    Returns:
+        int: Current NFL week number (1-18)
+    """
+    if not os.path.exists(schedule_file):
+        print(f"⚠️ Schedule file not found: {schedule_file}")
+        print("   Falling back to folder-based detection")
+        return get_current_week_from_folders()
+    
+    try:
+        # Load schedule
+        schedule = pd.read_csv(schedule_file)
+        
+        # Parse dates - handle "Sep 4 2025" format
+        schedule['parsed_date'] = pd.to_datetime(
+            schedule['Date'] + ' ' + schedule['Time (ET)'].str.split().str[0],
+            format='%b %d %Y %I:%M',
+            errors='coerce'
+        )
+        
+        # Get today's date (without time for comparison)
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Group by week and get the last game date for each week
+        week_end_dates = schedule.groupby('Week')['parsed_date'].max().sort_index()
+        
+        # Determine current week
+        for week in week_end_dates.index:
+            week_end = week_end_dates[week].replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Add a day buffer - if we're within 24 hours after last game, still that week
+            # (gives time for box scores to be processed)
+            week_end_with_buffer = week_end + pd.Timedelta(days=1)
+            
+            if today <= week_end_with_buffer:
+                return int(week)
+        
+        # If we're past all scheduled weeks, return the last week + 1
+        return int(week_end_dates.index[-1]) + 1
+    
+    except Exception as e:
+        print(f"⚠️ Error parsing schedule: {e}")
+        print("   Falling back to folder-based detection")
+        return get_current_week_from_folders()
+
+
+def get_current_week_from_folders():
+    """
+    Fallback method: Determine current week based on which folders have box scores.
+    
+    Logic:
+    - Check which WEEK folders have box_score_debug.csv (completed weeks)
+    - Current week = highest completed week + 1
+    
+    Returns:
+        int: Current NFL week number (1-18)
+    """
+    completed_weeks = []
+    year_folder = "2025"
+    
+    if os.path.exists(year_folder):
+        for item in os.listdir(year_folder):
+            if item.startswith("WEEK") and os.path.isdir(os.path.join(year_folder, item)):
+                try:
+                    week_num = int(item.replace("WEEK", ""))
+                    # Check if box score exists (indicating week is completed)
+                    box_score_path = os.path.join(year_folder, item, "box_score_debug.csv")
+                    if os.path.exists(box_score_path):
+                        completed_weeks.append(week_num)
+                except ValueError:
+                    continue
+    
+    # Current week is the next week after the latest completed week
+    if completed_weeks:
+        return max(completed_weeks) + 1
+    return 1
+
+
+def get_available_weeks_with_data():
+    """
+    Get list of weeks that have any data (props or box scores).
+    
+    Returns:
+        dict: {
+            'all': [1, 2, 3, 4, 5, 6],  # All weeks with folders
+            'with_props': [6],          # Weeks with saved props
+            'with_scores': [1, 2, 3, 4, 5],  # Weeks with box scores
+            'complete': []              # Weeks with both props and scores
+        }
+    """
+    year_folder = "2025"
+    all_weeks = []
+    with_props = []
+    with_scores = []
+    complete = []
+    
+    if os.path.exists(year_folder):
+        for item in os.listdir(year_folder):
+            if item.startswith("WEEK") and os.path.isdir(os.path.join(year_folder, item)):
+                try:
+                    week_num = int(item.replace("WEEK", ""))
+                    all_weeks.append(week_num)
+                    
+                    week_path = os.path.join(year_folder, item)
+                    has_props = os.path.exists(os.path.join(week_path, "props.csv"))
+                    has_scores = os.path.exists(os.path.join(week_path, "box_score_debug.csv"))
+                    
+                    if has_props:
+                        with_props.append(week_num)
+                    if has_scores:
+                        with_scores.append(week_num)
+                    if has_props and has_scores:
+                        complete.append(week_num)
+                        
+                except ValueError:
+                    continue
+    
+    return {
+        'all': sorted(all_weeks),
+        'with_props': sorted(with_props),
+        'with_scores': sorted(with_scores),
+        'complete': sorted(complete)
+    }
+
+
+# ============================================================================
+# PLAYER NAME CLEANING
+# ============================================================================
 
 def clean_player_name(name: str) -> str:
     """
@@ -268,6 +577,10 @@ def clean_player_name(name: str) -> str:
     return name
 
 
+# ============================================================================
+# FORMATTING UTILITIES
+# ============================================================================
+
 def format_odds(odds: float) -> str:
     """
     Format odds for display
@@ -306,3 +619,58 @@ def format_line(line: float, stat_type: str) -> str:
             return f"{int(line)}"
         else:
             return f"{line}"
+
+
+# ============================================================================
+# MAIN EXECUTION (for testing)
+# ============================================================================
+
+if __name__ == "__main__":
+    """Test the utility functions"""
+    print("=" * 70)
+    print("TESTING UTILITY FUNCTIONS")
+    print("=" * 70)
+    
+    # Test team name normalization
+    print("\n1. Team Name Normalization:")
+    print("-" * 70)
+    test_teams = ["49ers", "SF", "Pittsburgh Steelers", "Washington Football Team"]
+    for team in test_teams:
+        normalized = normalize_team_name(team)
+        abbrev = get_team_abbreviation(team)
+        print(f"  {team:30} → {normalized:30} ({abbrev})")
+    
+    # Test week detection
+    print("\n2. Week Detection:")
+    print("-" * 70)
+    current_week = get_current_week_from_schedule()
+    print(f"  Current week (schedule-based): {current_week}")
+    fallback_week = get_current_week_from_folders()
+    print(f"  Current week (folder-based): {fallback_week}")
+    
+    # Test available weeks
+    print("\n3. Available Weeks:")
+    print("-" * 70)
+    weeks_data = get_available_weeks_with_data()
+    print(f"  All weeks: {weeks_data['all']}")
+    print(f"  With props: {weeks_data['with_props']}")
+    print(f"  With scores: {weeks_data['with_scores']}")
+    print(f"  Complete: {weeks_data['complete']}")
+    
+    # Test player name cleaning
+    print("\n4. Player Name Cleaning:")
+    print("-" * 70)
+    test_players = ["A.J. Brown", "Kenneth Walker III", "Amon-Ra St. Brown"]
+    for player in test_players:
+        cleaned = clean_player_name(player)
+        print(f"  {player:30} → {cleaned}")
+    
+    # Test formatting
+    print("\n5. Formatting:")
+    print("-" * 70)
+    print(f"  Odds +150: {format_odds(150)}")
+    print(f"  Odds -200: {format_odds(-200)}")
+    print(f"  Line 1.5 (TDs): {format_line(1.5, 'Passing TDs')}")
+    print(f"  Line 249.5 (Yards): {format_line(249.5, 'Passing Yards')}")
+    
+    print("\n" + "=" * 70)

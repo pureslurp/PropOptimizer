@@ -3,192 +3,256 @@
     "Total Yards Allowed": 1,
     "Passing Yards Allowed": 1,
     "Rushing Yards Allowed": 16,
-    "Points Allowed": 15
+    "Points Allowed": 15,
+    "Passing TDs Allowed": 6,
+    "Rushing TDs Allowed": 4
   },
   "Cleveland Browns": {
     "Total Yards Allowed": 2,
     "Passing Yards Allowed": 4,
     "Rushing Yards Allowed": 1,
-    "Points Allowed": 21
+    "Points Allowed": 21,
+    "Passing TDs Allowed": 26,
+    "Rushing TDs Allowed": 10
   },
   "Houston Texans": {
     "Total Yards Allowed": 3,
     "Passing Yards Allowed": 6,
     "Rushing Yards Allowed": 6,
-    "Points Allowed": 1
+    "Points Allowed": 1,
+    "Passing TDs Allowed": 1,
+    "Rushing TDs Allowed": 20
   },
   "Green Bay Packers": {
     "Total Yards Allowed": 4,
     "Passing Yards Allowed": 11,
     "Rushing Yards Allowed": 2,
-    "Points Allowed": 11
+    "Points Allowed": 12,
+    "Passing TDs Allowed": 9,
+    "Rushing TDs Allowed": 10
   },
   "Denver Broncos": {
     "Total Yards Allowed": 5,
     "Passing Yards Allowed": 8,
     "Rushing Yards Allowed": 5,
-    "Points Allowed": 2
+    "Points Allowed": 2,
+    "Passing TDs Allowed": 2,
+    "Rushing TDs Allowed": 4
   },
   "Minnesota Vikings": {
     "Total Yards Allowed": 6,
     "Passing Yards Allowed": 3,
     "Rushing Yards Allowed": 24,
-    "Points Allowed": 5
+    "Points Allowed": 5,
+    "Passing TDs Allowed": 6,
+    "Rushing TDs Allowed": 15
   },
   "Los Angeles Chargers": {
     "Total Yards Allowed": 7,
-    "Passing Yards Allowed": 5,
+    "Passing Yards Allowed": 4,
     "Rushing Yards Allowed": 18,
-    "Points Allowed": 6
+    "Points Allowed": 6,
+    "Passing TDs Allowed": 2,
+    "Rushing TDs Allowed": 20
   },
   "Detroit Lions": {
     "Total Yards Allowed": 8,
     "Passing Yards Allowed": 12,
     "Rushing Yards Allowed": 7,
-    "Points Allowed": 17
+    "Points Allowed": 17,
+    "Passing TDs Allowed": 26,
+    "Rushing TDs Allowed": 15
   },
   "Buffalo Bills": {
     "Total Yards Allowed": 9,
     "Passing Yards Allowed": 2,
     "Rushing Yards Allowed": 28,
-    "Points Allowed": 18
+    "Points Allowed": 18,
+    "Passing TDs Allowed": 9,
+    "Rushing TDs Allowed": 28
   },
   "Los Angeles Rams": {
     "Total Yards Allowed": 10,
     "Passing Yards Allowed": 18,
     "Rushing Yards Allowed": 10,
-    "Points Allowed": 13
+    "Points Allowed": 14,
+    "Passing TDs Allowed": 14,
+    "Rushing TDs Allowed": 4
   },
   "Tampa Bay Buccaneers": {
     "Total Yards Allowed": 11,
     "Passing Yards Allowed": 20,
     "Rushing Yards Allowed": 8,
-    "Points Allowed": 23
+    "Points Allowed": 23,
+    "Passing TDs Allowed": 26,
+    "Rushing TDs Allowed": 15
   },
   "Carolina Panthers": {
     "Total Yards Allowed": 12,
     "Passing Yards Allowed": 10,
     "Rushing Yards Allowed": 14,
-    "Points Allowed": 19
+    "Points Allowed": 19,
+    "Passing TDs Allowed": 14,
+    "Rushing TDs Allowed": 20
   },
   "Kansas City Chiefs": {
     "Total Yards Allowed": 13,
     "Passing Yards Allowed": 7,
     "Rushing Yards Allowed": 21,
-    "Points Allowed": 14
+    "Points Allowed": 14,
+    "Passing TDs Allowed": 6,
+    "Rushing TDs Allowed": 24
   },
   "Indianapolis Colts": {
     "Total Yards Allowed": 14,
     "Passing Yards Allowed": 19,
     "Rushing Yards Allowed": 12,
-    "Points Allowed": 3
+    "Points Allowed": 3,
+    "Passing TDs Allowed": 19,
+    "Rushing TDs Allowed": 4
   },
   "San Francisco 49ers": {
     "Total Yards Allowed": 15,
     "Passing Yards Allowed": 14,
     "Rushing Yards Allowed": 15,
-    "Points Allowed": 7
+    "Points Allowed": 6,
+    "Passing TDs Allowed": 19,
+    "Rushing TDs Allowed": 4
   },
   "Seattle Seahawks": {
     "Total Yards Allowed": 16,
     "Passing Yards Allowed": 25,
     "Rushing Yards Allowed": 3,
-    "Points Allowed": 12
+    "Points Allowed": 12,
+    "Passing TDs Allowed": 19,
+    "Rushing TDs Allowed": 4
   },
   "New Orleans Saints": {
     "Total Yards Allowed": 17,
     "Passing Yards Allowed": 9,
     "Rushing Yards Allowed": 20,
-    "Points Allowed": 24
+    "Points Allowed": 24,
+    "Passing TDs Allowed": 28,
+    "Rushing TDs Allowed": 15
   },
   "New England Patriots": {
     "Total Yards Allowed": 18,
     "Passing Yards Allowed": 26,
     "Rushing Yards Allowed": 4,
-    "Points Allowed": 9
+    "Points Allowed": 10,
+    "Passing TDs Allowed": 22,
+    "Rushing TDs Allowed": 4
   },
   "Las Vegas Raiders": {
     "Total Yards Allowed": 19,
     "Passing Yards Allowed": 22,
     "Rushing Yards Allowed": 13,
-    "Points Allowed": 25
+    "Points Allowed": 25,
+    "Passing TDs Allowed": 14,
+    "Rushing TDs Allowed": 30
   },
   "Philadelphia Eagles": {
     "Total Yards Allowed": 20,
     "Passing Yards Allowed": 15,
     "Rushing Yards Allowed": 22,
-    "Points Allowed": 16
+    "Points Allowed": 16,
+    "Passing TDs Allowed": 14,
+    "Rushing TDs Allowed": 30
   },
   "Arizona Cardinals": {
     "Total Yards Allowed": 21,
     "Passing Yards Allowed": 28,
-    "Rushing Yards Allowed": 9,
-    "Points Allowed": 4
+    "Rushing Yards Allowed": 8,
+    "Points Allowed": 4,
+    "Passing TDs Allowed": 6,
+    "Rushing TDs Allowed": 10
   },
   "New York Jets": {
     "Total Yards Allowed": 22,
     "Passing Yards Allowed": 13,
     "Rushing Yards Allowed": 27,
-    "Points Allowed": 31
+    "Points Allowed": 31,
+    "Passing TDs Allowed": 28,
+    "Rushing TDs Allowed": 20
   },
   "Jacksonville Jaguars": {
     "Total Yards Allowed": 23,
     "Passing Yards Allowed": 27,
     "Rushing Yards Allowed": 11,
-    "Points Allowed": 8
+    "Points Allowed": 8,
+    "Passing TDs Allowed": 19,
+    "Rushing TDs Allowed": 15
   },
   "Washington Commanders": {
     "Total Yards Allowed": 24,
     "Passing Yards Allowed": 23,
     "Rushing Yards Allowed": 17,
-    "Points Allowed": 10
+    "Points Allowed": 10,
+    "Passing TDs Allowed": 19,
+    "Rushing TDs Allowed": 10
   },
   "Tennessee Titans": {
     "Total Yards Allowed": 25,
     "Passing Yards Allowed": 21,
     "Rushing Yards Allowed": 30,
-    "Points Allowed": 26
+    "Points Allowed": 26,
+    "Passing TDs Allowed": 9,
+    "Rushing TDs Allowed": 32
   },
   "New York Giants": {
     "Total Yards Allowed": 26,
     "Passing Yards Allowed": 24,
     "Rushing Yards Allowed": 26,
-    "Points Allowed": 22
+    "Points Allowed": 22,
+    "Passing TDs Allowed": 14,
+    "Rushing TDs Allowed": 28
   },
   "Chicago Bears": {
     "Total Yards Allowed": 27,
     "Passing Yards Allowed": 17,
     "Rushing Yards Allowed": 31,
-    "Points Allowed": 28
+    "Points Allowed": 28,
+    "Passing TDs Allowed": 26,
+    "Rushing TDs Allowed": 15
   },
   "Pittsburgh Steelers": {
     "Total Yards Allowed": 28,
     "Passing Yards Allowed": 30,
     "Rushing Yards Allowed": 19,
-    "Points Allowed": 20
+    "Points Allowed": 20,
+    "Passing TDs Allowed": 14,
+    "Rushing TDs Allowed": 15
   },
   "Miami Dolphins": {
     "Total Yards Allowed": 29,
     "Passing Yards Allowed": 16,
     "Rushing Yards Allowed": 32,
-    "Points Allowed": 27
+    "Points Allowed": 27,
+    "Passing TDs Allowed": 22,
+    "Rushing TDs Allowed": 24
   },
   "Cincinnati Bengals": {
     "Total Yards Allowed": 30,
     "Passing Yards Allowed": 29,
-    "Rushing Yards Allowed": 25,
-    "Points Allowed": 30
+    "Rushing Yards Allowed": 24,
+    "Points Allowed": 30,
+    "Passing TDs Allowed": 30,
+    "Rushing TDs Allowed": 24
   },
   "Baltimore Ravens": {
     "Total Yards Allowed": 31,
     "Passing Yards Allowed": 31,
     "Rushing Yards Allowed": 29,
-    "Points Allowed": 32
+    "Points Allowed": 32,
+    "Passing TDs Allowed": 32,
+    "Rushing TDs Allowed": 30
   },
   "Dallas Cowboys": {
     "Total Yards Allowed": 32,
     "Passing Yards Allowed": 32,
     "Rushing Yards Allowed": 23,
-    "Points Allowed": 29
+    "Points Allowed": 29,
+    "Passing TDs Allowed": 30,
+    "Rushing TDs Allowed": 24
   }
 }

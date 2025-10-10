@@ -15,7 +15,7 @@ from scoring_model import AdvancedPropScorer
 from odds_api import OddsAPI, AlternateLineManager
 from utils import clean_player_name, format_odds, format_line
 from config import ODDS_API_KEY, STAT_TYPES, CONFIDENCE_LEVELS, DEFAULT_MIN_SCORE, PREFERRED_BOOKMAKER
-from week_utils import get_current_week_from_schedule, get_available_weeks_with_data
+from utils import get_current_week_from_schedule, get_available_weeks_with_data
 
 # Set page config
 st.set_page_config(
@@ -512,8 +512,8 @@ def main():
         if 'Matchup' in results_df.columns:
             results_df = results_df.drop('Matchup', axis=1)
         
-        # Sort by Stat Type, then Player name, then by is_alternate (False first, then True)
-        results_df = results_df.sort_values(['Stat Type', 'Player', 'is_alternate'], ascending=[True, True, True])
+        # Sort by Score (descending), then by Stat Type and Player name
+        results_df = results_df.sort_values(['total_score'], ascending=[False])
         
         # Format the display
         display_columns = [
