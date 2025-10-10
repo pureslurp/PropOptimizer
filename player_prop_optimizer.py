@@ -8,6 +8,8 @@ import pandas as pd
 from typing import Dict, List
 from datetime import datetime
 import os
+import plotly.graph_objects as go
+import sys
 
 # Import our custom modules
 from enhanced_data_processor import EnhancedFootballDataProcessor
@@ -16,6 +18,7 @@ from odds_api import OddsAPI, AlternateLineManager
 from utils import clean_player_name, format_odds, format_line
 from config import ODDS_API_KEY, STAT_TYPES, CONFIDENCE_LEVELS, DEFAULT_MIN_SCORE, PREFERRED_BOOKMAKER
 from utils import get_current_week_from_schedule, get_available_weeks_with_data
+import warnings
 
 # Set page config
 st.set_page_config(
@@ -24,12 +27,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# Parse command-line arguments for CSV mode
+USE_CSV_MODE = '--use-csv' in sys.argv or '--csv' in sys.argv
+
 
 # Removed - now using get_available_weeks_with_data() from week_utils
 
 
-def load_historical_props_for_week(week_num):
-    """Load historical props data for a specific week"""
+def load_props_from_csv(week_num):
+    """
+    Load props data from CSV file for a specific week
+    Returns DataFrame in the same format as API props_df
+    """
     props_file = f"2025/WEEK{week_num}/props.csv"
     
     if not os.path.exists(props_file):
@@ -37,10 +46,249 @@ def load_historical_props_for_week(week_num):
     
     try:
         df = pd.read_csv(props_file)
+        
+        # Convert CSV format to match API props format
+        # CSV has: week,saved_date,Player,Team,Opposing Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
+        # We need the same structure as parse_player_props returns
+        
+        # Rename/select columns to match expected format
+        if not df.empty:
+            # Handle is_alternate column - CSV may have empty strings
+            if 'is_alternate' in df.columns:
+                df['is_alternate'] = df['is_alternate'].fillna(False)
+                df['is_alternate'] = df['is_alternate'].apply(lambda x: x == 'True' or x == True)
+            else:
+                df['is_alternate'] = False
+            
+            # Ensure all required columns exist
+            required_cols = ['Player', 'Team', 'Opposing Team', 'Stat Type', 'Line', 'Odds', 
+                           'Bookmaker', 'Home Team', 'Away Team', 'Commence Time']
+            for col in required_cols:
+                if col not in df.columns:
+                    df[col] = ''
+            
+            # Add Opposing Team Full if not present (for lookups)
+            if 'Opposing Team Full' not in df.columns:
+                # Extract full team name from "vs TEAM" or "@ TEAM" format
+                def extract_full_team(opposing_str, home_team, away_team, player_team):
+                    if pd.isna(opposing_str) or opposing_str == '':
+                        return ''
+                    # If format is "vs X" player is home, opponent is away
+                    # If format is "@ X" player is away, opponent is home  
+                    if 'vs' in str(opposing_str):
+                        return away_team if pd.notna(away_team) else ''
+                    elif '@' in str(opposing_str):
+                        return home_team if pd.notna(home_team) else ''
+                    return ''
+                
+                df['Opposing Team Full'] = df.apply(
+                    lambda row: extract_full_team(
+                        row.get('Opposing Team', ''),
+                        row.get('Home Team', ''),
+                        row.get('Away Team', ''),
+                        row.get('Team', '')
+                    ), axis=1
+                )
+        
         return df
+        
     except Exception as e:
-        print(f"Error loading historical props: {e}")
+        print(f"Error loading props from CSV: {e}")
         return pd.DataFrame()
+
+
+def load_historical_props_for_week(week_num):
+    """Load historical props data for a specific week (legacy function)"""
+    return load_props_from_csv(week_num)
+
+
+def fetch_props_with_fallback(odds_api, progress_bar):
+    """
+    Fetch props from API with automatic CSV fallback if API fails.
+    Can be forced to use CSV mode with --use-csv or --csv flag.
+    
+    Returns:
+        tuple: (props_df, odds_data, fallback_used)
+    """
+    api_failed = False
+    fallback_used = False
+    
+    # Check if CSV mode is forced via command line
+    if USE_CSV_MODE:
+        api_failed = True
+        st.info("🔧 CSV Mode: Using saved props (--use-csv flag detected)")
+    else:
+        try:
+            odds_data = odds_api.get_player_props()
+            progress_bar.progress(10, text="Processing player props data...")
+            
+            if not odds_data:
+                api_failed = True
+        except Exception as api_error:
+            api_failed = True
+            st.warning(f"⚠️ API Error: {str(api_error)}")
+    
+    # Fallback to CSV if API failed or CSV mode is forced
+    if api_failed:
+        current_week = get_current_week_from_schedule()
+        if not USE_CSV_MODE:
+            st.info(f"📁 API limit reached or unavailable. Loading from saved Week {current_week} props...")
+        progress_bar.progress(10, text=f"Loading props from Week {current_week} CSV...")
+        
+        props_df = load_props_from_csv(current_week)
+        
+        if props_df.empty:
+            st.error(f"❌ No saved props found for Week {current_week}. Please try again when API quota resets.")
+            st.stop()
+        
+        fallback_used = True
+        odds_data = []  # Empty for compatibility
+        progress_bar.progress(20, text="Processing saved props data...")
+    else:
+        # Parse the API data normally
+        props_df = odds_api.parse_player_props(odds_data)
+        progress_bar.progress(20, text="Updating team assignments...")
+        
+        if props_df.empty:
+            st.warning("No player props found for the selected criteria.")
+            st.stop()
+        
+        # Update team assignments using actual player data
+        from enhanced_data_processor import EnhancedFootballDataProcessor
+        data_processor = EnhancedFootballDataProcessor()
+        props_df = odds_api.update_team_assignments(props_df, data_processor)
+    
+    return props_df, odds_data, fallback_used
+
+
+def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor, 
+                            alt_line_manager, fallback_used, progress_bar):
+    """
+    Process props and calculate scores (handles both API and CSV data).
+    
+    Returns:
+        list: All scored props including alternates
+    """
+    all_props = []
+    
+    if fallback_used:
+        # CSV fallback: process all rows (already includes alternates)
+        for idx, stat_type in enumerate(stat_types_in_data):
+            stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
+            
+            if stat_filtered_df.empty:
+                continue
+            
+            progress_text = f"Processing {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
+            progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
+            progress_bar.progress(progress_val, text=progress_text)
+            
+            # Process all rows from CSV (both main and alternate lines)
+            for _, row in stat_filtered_df.iterrows():
+                score_data = scorer.calculate_comprehensive_score(
+                    row['Player'],
+                    row.get('Opposing Team Full', row['Opposing Team']),
+                    row['Stat Type'],
+                    row['Line'],
+                    row.get('Odds', 0)
+                )
+                
+                # Calculate L5, Home, Away over rates, and Streak
+                player_name = row['Player']
+                line = row['Line']
+                
+                l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
+                streak = data_processor.get_player_streak(player_name, stat_type, line)
+                home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
+                away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
+                
+                scored_prop = {
+                    **row.to_dict(),
+                    **score_data,
+                    'l5_over_rate': l5_over_rate,
+                    'home_over_rate': home_over_rate,
+                    'away_over_rate': away_over_rate,
+                    'streak': streak,
+                    'is_alternate': row.get('is_alternate', False)
+                }
+                all_props.append(scored_prop)
+    else:
+        # API mode: process main lines and fetch alternates
+        for idx, stat_type in enumerate(stat_types_in_data):
+            stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
+            
+            if stat_filtered_df.empty:
+                continue
+            
+            progress_text = f"Processing {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
+            progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
+            progress_bar.progress(progress_val, text=progress_text)
+            
+            # Calculate scores for main lines
+            for _, row in stat_filtered_df.iterrows():
+                score_data = scorer.calculate_comprehensive_score(
+                    row['Player'],
+                    row.get('Opposing Team Full', row['Opposing Team']),
+                    row['Stat Type'],
+                    row['Line'],
+                    row.get('Odds', 0)
+                )
+                
+                # Calculate L5, Home, Away over rates, and Streak
+                player_name = row['Player']
+                line = row['Line']
+                
+                l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
+                streak = data_processor.get_player_streak(player_name, stat_type, line)
+                home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
+                away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
+                
+                scored_prop = {
+                    **row.to_dict(),
+                    **score_data,
+                    'l5_over_rate': l5_over_rate,
+                    'home_over_rate': home_over_rate,
+                    'away_over_rate': away_over_rate,
+                    'streak': streak,
+                    'is_alternate': False
+                }
+                all_props.append(scored_prop)
+                
+                # Add alternate lines with odds between +200 and -450
+                if stat_type in alt_line_manager.alternate_lines:
+                    player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
+                    
+                    for alt_line in player_alt_lines:
+                        alt_odds = alt_line.get('odds', 0)
+                        
+                        if -450 <= alt_odds <= 200:
+                            alt_score_data = scorer.calculate_comprehensive_score(
+                                player_name,
+                                row.get('Opposing Team Full', row['Opposing Team']),
+                                stat_type,
+                                alt_line['line'],
+                                alt_line['odds']
+                            )
+                            
+                            alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
+                            alt_streak = data_processor.get_player_streak(player_name, stat_type, alt_line['line'])
+                            alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
+                            alt_away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, alt_line['line'])
+                            
+                            alt_prop = {
+                                **row.to_dict(),
+                                'Line': alt_line['line'],
+                                'Odds': alt_line['odds'],
+                                **alt_score_data,
+                                'l5_over_rate': alt_l5_over_rate,
+                                'home_over_rate': alt_home_over_rate,
+                                'away_over_rate': alt_away_over_rate,
+                                'streak': alt_streak,
+                                'is_alternate': True
+                            }
+                            all_props.append(alt_prop)
+    
+    return all_props
 
 
 def load_box_score_for_week(week_num):
@@ -216,6 +464,7 @@ def main():
     
     st.caption(f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)")
     
+    
     # Fetch and display data
     try:
         # Initialize info messages list
@@ -231,23 +480,9 @@ def main():
         else:
             # Fetch fresh data with progress bars
             progress_bar = st.progress(0, text="Fetching player props data...")
-            odds_data = odds_api.get_player_props()
-            progress_bar.progress(10, text="Processing player props data...")
             
-            if not odds_data:
-                st.error("No odds data available. Please check your API key and try again.")
-                st.stop()
-            
-            # Parse the data
-            props_df = odds_api.parse_player_props(odds_data)
-            progress_bar.progress(20, text="Updating team assignments...")
-            
-            if props_df.empty:
-                st.warning("No player props found for the selected criteria.")
-                st.stop()
-            
-            # Update team assignments using actual player data
-            props_df = odds_api.update_team_assignments(props_df, data_processor)
+            # Fetch props with automatic CSV fallback
+            props_df, odds_data, fallback_used = fetch_props_with_fallback(odds_api, progress_bar)
             
             # Cache the raw data
             st.session_state.props_df_cache = props_df
@@ -257,101 +492,36 @@ def main():
             alt_line_manager = AlternateLineManager(ODDS_API_KEY, odds_data)
             st.session_state.alt_line_manager = alt_line_manager
             
-            # Fetch alternate lines for all stat types with progress
-            progress_bar.progress(30, text="Fetching alternate lines for all stat types...")
-            stat_types_in_data = props_df['Stat Type'].unique()
-            for idx, stat_type in enumerate(stat_types_in_data):
-                if stat_type in alt_line_manager.stat_market_mapping:
-                    progress_text = f"Fetching alternate lines for {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
-                    progress_val = 30 + int((idx + 1) / len(stat_types_in_data) * 20)
-                    progress_bar.progress(progress_val, text=progress_text)
-                    alt_line_manager.alternate_lines[stat_type] = alt_line_manager.fetch_alternate_lines_for_stat(stat_type)
+            # Handle alternate lines based on data source
+            if fallback_used:
+                # CSV already has alternate lines, no need to fetch
+                progress_bar.progress(30, text="Using saved alternate lines from CSV...")
+            else:
+                # Fetch alternate lines (OPTIMIZED: 73% fewer API calls)
+                progress_bar.progress(30, text="Fetching alternate lines (optimized - 73% fewer API calls)...")
+                all_alternate_lines = alt_line_manager.fetch_all_alternate_lines_optimized()
+                alt_line_manager.alternate_lines = all_alternate_lines
             
-            # Process all stat types and calculate scores
+            # Process and score all props
             progress_bar.progress(50, text="Calculating scores for all props...")
-            all_props = []
-            
-            for idx, stat_type in enumerate(stat_types_in_data):
-                stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
-                
-                if stat_filtered_df.empty:
-                    continue
-                
-                progress_text = f"Processing {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
-                progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
-                progress_bar.progress(progress_val, text=progress_text)
-                
-                # Calculate scores for main lines
-                for _, row in stat_filtered_df.iterrows():
-                    score_data = scorer.calculate_comprehensive_score(
-                        row['Player'],
-                        row.get('Opposing Team Full', row['Opposing Team']),
-                        row['Stat Type'],
-                        row['Line'],
-                        row.get('Odds', 0)
-                    )
-                    
-                    # Calculate L5, Home, Away over rates, and Streak
-                    player_name = row['Player']
-                    line = row['Line']
-                    
-                    l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, line, n=5)
-                    streak = data_processor.get_player_streak(player_name, stat_type, line)
-                    home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, line)
-                    away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, line)
-                    
-                    scored_prop = {
-                        **row.to_dict(),
-                        **score_data,
-                        'l5_over_rate': l5_over_rate,
-                        'home_over_rate': home_over_rate,
-                        'away_over_rate': away_over_rate,
-                        'streak': streak,
-                        'is_alternate': False
-                    }
-                    all_props.append(scored_prop)
-                    
-                    # Add alternate lines with odds between +200 and -450
-                    if stat_type in alt_line_manager.alternate_lines:
-                        player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
-                        
-                        for alt_line in player_alt_lines:
-                            alt_odds = alt_line.get('odds', 0)
-                            
-                            if -450 <= alt_odds <= 200:
-                                alt_score_data = scorer.calculate_comprehensive_score(
-                                    player_name,
-                                    row.get('Opposing Team Full', row['Opposing Team']),
-                                    stat_type,
-                                    alt_line['line'],
-                                    alt_line['odds']
-                                )
-                                
-                                alt_l5_over_rate = data_processor.get_player_last_n_over_rate(player_name, stat_type, alt_line['line'], n=5)
-                                alt_streak = data_processor.get_player_streak(player_name, stat_type, alt_line['line'])
-                                alt_home_over_rate = data_processor.get_player_home_over_rate(player_name, stat_type, alt_line['line'])
-                                alt_away_over_rate = data_processor.get_player_away_over_rate(player_name, stat_type, alt_line['line'])
-                                
-                                alt_prop = {
-                                    **row.to_dict(),
-                                    'Line': alt_line['line'],
-                                    'Odds': alt_line['odds'],
-                                    **alt_score_data,
-                                    'l5_over_rate': alt_l5_over_rate,
-                                    'home_over_rate': alt_home_over_rate,
-                                    'away_over_rate': alt_away_over_rate,
-                                    'streak': alt_streak,
-                                    'is_alternate': True
-                                }
-                                all_props.append(alt_prop)
+            stat_types_in_data = props_df['Stat Type'].unique()
+            all_props = process_props_and_score(
+                props_df, stat_types_in_data, scorer, data_processor, 
+                alt_line_manager, fallback_used, progress_bar
+            )
             
             progress_bar.progress(100, text="Complete!")
-            progress_bar.empty()  # Clear the progress bar
+            progress_bar.empty()
             
             # Cache the processed data
             st.session_state.all_scored_props = all_props
             
-            info_messages.append(('success', f"✅ Loaded {len(all_props)} total props from {len(odds_data)} games"))
+            # Add appropriate success message based on data source
+            if fallback_used:
+                current_week = get_current_week_from_schedule()
+                info_messages.append(('warning', f"📁 Loaded {len(all_props)} props from saved Week {current_week} CSV (API unavailable)"))
+            else:
+                info_messages.append(('success', f"✅ Loaded {len(all_props)} total props from {len(odds_data)} games"))
         
         # Handle export if button was clicked
         if export_button:
@@ -641,12 +811,14 @@ def main():
         # Drop the numeric columns from display
         display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         
-        # Display the results with styling
-        st.dataframe(
+        # Display the results with styling and selection
+        event = st.dataframe(
             styled_df,
             use_container_width=True,
             hide_index=True,
-            column_order=display_columns_final
+            column_order=display_columns_final,
+            on_select="rerun",
+            selection_mode="single-row"
         )
         
         # Display info messages below the table
@@ -655,6 +827,111 @@ def main():
                 st.info(msg_text)
             elif msg_type == 'success':
                 st.success(msg_text)
+            elif msg_type == 'warning':
+                st.warning(msg_text)
+        
+        # Display selected player details
+        if event.selection and event.selection.get("rows"):
+            selected_row_idx = event.selection["rows"][0]
+            
+            # Get the selected row from the original results_df (before display formatting)
+            selected_row = results_df.iloc[selected_row_idx]
+            # Last 5 Games Performance Chart
+            st.markdown("---")
+            st.subheader("📊 Last 5 Games Performance")
+            
+            # Get last 5 games data with opponent details
+            player_name = selected_row['Player']
+            stat_type = selected_row['Stat Type']
+            line = selected_row['Line']
+            
+            game_details = data_processor.get_player_last_n_games_detailed(player_name, stat_type, n=5)
+            
+            if game_details and len(game_details) > 0:
+                # Extract values and create labels with opponents and defensive ranks
+                game_values = [game['value'] for game in game_details]
+                game_labels = []
+                
+                for game in game_details:
+                    opponent = game['opponent']
+                    is_home = game['is_home']
+                    def_rank = game['defensive_rank']
+                    game_date = game.get('game_date', '')
+                    
+                    # Format label: "@ NYG (10)<br>on 10/12" or "vs DAL (23)<br>on 09/04"
+                    location = "vs" if is_home else "@"
+                    rank_str = f"({def_rank})" if def_rank > 0 else ""
+                    
+                    # Build label with line break for date
+                    if game_date:
+                        label = f"{location} {opponent} {rank_str}<br>on {game_date}"
+                    else:
+                        label = f"{location} {opponent} {rank_str}"
+                    
+                    game_labels.append(label.strip())
+                
+                # Determine bar colors based on whether they hit the line
+                bar_colors = ['#2ecc71' if val > line else '#e74c3c' for val in game_values]
+                
+                fig = go.Figure()
+                
+                # Add bars for game values
+                fig.add_trace(go.Bar(
+                    x=game_labels,
+                    y=game_values,
+                    marker_color=bar_colors,
+                    text=[f"{val:.1f}" for val in game_values],
+                    textposition='outside',
+                    name='Actual'
+                ))
+                
+                # Add horizontal line for the betting line
+                fig.add_hline(
+                    y=line, 
+                    line_dash="dash", 
+                    line_color="#3498db",
+                    annotation_text=f"Line: {line}",
+                    annotation_position="right"
+                )
+                
+                # Calculate Y-axis range with padding
+                max_value = max(game_values) if game_values else 0
+                min_value = min(game_values) if game_values else 0
+                y_range = max_value - min_value
+                padding = max(y_range * 0.2, 20)  # 20% padding or minimum 20 units
+                
+                y_max = max_value + padding
+                y_min = max(0, min_value - padding)  # Don't go below 0 for stats
+                
+                # Update layout
+                fig.update_layout(
+                    title=f"{player_name} - {stat_type} (Last {len(game_values)} Games)",
+                    xaxis_title="",  # Removed - now obvious from labels
+                    yaxis_title=stat_type,
+                    showlegend=False,
+                    height=400,
+                    hovermode='x unified',
+                    yaxis=dict(range=[y_min, y_max])
+                )
+                
+                # Add hover template
+                fig.update_traces(
+                    hovertemplate='<b>%{x}</b><br>' + 
+                                  f'{stat_type}: ' + '%{y:.1f}<br>' +
+                                  '<extra></extra>'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Add context info
+                over_count = sum(1 for val in game_values if val > line)
+                st.caption(f"🟢 Hit Over: {over_count}/{len(game_values)} games • 🔴 Hit Under: {len(game_values) - over_count}/{len(game_values)} games • Defensive ranks in parentheses • Dates shown as MM/DD")
+            else:
+                st.info(f"No game history available for {player_name} - {stat_type}")
+            
+            # Show all row data in an expander for debugging/detailed view
+            with st.expander("🔍 View All Row Data"):
+                st.json(selected_row.to_dict())
         
         # Function to display prop picks based on score threshold
         def display_prop_picks(df, score_min, score_max, odds_min=-400, odds_max=-150):

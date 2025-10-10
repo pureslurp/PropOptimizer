@@ -505,14 +505,29 @@ class EnhancedFootballDataProcessor:
         if not self.team_defensive_stats:
             self.update_season_data()
         
+        # Convert stat type to defensive stat format (e.g., "Passing Yards" -> "Passing Yards Allowed")
+        # Map stat types to their defensive equivalents
+        # Note: ESPN doesn't have separate receiving stats, so we use passing stats as proxy
+        stat_mapping = {
+            'Passing Yards': 'Passing Yards Allowed',
+            'Passing TDs': 'Passing TDs Allowed',
+            'Rushing Yards': 'Rushing Yards Allowed',
+            'Rushing TDs': 'Rushing TDs Allowed',
+            'Receptions': 'Passing Yards Allowed',      # Use passing defense as proxy
+            'Receiving Yards': 'Passing Yards Allowed',  # Use passing defense as proxy
+            'Receiving TDs': 'Passing TDs Allowed'       # Use passing TDs as proxy
+        }
+        
+        defensive_stat = stat_mapping.get(stat_type, stat_type + ' Allowed')
+        
         # The ESPN data is organized by team first, then by stat type
-        if team in self.team_defensive_stats and stat_type in self.team_defensive_stats[team]:
-            return self.team_defensive_stats[team][stat_type]
+        if team in self.team_defensive_stats and defensive_stat in self.team_defensive_stats[team]:
+            return self.team_defensive_stats[team][defensive_stat]
         
         # Try case-insensitive matching
         for team_name, stats in self.team_defensive_stats.items():
-            if team_name.lower() == team.lower() and stat_type in stats:
-                return stats[stat_type]
+            if team_name.lower() == team.lower() and defensive_stat in stats:
+                return stats[defensive_stat]
         
         return 16  # Default middle ranking if team not found
     
@@ -740,6 +755,135 @@ class EnhancedFootballDataProcessor:
         
         return streak
     
+    def get_player_last_n_games(self, player: str, stat_type: str, n: int = 5) -> list:
+        """
+        Get the actual stat values for the last N games
+        
+        Args:
+            player: Player name
+            stat_type: Type of stat (e.g., "Passing Yards")
+            n: Number of recent games to get (default: 5)
+            
+        Returns:
+            List of stat values for the last N games (most recent last)
+        """
+        from utils import clean_player_name
+        cleaned_name = clean_player_name(player)
+        
+        # Find player's stats
+        player_stats = None
+        for stored_player, stats in self.player_season_stats.items():
+            cleaned_stored = clean_player_name(stored_player)
+            if cleaned_stored == cleaned_name and stat_type in stats:
+                player_stats = stats[stat_type]
+                break
+        
+        if not player_stats or len(player_stats) == 0:
+            return []
+        
+        # Get the last N games
+        last_n_games = player_stats[-n:] if len(player_stats) >= n else player_stats
+        
+        return last_n_games
+    
+    def _load_all_week_data(self) -> Dict[str, pd.DataFrame]:
+        """Load all available week data from files"""
+        all_week_data = {}
+        
+        # Look for all WEEK folders
+        base_path = "2025"
+        if not os.path.exists(base_path):
+            return {}
+        
+        for week in range(1, 19):  # Check weeks 1-18
+            week_path = f"{base_path}/WEEK{week}"
+            box_score_file = f"{week_path}/box_score_debug.csv"
+            
+            if os.path.exists(box_score_file):
+                try:
+                    week_data = self.scrape_week_data(week, force_refresh=False)
+                    if week_data:
+                        all_week_data.update(week_data)
+                except Exception as e:
+                    # Skip weeks that can't be loaded
+                    continue
+        
+        return all_week_data
+    
+    def get_player_last_n_games_detailed(self, player: str, stat_type: str, n: int = 5) -> list:
+        """
+        Get detailed game information for the last N games including opponents and ranks
+        
+        Args:
+            player: Player name
+            stat_type: Type of stat (e.g., "Passing Yards")
+            n: Number of recent games to get (default: 5)
+            
+        Returns:
+            List of dicts with 'value', 'opponent', 'is_home', 'defensive_rank' for last N games
+        """
+        from utils import clean_player_name, get_team_abbreviation
+        cleaned_name = clean_player_name(player)
+        
+        # Load all week data to get game context
+        all_week_data = self._load_all_week_data()
+        if not all_week_data:
+            return []
+        
+        combined_df = pd.concat(all_week_data.values(), ignore_index=True)
+        
+        # Find player's games
+        player_games = combined_df[combined_df['player'].apply(lambda x: clean_player_name(x) == cleaned_name)].copy()
+        
+        if player_games.empty:
+            return []
+        
+        # Get games with the specific stat
+        if stat_type not in player_games.columns:
+            return []
+        
+        player_games = player_games.dropna(subset=[stat_type])
+        player_games[stat_type] = pd.to_numeric(player_games[stat_type], errors='coerce')
+        player_games = player_games.dropna(subset=[stat_type])
+        
+        # Sort by week to get chronological order
+        if 'week' in player_games.columns:
+            player_games = player_games.sort_values('week')
+        
+        # Get last N games
+        last_n_games = player_games.tail(n)
+        
+        game_details = []
+        for _, game in last_n_games.iterrows():
+            team = game.get('team', 'Unknown')
+            week = game.get('week', 0)
+            value = game[stat_type]
+            
+            # Determine if home or away
+            is_home = self.is_home_game(team, week)
+            
+            # Get opponent (returns full name from schedule)
+            opponent_full = self.get_opposing_team(team, week)
+            
+            # Convert full name to abbreviation for display
+            opponent_abbrev = get_team_abbreviation(opponent_full)
+            
+            # Get defensive rank for opponent against this stat (using full name)
+            defensive_rank = self.get_team_defensive_rank(opponent_full, stat_type)
+            
+            # Get game date in MM/DD format
+            game_date = self.get_game_date(team, week)
+            
+            game_details.append({
+                'value': value,
+                'opponent': opponent_abbrev,  # Abbreviation for display
+                'is_home': is_home,
+                'defensive_rank': defensive_rank,
+                'game_date': game_date
+            })
+        
+        return game_details
+    
     def get_opposing_team(self, player_team: str, week: int = None) -> str:
         """Get the opposing team for a given team and week"""
         if week is None:
@@ -766,6 +910,40 @@ class EnhancedFootballDataProcessor:
         except Exception as e:
             print(f"Error getting opposing team for {player_team}: {e}")
             return "Unknown"
+    
+    def get_game_date(self, team: str, week: int = None) -> str:
+        """Get the game date for a team and week in MM/DD format"""
+        if week is None:
+            week = self.current_week
+        
+        try:
+            # Use loaded schedule data
+            if self.schedule_data is None or self.schedule_data.empty:
+                return ""
+            
+            # Find the game for this team in the specified week
+            week_games = self.schedule_data[self.schedule_data['Week'] == week]
+            
+            for _, game in week_games.iterrows():
+                home_team = game['Home'].strip()
+                away_team = game['Away'].strip()
+                
+                if team == home_team or team == away_team:
+                    # Parse date (format: "Sep 4 2025")
+                    date_str = game['Date']
+                    try:
+                        from datetime import datetime
+                        # Parse the date string
+                        date_obj = datetime.strptime(date_str, "%b %d %Y")
+                        # Return in MM/DD format
+                        return date_obj.strftime("%m/%d")
+                    except:
+                        return ""
+            
+            return ""
+        except Exception as e:
+            print(f"Error getting game date for {team}: {e}")
+            return ""
     
     def get_week_from_matchup(self, team1: str, team2: str) -> Optional[int]:
         """
