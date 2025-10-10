@@ -367,8 +367,9 @@ class AlternateLineManager:
             'Rushing Yards': 'player_rush_yds_alternate',
             'Receiving Yards': 'player_reception_yds_alternate',
             'Receptions': 'player_receptions_alternate',
-            'Passing TDs': 'player_pass_tds_alternate',
-            'Rushing TDs': 'player_rush_tds_alternate',
+            # TDs removed to save API credits
+            # 'Passing TDs': 'player_pass_tds_alternate',
+            # 'Rushing TDs': 'player_rush_tds_alternate',
             'Receiving TDs': 'player_reception_tds_alternate'
         }
     
