@@ -7,7 +7,7 @@ import requests
 import time
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 import pandas as pd
 
@@ -73,6 +73,29 @@ class OddsAPI:
             events_response.raise_for_status()
             events = events_response.json()
             
+            if not events:
+                return []
+            
+            # Filter out events that have already started or finished
+            current_time = datetime.now(timezone.utc)
+            active_events = []
+            for event in events:
+                commence_time_str = event.get('commence_time')
+                if commence_time_str:
+                    try:
+                        # Parse the commence_time (ISO 8601 format)
+                        commence_time = datetime.fromisoformat(commence_time_str.replace('Z', '+00:00'))
+                        # Only include events that haven't started yet
+                        if commence_time > current_time:
+                            active_events.append(event)
+                    except (ValueError, AttributeError):
+                        # If we can't parse the time, skip this event to be safe
+                        continue
+                else:
+                    # If no commence_time, skip to be safe
+                    continue
+            
+            events = active_events
             if not events:
                 return []
             
@@ -449,8 +472,27 @@ class AlternateLineManager:
         if not market_key:
             return {}
         
-        # Get event IDs from the odds data
-        event_ids = [event.get('id') for event in self.odds_data if event.get('id')]
+        # Filter out events that have already started or finished
+        current_time = datetime.now(timezone.utc)
+        active_events = []
+        for event in self.odds_data:
+            if event.get('id'):
+                commence_time_str = event.get('commence_time')
+                if commence_time_str:
+                    try:
+                        # Parse the commence_time (ISO 8601 format)
+                        commence_time = datetime.fromisoformat(commence_time_str.replace('Z', '+00:00'))
+                        # Only include events that haven't started yet
+                        if commence_time > current_time:
+                            active_events.append(event)
+                    except (ValueError, AttributeError):
+                        # If we can't parse the time, skip this event to be safe
+                        continue
+                else:
+                    # If no commence_time, skip to be safe
+                    continue
+        
+        event_ids = [event.get('id') for event in active_events]
         if not event_ids:
             return {}
         
