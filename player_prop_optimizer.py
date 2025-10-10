@@ -145,18 +145,13 @@ def fetch_props_with_fallback(odds_api, progress_bar):
         odds_data = []  # Empty for compatibility
         progress_bar.progress(20, text="Processing saved props data...")
     else:
-        # Parse the API data normally
+        # OPTIMIZED: Parse returns empty DataFrame
+        # Actual props come from alternate lines (populated later)
         props_df = odds_api.parse_player_props(odds_data)
-        progress_bar.progress(20, text="Updating team assignments...")
+        progress_bar.progress(20, text="Events loaded, will fetch alternate lines...")
         
-        if props_df.empty:
-            st.warning("No player props found for the selected criteria.")
-            st.stop()
-        
-        # Update team assignments using actual player data
-        from enhanced_data_processor import EnhancedFootballDataProcessor
-        data_processor = EnhancedFootballDataProcessor()
-        props_df = odds_api.update_team_assignments(props_df, data_processor)
+        # Note: props_df is intentionally empty here
+        # It will be populated from alternate lines in the main flow
     
     return props_df, odds_data, fallback_used
 
@@ -201,7 +196,8 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                 }
                 all_props.append(scored_prop)
     else:
-        # API mode: process main lines and fetch alternates
+        # API mode (OPTIMIZED): All props come from alternate lines
+        # No main props are fetched to save API calls
         for idx, stat_type in enumerate(stat_types_in_data):
             stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
             
@@ -212,51 +208,25 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
             progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
             progress_bar.progress(progress_val, text=progress_text)
             
-            # Calculate scores for main lines
+            # Process all props (which are all alternates with odds filter)
             for _, row in stat_filtered_df.iterrows():
-                score_data = scorer.calculate_comprehensive_score(
-                    row['Player'],
-                    row.get('Opposing Team Full', row['Opposing Team']),
-                    row['Stat Type'],
-                    row['Line'],
-                    row.get('Odds', 0)
-                )
-                
-                # score_data already includes l5_over_rate, home_over_rate, away_over_rate, and streak
-                player_name = row['Player']
-                
-                scored_prop = {
-                    **row.to_dict(),
-                    **score_data,
-                    'is_alternate': False
-                }
-                all_props.append(scored_prop)
-                
-                # Add alternate lines with odds between +200 and -450
-                if stat_type in alt_line_manager.alternate_lines:
-                    player_alt_lines = alt_line_manager.alternate_lines[stat_type].get(player_name, [])
+                # Filter odds between +200 and -450
+                odds = row.get('Odds', 0)
+                if -450 <= odds <= 200:
+                    score_data = scorer.calculate_comprehensive_score(
+                        row['Player'],
+                        row.get('Opposing Team Full', row['Opposing Team']),
+                        row['Stat Type'],
+                        row['Line'],
+                        odds
+                    )
                     
-                    for alt_line in player_alt_lines:
-                        alt_odds = alt_line.get('odds', 0)
-                        
-                        if -450 <= alt_odds <= 200:
-                            alt_score_data = scorer.calculate_comprehensive_score(
-                                player_name,
-                                row.get('Opposing Team Full', row['Opposing Team']),
-                                stat_type,
-                                alt_line['line'],
-                                alt_line['odds']
-                            )
-                            
-                            # alt_score_data already includes all the stats we need
-                            alt_prop = {
-                                **row.to_dict(),
-                                'Line': alt_line['line'],
-                                'Odds': alt_line['odds'],
-                                **alt_score_data,
-                                'is_alternate': True
-                            }
-                            all_props.append(alt_prop)
+                    scored_prop = {
+                        **row.to_dict(),
+                        **score_data,
+                        'is_alternate': row.get('is_alternate', True)
+                    }
+                    all_props.append(scored_prop)
     
     return all_props
 
@@ -469,14 +439,26 @@ def main():
                 # CSV already has alternate lines, no need to fetch
                 progress_bar.progress(30, text="Using saved alternate lines from CSV...")
             else:
-                # Fetch alternate lines (OPTIMIZED: 73% fewer API calls)
-                progress_bar.progress(30, text="Fetching alternate lines (optimized - 73% fewer API calls)...")
+                # OPTIMIZED: Fetch ONLY alternate lines (no main props call)
+                # This saves ~5 API calls per launch!
+                progress_bar.progress(30, text="Fetching alternate lines (ONLY source - saves ~5 API calls)...")
                 all_alternate_lines = alt_line_manager.fetch_all_alternate_lines_optimized()
                 alt_line_manager.alternate_lines = all_alternate_lines
+                
+                # Convert alternate lines to props_df format
+                progress_bar.progress(40, text="Converting alternate lines to props...")
+                props_df = alt_line_manager.convert_alternates_to_props_df(odds_data)
+                
+                # Update team assignments
+                if not props_df.empty:
+                    props_df = odds_api.update_team_assignments(props_df, data_processor)
+                
+                # Update cache with new props_df
+                st.session_state.props_df_cache = props_df
             
             # Process and score all props
             progress_bar.progress(50, text="Calculating scores for all props...")
-            stat_types_in_data = props_df['Stat Type'].unique()
+            stat_types_in_data = props_df['Stat Type'].unique() if not props_df.empty else []
             all_props = process_props_and_score(
                 props_df, stat_types_in_data, scorer, data_processor, 
                 alt_line_manager, fallback_used, progress_bar

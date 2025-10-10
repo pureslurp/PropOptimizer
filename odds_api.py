@@ -107,9 +107,12 @@ class OddsAPI:
                 pass
         
     def get_player_props(self, sport: str = "americanfootball_nfl") -> List[Dict]:
-        """Fetch player props from The Odds API using the event-based approach"""
+        """
+        Fetch NFL events for player props (OPTIMIZED: only gets event IDs, not main props)
+        Main props are fetched via alternate lines endpoint to save API calls
+        """
         try:
-            # Step 1: Get events first
+            # Get events
             events_url = f"{self.base_url}/sports/{sport}/events"
             events_params = {
                 'apiKey': self.api_key,
@@ -146,175 +149,31 @@ class OddsAPI:
                     # If no commence_time, skip to be safe
                     continue
             
-            events = active_events
-            if not events:
+            if not active_events:
                 return []
             
-            # Step 2: Get odds for each event with player props (only games with player props)
-            all_games = []
-            # Request all available player prop markets
-            player_markets = [
-                'player_pass_yds', 
-                'player_pass_tds',
-                'player_rush_yds',
-                'player_rush_tds',
-                'player_receptions',
-                'player_reception_yds',
-                'player_reception_tds'
-            ]
-            games_with_props = 0
-            
-            for i, event in enumerate(events[:15]):  # Check more events to find ones with player props
-                try:
-                    event_id = event.get('id')
-                    if not event_id:
-                        continue
-                    
-                    odds_url = f"{self.base_url}/sports/{sport}/events/{event_id}/odds"
-                    odds_params = {
-                        'apiKey': self.api_key,
-                        'regions': 'us',
-                        'bookmakers': 'fanduel',
-                        'markets': ','.join(player_markets),
-                        'oddsFormat': 'american'
-                    }
-                    
-                    odds_response = requests.get(odds_url, params=odds_params, timeout=30)
-                    
-                    # Update usage info from response headers
-                    self._update_usage_from_headers(odds_response.headers)
-                    
-                    if odds_response.status_code == 200:
-                        event_data = odds_response.json()
-                        # Check if this game actually has player props
-                        has_player_props = False
-                        for bookmaker in event_data.get('bookmakers', []):
-                            if bookmaker.get('key') == 'fanduel':
-                                for market in bookmaker.get('markets', []):
-                                    if market.get('key') in player_markets and market.get('outcomes'):
-                                        has_player_props = True
-                                        break
-                                break
-                        
-                        if has_player_props:
-                            all_games.append(event_data)
-                            games_with_props += 1
-                            
-                            # Stop after finding enough games with player props
-                            if games_with_props >= 5:
-                                break
-                    
-                    # Rate limiting
-                    time.sleep(0.3)
-                    
-                except Exception as e:
-                    continue
-            
-            return all_games
+            # OPTIMIZED: Return first 5 events (limit to 5 games)
+            # Alternate lines endpoint will provide all prop data
+            # This saves ~5 API calls by not fetching main props separately
+            return active_events[:5]
             
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching odds data: {e}")
+            print(f"Error fetching events data: {e}")
             return []
     
     def parse_player_props(self, odds_data: List[Dict]) -> pd.DataFrame:
-        """Parse odds data into a structured DataFrame, prioritizing FanDuel"""
-        props = []
-        
-        for game in odds_data:
-            home_team = game.get('home_team', '')
-            away_team = game.get('away_team', '')
-            commence_time = game.get('commence_time', '')
-            
-            # Prioritize FanDuel bookmaker
-            fanduel_bookmaker = None
-            other_bookmakers = []
-            
-            for bookmaker in game.get('bookmakers', []):
-                if bookmaker.get('key', '').lower() == 'fanduel':
-                    fanduel_bookmaker = bookmaker
-                else:
-                    other_bookmakers.append(bookmaker)
-            
-            # Use FanDuel first, then fall back to others
-            bookmakers_to_process = [fanduel_bookmaker] if fanduel_bookmaker else other_bookmakers
-            
-            for bookmaker in bookmakers_to_process:
-                if not bookmaker:
-                    continue
-                    
-                for market in bookmaker.get('markets', []):
-                    market_key = market.get('key', '')
-                    
-                    # Map market keys to our stat types
-                    stat_mapping = {
-                        'player_pass_yds': 'Passing Yards',
-                        'player_pass_tds': 'Passing TDs',
-                        'player_rush_yds': 'Rushing Yards', 
-                        'player_rush_tds': 'Rushing TDs',
-                        'player_receptions': 'Receptions',
-                        'player_reception_yds': 'Receiving Yards',
-                        'player_reception_tds': 'Receiving TDs'
-                    }
-                    
-                    stat_type = stat_mapping.get(market_key, market_key)
-                    
-                    for outcome in market.get('outcomes', []):
-                        # Handle the new API format where player names are in description for "Over" outcomes
-                        if outcome.get('name') == 'Over' and outcome.get('description'):
-                            player_name = outcome.get('description', '').strip()
-                            line = outcome.get('point', 0)
-                            odds = outcome.get('price', 0)
-                            
-                            # Fix reception lines: API returns 2.5 for "3+ receptions", so add 1
-                            if stat_type == 'Receptions':
-                                line = line + 1
-                            
-                            # Determine team using actual data (will be updated later with data processor)
-                            team = "Unknown"  # Will be determined by data processor
-                            opposing_team = "Unknown"  # Will be determined by data processor
-                            
-                            props.append({
-                                'Player': player_name,
-                                'Team': team,
-                                'Opposing Team': opposing_team,
-                                'Stat Type': stat_type,
-                                'Line': line,
-                                'Odds': odds,
-                                'Bookmaker': bookmaker.get('title', ''),
-                                'Market': market_key,
-                                'Home Team': home_team,
-                                'Away Team': away_team,
-                                'Commence Time': commence_time
-                            })
-                        elif outcome.get('name') and outcome.get('name') not in ['Over', 'Under']:
-                            # Handle other outcome types if needed (but skip Over/Under)
-                            player_name = outcome.get('name', '')
-                            line = outcome.get('point', 0)
-                            odds = outcome.get('price', 0)
-                            
-                            # Fix reception lines: API returns 2.5 for "3+ receptions", so add 1
-                            if stat_type == 'Receptions':
-                                line = line + 1
-                            
-                            # Determine team using actual data (will be updated later with data processor)
-                            team = "Unknown"  # Will be determined by data processor
-                            opposing_team = "Unknown"  # Will be determined by data processor
-                            
-                            props.append({
-                                'Player': player_name,
-                                'Team': team,
-                                'Opposing Team': opposing_team,
-                                'Stat Type': stat_type,
-                                'Line': line,
-                                'Odds': odds,
-                                'Bookmaker': bookmaker.get('title', ''),
-                                'Market': market_key,
-                                'Home Team': home_team,
-                                'Away Team': away_team,
-                                'Commence Time': commence_time
-                            })
-        
-        return pd.DataFrame(props)
+        """
+        Parse odds data into a structured DataFrame
+        OPTIMIZED: Now expects just event data (home/away teams, commence time)
+        Returns empty DataFrame - actual props come from alternate lines to save API calls
+        """
+        # Return empty DataFrame with correct structure
+        # Alternate lines will be the primary data source
+        return pd.DataFrame(columns=[
+            'Player', 'Team', 'Opposing Team', 'Stat Type', 'Line', 'Odds',
+            'Bookmaker', 'Market', 'Home Team', 'Away Team', 'Commence Time', 
+            'Opposing Team Full'
+        ])
     
     def update_team_assignments(self, props_df: pd.DataFrame, data_processor) -> pd.DataFrame:
         """Update team assignments using actual player data"""
@@ -570,6 +429,11 @@ class AlternateLineManager:
                 if response.status_code == 200:
                     event_data = response.json()
                     
+                    # Extract event context
+                    home_team = event_data.get('home_team', '')
+                    away_team = event_data.get('away_team', '')
+                    commence_time = event_data.get('commence_time', '')
+                    
                     # Parse alternate lines from ALL markets in this response
                     for bookmaker_data in event_data.get('bookmakers', []):
                         if bookmaker_data.get('key') == bookmaker:
@@ -598,7 +462,10 @@ class AlternateLineManager:
                                                 
                                                 all_alternate_lines[stat_type][player_name].append({
                                                     'line': line,
-                                                    'odds': outcome.get('price', 0)
+                                                    'odds': outcome.get('price', 0),
+                                                    'home_team': home_team,
+                                                    'away_team': away_team,
+                                                    'commence_time': commence_time
                                                 })
                 
                 # Rate limiting
@@ -741,4 +608,38 @@ class AlternateLineManager:
         # Find the closest line
         closest_line = min(player_lines, key=lambda x: abs(x['line'] - target_line))
         return closest_line
+    
+    def convert_alternates_to_props_df(self, events_data: List[Dict]) -> pd.DataFrame:
+        """
+        Convert alternate lines dictionary to props DataFrame format
+        
+        Args:
+            events_data: List of event dictionaries (not used - event context stored in lines)
+            
+        Returns:
+            DataFrame in props format with all alternate lines
+        """
+        props = []
+        
+        for stat_type, players_dict in self.alternate_lines.items():
+            for player_name, lines in players_dict.items():
+                for line_data in lines:
+                    # Event context is now stored in each line_data
+                    props.append({
+                        'Player': player_name,
+                        'Team': 'Unknown',  # Will be updated later
+                        'Opposing Team': 'Unknown',  # Will be updated later
+                        'Stat Type': stat_type,
+                        'Line': line_data['line'],
+                        'Odds': line_data['odds'],
+                        'Bookmaker': 'FanDuel',
+                        'Market': self.stat_market_mapping.get(stat_type, ''),
+                        'Home Team': line_data.get('home_team', ''),
+                        'Away Team': line_data.get('away_team', ''),
+                        'Commence Time': line_data.get('commence_time', ''),
+                        'Opposing Team Full': 'Unknown',
+                        'is_alternate': True
+                    })
+        
+        return pd.DataFrame(props)
 
