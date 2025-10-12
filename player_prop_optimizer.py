@@ -822,6 +822,35 @@ def main():
                         value=st.session_state.selected_games.get(game, True),
                         key=f"game_{game}"
                     )
+            
+            # Odds filter with expander
+            with st.expander("💰 Odds Range", expanded=False):
+                st.markdown("Filter props by American odds range")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    odds_min = st.number_input(
+                        "Min Odds",
+                        min_value=-1000,
+                        max_value=1000,
+                        value=-450,
+                        step=10,
+                        key="odds_min",
+                        help="Minimum odds (e.g., -450)"
+                    )
+                with col2:
+                    odds_max = st.number_input(
+                        "Max Odds",
+                        min_value=-1000,
+                        max_value=1000,
+                        value=200,
+                        step=10,
+                        key="odds_max",
+                        help="Maximum odds (e.g., +200)"
+                    )
+                
+                if odds_min > odds_max:
+                    st.warning("⚠️ Min odds should be less than max odds")
         
         # Get selected items from session state
         selected_stat_types = [stat for stat, selected in st.session_state.selected_stat_types.items() if selected]
@@ -840,6 +869,13 @@ def main():
                 filtered_results_df['Matchup'].isin(selected_games)
             ].copy()
         
+        # Filter by odds range
+        if not filtered_results_df.empty:
+            filtered_results_df = filtered_results_df[
+                (filtered_results_df['Odds'] >= odds_min) & 
+                (filtered_results_df['Odds'] <= odds_max)
+            ].copy()
+        
         # Update sidebar with stats after filtering
         with st.sidebar:
             st.markdown("---")
@@ -847,6 +883,7 @@ def main():
             # Show stats summary
             st.metric("Stat Types Selected", f"{len(selected_stat_types)}/{len(available_stat_types)}")
             st.metric("Games Selected", f"{len(selected_games)}/{len(available_matchups)}")
+            st.metric("Odds Range", f"{format_odds(odds_min)} to {format_odds(odds_max)}")
             st.metric("Props Displayed", len(filtered_results_df))
         
         if filtered_results_df.empty:

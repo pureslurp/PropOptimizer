@@ -18,51 +18,6 @@ from selenium.common.exceptions import (
     NoSuchElementException
 )
 
-# DKScoring class removed - no longer needed for raw stats extraction
-# class DKScoring:
-#     """Calculate DraftKings fantasy points for different stat categories"""
-#     
-#     @staticmethod
-#     def passing_yards(yards: int) -> float:
-#         """0.04 points per yard, bonus 3 points at 300"""
-#         bonus = 3 if yards >= 300 else 0
-#         return (yards * 0.04) + bonus
-#     
-#     @staticmethod
-#     def passing_td(tds: int) -> float:
-#         """4 points per passing TD"""
-#         return tds * 4
-#     
-#     @staticmethod
-#     def interceptions(ints: int) -> float:
-#         """-1 point per interception"""
-#         return ints * -1
-#     
-#     @staticmethod
-#     def rushing_yards(yards: int) -> float:
-#         """0.1 points per yard, bonus 3 points at 100"""
-#         bonus = 3 if yards >= 100 else 0
-#         return (yards * 0.1) + bonus
-#     
-#     @staticmethod
-#     def rushing_td(tds: int) -> float:
-#         """6 points per rushing TD"""
-#         return tds * 6
-#     
-#     @staticmethod
-#     def receptions(recs: int) -> float:
-#         """1 point per reception"""
-#         return recs
-#     
-#     @staticmethod
-#     def receiving_yards(yards: int) -> float:
-#         """0.1 points per yard, bonus 3 points at 100"""
-#         bonus = 3 if yards >= 100 else 0
-#         return (yards * 0.1) + bonus
-#     
-#     receiving_td = rushing_td  # Same scoring for receiving TDs
-
-
 class FootballDBScraper:
     """Scraper for FootballDB box scores"""
     
