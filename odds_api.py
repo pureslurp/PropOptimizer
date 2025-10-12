@@ -152,10 +152,9 @@ class OddsAPI:
             if not active_events:
                 return []
             
-            # OPTIMIZED: Return first 5 events (limit to 5 games)
+            # Return all active events
             # Alternate lines endpoint will provide all prop data
-            # This saves ~5 API calls by not fetching main props separately
-            return active_events[:5]
+            return active_events
             
         except requests.exceptions.RequestException as e:
             print(f"Error fetching events data: {e}")

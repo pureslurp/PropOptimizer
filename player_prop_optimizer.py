@@ -641,7 +641,7 @@ def main():
             else:
                 # OPTIMIZED: Fetch ONLY alternate lines (no main props call)
                 # This saves ~5 API calls per launch!
-                progress_bar.progress(30, text="Fetching alternate lines (ONLY source - saves ~5 API calls)...")
+                progress_bar.progress(30, text="Fetching alternate lines...")
                 all_alternate_lines = alt_line_manager.fetch_all_alternate_lines_optimized()
                 alt_line_manager.alternate_lines = all_alternate_lines
                 
