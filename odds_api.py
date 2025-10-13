@@ -106,10 +106,17 @@ class OddsAPI:
             except ValueError:
                 pass
         
-    def get_player_props(self, sport: str = "americanfootball_nfl") -> List[Dict]:
+    def get_player_props(self, sport: str = "americanfootball_nfl", num_events: int = 5) -> List[Dict]:
         """
         Fetch NFL events for player props (OPTIMIZED: only gets event IDs, not main props)
         Main props are fetched via alternate lines endpoint to save API calls
+        
+        Args:
+            sport: Sport key (default: americanfootball_nfl)
+            num_events: Optional limit on number of events to return (default: None = all events)
+        
+        Returns:
+            List of event dictionaries
         """
         try:
             # Get events
@@ -152,9 +159,12 @@ class OddsAPI:
             if not active_events:
                 return []
             
-            # Return all active events
+            # Return limited or all active events based on num_events parameter
             # Alternate lines endpoint will provide all prop data
-            return active_events
+            if num_events is not None:
+                return active_events[:num_events]
+            else:
+                return active_events
             
         except requests.exceptions.RequestException as e:
             print(f"Error fetching events data: {e}")

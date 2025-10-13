@@ -454,6 +454,216 @@ def get_matchup_string(row):
     return None
 
 
+def calculate_profit_from_odds(odds, stake=1.0):
+    """Calculate profit from American odds for a winning bet"""
+    if odds < 0:
+        # Negative odds: bet abs(odds) to win 100
+        return stake * (100 / abs(odds))
+    else:
+        # Positive odds: bet 100 to win odds
+        return stake * (odds / 100)
+
+
+def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-400, odds_max=-150):
+    """
+    Calculate ROI for a strategy in a specific historical week.
+    Returns total units won/lost for that week.
+    """
+    # Load historical data and box scores for the week
+    props_df = load_historical_props_from_game_data(week_num)
+    
+    if props_df.empty:
+        return None, []
+    
+    # Create a data processor limited to data before this week
+    data_processor_historical = EnhancedFootballDataProcessor(max_week=week_num)
+    scorer_historical = AdvancedPropScorer(data_processor_historical)
+    
+    # Update team assignments
+    odds_api_temp = OddsAPI(ODDS_API_KEY)
+    props_df = odds_api_temp.update_team_assignments(props_df, data_processor_historical)
+    
+    # Score all props
+    all_props = []
+    stat_types_in_data = props_df['Stat Type'].unique()
+    
+    for stat_type in stat_types_in_data:
+        stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
+        
+        if stat_filtered_df.empty:
+            continue
+        
+        for _, row in stat_filtered_df.iterrows():
+            score_data = scorer_historical.calculate_comprehensive_score(
+                row['Player'],
+                row.get('Opposing Team Full', row['Opposing Team']),
+                row['Stat Type'],
+                row['Line'],
+                row.get('Odds', 0),
+                home_team=row.get('Home Team'),
+                away_team=row.get('Away Team')
+            )
+            
+            scored_prop = {
+                **row.to_dict(),
+                **score_data,
+                'is_alternate': row.get('is_alternate', True)
+            }
+            all_props.append(scored_prop)
+    
+    # Load box score for actual results
+    box_score_df = load_box_score_for_week(week_num)
+    
+    if box_score_df.empty:
+        return None, []
+    
+    # Add actual results
+    for prop in all_props:
+        actual_stat = get_actual_stat(
+            prop['Player'],
+            prop['Stat Type'],
+            box_score_df
+        )
+        prop['actual_result'] = actual_stat
+    
+    # Convert to DataFrame
+    results_df = pd.DataFrame(all_props)
+    
+    # Filter by strategy criteria
+    filtered_df = results_df[
+        (results_df['total_score'] >= score_min) & 
+        (results_df['total_score'] < score_max) &
+        (results_df['Odds'] >= odds_min) & 
+        (results_df['Odds'] <= odds_max)
+    ].copy()
+    
+    if filtered_df.empty:
+        return 0.0, []
+    
+    # Keep only highest score per player+stat type combination
+    filtered_df = filtered_df.sort_values('total_score', ascending=False)
+    filtered_df = filtered_df.drop_duplicates(subset=['Player', 'Stat Type'], keep='first')
+    
+    # Get top 5
+    top_5 = filtered_df.head(5)
+    
+    # Calculate ROI as PARLAY (1 unit bet per week on all 5 props combined)
+    bet_results = []
+    all_props_hit = True
+    parlay_decimal_odds = 1.0
+    
+    for _, row in top_5.iterrows():
+        actual = row.get('actual_result')
+        line = row['Line']
+        odds = row['Odds']
+        score = row['total_score']
+        
+        # Convert American odds to decimal for parlay calculation
+        if odds < 0:
+            decimal_odds = 1 + (100 / abs(odds))
+        else:
+            decimal_odds = 1 + (odds / 100)
+        
+        if pd.notna(actual) and actual is not None:
+            if actual > line:
+                # Prop hit
+                parlay_decimal_odds *= decimal_odds
+                bet_results.append({
+                    'player': row['Player'],
+                    'stat_type': row['Stat Type'],
+                    'line': line,
+                    'actual': actual,
+                    'odds': odds,
+                    'score': score,
+                    'result': 'HIT',
+                    'roi': 0.0  # Individual ROI not applicable in parlay
+                })
+            else:
+                # Prop missed - parlay loses
+                all_props_hit = False
+                bet_results.append({
+                    'player': row['Player'],
+                    'stat_type': row['Stat Type'],
+                    'line': line,
+                    'actual': actual,
+                    'odds': odds,
+                    'score': score,
+                    'result': 'MISS',
+                    'roi': 0.0
+                })
+        else:
+            # No result available - treat as incomplete parlay
+            all_props_hit = False
+            bet_results.append({
+                'player': row['Player'],
+                'stat_type': row['Stat Type'],
+                'line': line,
+                'actual': None,
+                'odds': odds,
+                'score': score,
+                'result': 'N/A',
+                'roi': 0.0
+            })
+    
+    # Calculate total ROI for the week based on parlay result
+    if all_props_hit:
+        # Parlay wins - profit is (decimal odds - 1) * stake
+        total_roi = parlay_decimal_odds - 1.0
+    else:
+        # Parlay loses - lose 1 unit stake
+        total_roi = -1.0
+    
+    return total_roi, bet_results
+
+
+def calculate_all_strategies_roi():
+    """
+    Calculate ROI for all three strategies (Optimal, Greasy, Degen) 
+    across all historical weeks (starting from week 4).
+    Returns a dictionary with ROI data for display.
+    """
+    current_week = get_current_week_from_schedule()
+    
+    # Calculate for all weeks from 4 up to (but not including) current week
+    # Week 4 is the first valid week (needs 3 weeks of history for meaningful props)
+    historical_weeks = list(range(4, current_week))
+    
+    if not historical_weeks:
+        return None
+    
+    # Define strategies
+    strategies = {
+        'Optimal': {'score_min': 70, 'score_max': float('inf')},
+        'Greasy': {'score_min': 50, 'score_max': 70},
+        'Degen': {'score_min': 0, 'score_max': 50}
+    }
+    
+    # Calculate ROI for each strategy
+    roi_data = {}
+    
+    for strategy_name, params in strategies.items():
+        total_roi = 0.0
+        all_results = []
+        
+        for week in historical_weeks:
+            week_roi, week_results = calculate_strategy_roi_for_week(
+                week, 
+                params['score_min'], 
+                params['score_max']
+            )
+            
+            if week_roi is not None:
+                total_roi += week_roi
+                all_results.extend(week_results)
+        
+        roi_data[strategy_name] = {
+            'total_roi': total_roi,
+            'results': all_results
+        }
+    
+    return roi_data
+
+
 def is_player_in_matchup(row, matchup_string):
     """Check if a player's team is in the specified matchup"""
     if not matchup_string or pd.isna(row.get('Team')):
@@ -1304,6 +1514,7 @@ def main():
             else:
                 st.markdown("*No props meet the criteria*")
         
+        st.subheader("Plum Props")
         # Three prop strategy sections in columns
         col_1, col_2, col_3 = st.columns(3)
         
@@ -1318,7 +1529,83 @@ def main():
         with col_3:
             with st.expander("🎲 Degen", expanded=False):
                 display_prop_picks(results_df, score_min=0, score_max=50)
+
+        # ROI Performance Table (only for current week)
+        if not is_historical:
+            st.subheader("Plum Props Performance (ROI)")
+            
+            with st.spinner("Calculating historical ROI for strategies..."):
+                roi_data = calculate_all_strategies_roi()
+            
+            if roi_data:
+                # Calculate the week range for display
+                current_week = get_current_week_from_schedule()
+                historical_weeks = list(range(4, current_week))
+                if len(historical_weeks) == 1:
+                    week_range_str = f"Week {historical_weeks[0]}"
+                elif len(historical_weeks) == 2:
+                    week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+                else:
+                    week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+                
+                # Create ROI table with Version as rows and strategies as columns
+                # Format ROI values
+                optimal_roi = roi_data['Optimal']['total_roi']
+                greasy_roi = roi_data['Greasy']['total_roi']
+                degen_roi = roi_data['Degen']['total_roi']
+                
+                def format_roi(roi):
+                    if roi > 0:
+                        return f"+{roi:.2f}u"
+                    elif roi < 0:
+                        return f"{roi:.2f}u"
+                    else:
+                        return "0.00u"
+                
+                roi_table_data = [{
+                    'Version': 'v1',
+                    'Optimal': format_roi(optimal_roi),
+                    'Greasy': format_roi(greasy_roi),
+                    'Degen': format_roi(degen_roi),
+                    'Optimal_numeric': optimal_roi,
+                    'Greasy_numeric': greasy_roi,
+                    'Degen_numeric': degen_roi
+                }]
+                
+                roi_df = pd.DataFrame(roi_table_data)
+                
+                # Style the columns directly based on numeric values
+                def color_roi(val, numeric_val):
+                    """Apply color based on numeric value"""
+                    if numeric_val > 0:
+                        return 'background-color: #d4edda; color: #155724'  # Green
+                    elif numeric_val < 0:
+                        return 'background-color: #f8d7da; color: #721c24'  # Red
+                    return ''
+                
+                # Create display DataFrame (without numeric columns)
+                display_roi_df = roi_df[['Version', 'Optimal', 'Greasy', 'Degen']].copy()
+                
+                # Apply styling using .applymap on each column with its numeric counterpart
+                styled_roi_df = display_roi_df.style.apply(
+                    lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
+                               else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
+                               else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
+                               else '' for col in x.index],
+                    axis=1
+                )
+                
+                st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per week per strategy)")
+                st.dataframe(
+                    styled_roi_df,
+                    use_container_width=False,
+                    hide_index=True
+                )
+                st.caption("Note: Each strategy picks the top 5 props and parlays them (1 unit per week). All 5 must hit to win. ROI shows total return across all historical weeks.")
+            else:
+                st.info("ℹ️ Not enough historical data to calculate ROI (requires weeks 4+)")
         
+        st.markdown("---")
         # Column Explanations Section
         with st.expander("📖 Column Explanations", expanded=False):
             st.markdown("""
