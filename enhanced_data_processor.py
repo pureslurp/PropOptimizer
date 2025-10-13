@@ -893,7 +893,8 @@ class EnhancedFootballDataProcessor:
         return 0.5  # Default 50% if no data
     
     def get_player_home_over_rate(self, player: str, stat_type: str, line: float) -> float:
-        """Calculate how often a player has gone over a specific line in home games"""
+        """Calculate how often a player has gone over a specific line in home games
+        Returns None if no home game data is available"""
         if not self.player_season_stats:
             self.update_season_data()
         
@@ -913,13 +914,15 @@ class EnhancedFootballDataProcessor:
             # Filter by max_week if set
             games = self._filter_games_by_week(games, weeks)
             
-            over_count = sum(1 for game_stat in games if game_stat > line)
-            return over_count / len(games) if games else 0.5
+            if games:
+                over_count = sum(1 for game_stat in games if game_stat > line)
+                return over_count / len(games)
         
-        return 0.5  # Default 50% if no data
+        return None  # Return None if no home game data available
     
     def get_player_away_over_rate(self, player: str, stat_type: str, line: float) -> float:
-        """Calculate how often a player has gone over a specific line in away games"""
+        """Calculate how often a player has gone over a specific line in away games
+        Returns None if no away game data is available"""
         if not self.player_season_stats:
             self.update_season_data()
         
@@ -939,10 +942,11 @@ class EnhancedFootballDataProcessor:
             # Filter by max_week if set
             games = self._filter_games_by_week(games, weeks)
             
-            over_count = sum(1 for game_stat in games if game_stat > line)
-            return over_count / len(games) if games else 0.5
+            if games:
+                over_count = sum(1 for game_stat in games if game_stat > line)
+                return over_count / len(games)
         
-        return 0.5  # Default 50% if no data
+        return None  # Return None if no away game data available
     
     def get_player_average(self, player: str, stat_type: str) -> float:
         """Get player's average for a specific stat this season"""

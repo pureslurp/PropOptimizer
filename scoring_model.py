@@ -60,10 +60,11 @@ class AdvancedPropScorer:
         away_over_rate = self.data_processor.get_player_away_over_rate(player, stat_type, line)
         
         # Use location-specific over rate based on home/away status
+        # If no data for specific location, fall back to season over rate
         if is_home:
-            loc_over_rate = home_over_rate
+            loc_over_rate = home_over_rate if home_over_rate is not None else season_over_rate
         else:
-            loc_over_rate = away_over_rate
+            loc_over_rate = away_over_rate if away_over_rate is not None else season_over_rate
         
         player_avg = self.data_processor.get_player_average(player, stat_type)
         player_consistency = self.data_processor.get_player_consistency(player, stat_type)

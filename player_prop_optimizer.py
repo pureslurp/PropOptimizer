@@ -1380,19 +1380,21 @@ def main():
         # Format Score as decimal with 2 decimal places
         display_df['Score_numeric'] = display_df['Score']  # Store for styling
         display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.2f}")
-        display_df['L5_numeric'] = display_df['L5'] * 100
-        display_df['Home_numeric'] = display_df['Home'] * 100
-        display_df['Away_numeric'] = display_df['Away'] * 100
+        
+        # Handle None values for home/away over rates (when no games in that location)
+        display_df['L5_numeric'] = display_df['L5'].apply(lambda x: x * 100 if pd.notna(x) else None)
+        display_df['Home_numeric'] = display_df['Home'].apply(lambda x: x * 100 if x is not None and pd.notna(x) else None)
+        display_df['Away_numeric'] = display_df['Away'].apply(lambda x: x * 100 if x is not None and pd.notna(x) else None)
         display_df['25/26_numeric'] = display_df['25/26'] * 100
         
         # Format L5 over rate as percentage
-        display_df['L5'] = display_df['L5_numeric'].round(1).astype(str) + '%'
+        display_df['L5'] = display_df['L5_numeric'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
         
-        # Format Home over rate as percentage
-        display_df['Home'] = display_df['Home_numeric'].round(1).astype(str) + '%'
+        # Format Home over rate as percentage (N/A if no home games)
+        display_df['Home'] = display_df['Home_numeric'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
         
-        # Format Away over rate as percentage
-        display_df['Away'] = display_df['Away_numeric'].round(1).astype(str) + '%'
+        # Format Away over rate as percentage (N/A if no away games)
+        display_df['Away'] = display_df['Away_numeric'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
         
         # Format season over rate as percentage
         display_df['25/26'] = display_df['25/26_numeric'].round(1).astype(str) + '%'
