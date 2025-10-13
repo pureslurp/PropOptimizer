@@ -850,6 +850,24 @@ class EnhancedFootballDataProcessor:
         filtered_games = [game for game, week in zip(games, weeks) if week < self.max_week]
         return filtered_games if filtered_games else games  # Return all if filtered is empty
     
+    def _filter_games_by_week_with_weeks(self, games: list, weeks: list) -> list:
+        """
+        Filter games to include only those before max_week, returning both games and weeks
+        
+        Args:
+            games: List of game stats
+            weeks: List of week numbers (same length as games)
+            
+        Returns:
+            List of tuples [(game, week), ...] with filtered data
+        """
+        if self.max_week is None or not weeks:
+            return list(zip(games, weeks))
+        
+        # Filter to only include games before max_week
+        filtered_data = [(game, week) for game, week in zip(games, weeks) if week < self.max_week]
+        return filtered_data if filtered_data else list(zip(games, weeks))  # Return all if filtered is empty
+    
     def get_player_over_rate(self, player: str, stat_type: str, line: float) -> float:
         """Calculate how often a player has gone over a specific line this season"""
         if not self.player_season_stats:
@@ -1024,6 +1042,7 @@ class EnhancedFootballDataProcessor:
     def get_player_streak(self, player: str, stat_type: str, line: float) -> int:
         """
         Calculate how many consecutive games (from most recent) the player has gone over the line
+        Streak resets to 0 if player misses 2 or more consecutive games
         
         Args:
             player: Player name
@@ -1031,7 +1050,7 @@ class EnhancedFootballDataProcessor:
             line: The line to compare against
             
         Returns:
-            Number of consecutive games over the line (0 if last game was under)
+            Number of consecutive games over the line (0 if last game was under or if 2+ games missed)
         """
         from utils import clean_player_name
         cleaned_name = clean_player_name(player)
@@ -1046,16 +1065,34 @@ class EnhancedFootballDataProcessor:
         weeks = self.player_season_stats[player_key].get(f"{stat_type}_weeks", [])
         
         # Filter by max_week if set
-        player_stats = self._filter_games_by_week(player_stats, weeks)
+        filtered_data = self._filter_games_by_week_with_weeks(player_stats, weeks)
         
-        if not player_stats or len(player_stats) == 0:
+        if not filtered_data or len(filtered_data) == 0:
             return 0
         
+        # Extract filtered stats and weeks
+        filtered_stats = [item[0] for item in filtered_data]
+        filtered_weeks = [item[1] for item in filtered_data]
+        
         streak = 0
-        # Count backwards from most recent game (after filtering)
-        for stat in reversed(player_stats):
-            if stat > line:
+        previous_week = None
+        
+        # Count backwards from most recent game
+        for i in range(len(filtered_stats) - 1, -1, -1):
+            stat_value = filtered_stats[i]
+            current_week = filtered_weeks[i]
+            
+            # Check if player went over the line
+            if stat_value > line:
+                # Check for gap in weeks (if not the first game in streak)
+                if previous_week is not None:
+                    week_gap = previous_week - current_week
+                    # If gap is 2 or more weeks, reset streak
+                    if week_gap >= 3:  # Gap of 3 means 2 weeks missed (e.g., played week 6, then week 3 = missed weeks 4 and 5)
+                        break
+                
                 streak += 1
+                previous_week = current_week
             else:
                 break  # Stop at first game that didn't go over
         
