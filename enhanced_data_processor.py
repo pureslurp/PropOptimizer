@@ -804,7 +804,7 @@ class EnhancedFootballDataProcessor:
             if team_name.lower() == team.lower() and defensive_stat in stats:
                 return stats[defensive_stat]
         
-        return 16  # Default middle ranking if team not found
+        return None  # Return None if team not found (will display as N/A)
     
     def _get_historical_team_defensive_rank(self, team: str, stat_type: str) -> int:
         """Get historical defensive ranking for a team (used when max_week is set)"""
@@ -830,7 +830,7 @@ class EnhancedFootballDataProcessor:
             if team_name.lower() == team.lower() and defensive_stat in stats:
                 return stats[defensive_stat]
         
-        return 16  # Default middle ranking if team not found
+        return None  # Return None if team not found (will display as N/A)
     
     def _filter_games_by_week(self, games: list, weeks: list) -> list:
         """
@@ -869,7 +869,8 @@ class EnhancedFootballDataProcessor:
         return filtered_data if filtered_data else list(zip(games, weeks))  # Return all if filtered is empty
     
     def get_player_over_rate(self, player: str, stat_type: str, line: float) -> float:
-        """Calculate how often a player has gone over a specific line this season"""
+        """Calculate how often a player has gone over a specific line this season
+        Returns None if no data is available"""
         if not self.player_season_stats:
             self.update_season_data()
         
@@ -887,10 +888,11 @@ class EnhancedFootballDataProcessor:
             # Filter by max_week if set
             games = self._filter_games_by_week(games, weeks)
             
-            over_count = sum(1 for game_stat in games if game_stat > line)
-            return over_count / len(games) if games else 0.5
+            if games:
+                over_count = sum(1 for game_stat in games if game_stat > line)
+                return over_count / len(games)
         
-        return 0.5  # Default 50% if no data
+        return None  # Return None if no data available
     
     def get_player_home_over_rate(self, player: str, stat_type: str, line: float) -> float:
         """Calculate how often a player has gone over a specific line in home games
@@ -949,7 +951,8 @@ class EnhancedFootballDataProcessor:
         return None  # Return None if no away game data available
     
     def get_player_average(self, player: str, stat_type: str) -> float:
-        """Get player's average for a specific stat this season"""
+        """Get player's average for a specific stat this season
+        Returns None if no data is available"""
         if not self.player_season_stats:
             self.update_season_data()
         
@@ -962,9 +965,10 @@ class EnhancedFootballDataProcessor:
         
         if player_key and stat_type in self.player_season_stats[player_key]:
             games = self.player_season_stats[player_key][stat_type]
-            return sum(games) / len(games) if games else 0.0
+            if games:
+                return sum(games) / len(games)
         
-        return 0.0
+        return None  # Return None if no data available
     
     def get_player_consistency(self, player: str, stat_type: str) -> float:
         """Calculate player consistency (lower standard deviation = more consistent)"""
@@ -1016,7 +1020,7 @@ class EnhancedFootballDataProcessor:
             n: Number of recent games to consider (default: 5)
             
         Returns:
-            Over rate as a decimal (0.0 to 1.0), or 0.5 if insufficient data
+            Over rate as a decimal (0.0 to 1.0), or None if no data available
         """
         from utils import clean_player_name
         cleaned_name = clean_player_name(player)
@@ -1025,7 +1029,7 @@ class EnhancedFootballDataProcessor:
         player_key = self.player_name_index.get(cleaned_name)
         
         if not player_key or stat_type not in self.player_season_stats[player_key]:
-            return 0.5
+            return None
         
         player_stats = self.player_season_stats[player_key][stat_type]
         weeks = self.player_season_stats[player_key].get(f"{stat_type}_weeks", [])
@@ -1034,7 +1038,7 @@ class EnhancedFootballDataProcessor:
         player_stats = self._filter_games_by_week(player_stats, weeks)
         
         if not player_stats or len(player_stats) == 0:
-            return 0.5
+            return None
         
         # Get the last N games (from filtered data)
         last_n_games = player_stats[-n:] if len(player_stats) >= n else player_stats

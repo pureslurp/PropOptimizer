@@ -53,25 +53,30 @@ class AdvancedPropScorer:
             week = self.data_processor.get_week_from_matchup(player_team, opposing_team)
             is_home = self.data_processor.is_home_game(player_team, week) if week else None
         
-        # Get player statistics
-        season_over_rate = self.data_processor.get_player_over_rate(player, stat_type, line)
-        l5_over_rate = self.data_processor.get_player_last_n_over_rate(player, stat_type, line, n=5)
+        # Get player statistics (raw values, may be None)
+        season_over_rate_raw = self.data_processor.get_player_over_rate(player, stat_type, line)
+        l5_over_rate_raw = self.data_processor.get_player_last_n_over_rate(player, stat_type, line, n=5)
         home_over_rate = self.data_processor.get_player_home_over_rate(player, stat_type, line)
         away_over_rate = self.data_processor.get_player_away_over_rate(player, stat_type, line)
+        player_avg_raw = self.data_processor.get_player_average(player, stat_type)
+        player_consistency = self.data_processor.get_player_consistency(player, stat_type)
+        player_streak = self.data_processor.get_player_streak(player, stat_type, line)
+        
+        # Create fallback values for calculations (use defaults if None)
+        season_over_rate = season_over_rate_raw if season_over_rate_raw is not None else 0.5
+        l5_over_rate = l5_over_rate_raw if l5_over_rate_raw is not None else 0.5
+        player_avg = player_avg_raw if player_avg_raw is not None else 0.0
         
         # Use location-specific over rate based on home/away status
-        # If no data for specific location, fall back to season over rate
+        # If no data for specific location, fall back to season over rate (or 0.5 if no season data)
         if is_home:
             loc_over_rate = home_over_rate if home_over_rate is not None else season_over_rate
         else:
             loc_over_rate = away_over_rate if away_over_rate is not None else season_over_rate
         
-        player_avg = self.data_processor.get_player_average(player, stat_type)
-        player_consistency = self.data_processor.get_player_consistency(player, stat_type)
-        player_streak = self.data_processor.get_player_streak(player, stat_type, line)
-        
         # Calculate different score components
-        matchup_score = self._calculate_matchup_score(team_rank, stat_type)
+        # Use 16 (middle rank) for scoring calculations if team rank is None
+        matchup_score = self._calculate_matchup_score(team_rank if team_rank is not None else 16, stat_type)
         player_history_score = self._calculate_player_history_score(season_over_rate, loc_over_rate, l5_over_rate, player_streak, line)
         consistency_score = self._calculate_consistency_score(player_consistency, player_avg)
         value_score = self._calculate_value_score(season_over_rate, odds) if odds != 0 else 50
@@ -99,16 +104,16 @@ class AdvancedPropScorer:
             'consistency_score': round(consistency_score, 2),
             'value_score': round(value_score, 2),
             'confidence': confidence,
-            'team_rank': team_rank,
-            'over_rate': season_over_rate,
-            'player_avg': player_avg,
+            'team_rank': team_rank,  # Original value (may be None)
+            'over_rate': season_over_rate_raw,  # Original value (may be None)
+            'player_avg': player_avg_raw,  # Original value (may be None)
             'player_consistency': player_consistency,
-            'line_vs_avg': line - player_avg,
+            'line_vs_avg': line - player_avg if player_avg_raw is not None else None,
             'is_home': is_home,
             'week': week,
-            'l5_over_rate': l5_over_rate,
-            'home_over_rate': home_over_rate,
-            'away_over_rate': away_over_rate,
+            'l5_over_rate': l5_over_rate_raw,  # Original value (may be None)
+            'home_over_rate': home_over_rate,  # Already can be None
+            'away_over_rate': away_over_rate,  # Already can be None
             'streak': player_streak,  # Add streak to return values
             'analysis': self._generate_analysis(player, opposing_team, stat_type, line, total_score, confidence)
         }
@@ -224,7 +229,7 @@ class AdvancedPropScorer:
         if over_rate >= 0.7 or over_rate <= 0.3:  # Clear trend
             confidence_factors.append(1)
         
-        if team_rank <= 5 or team_rank >= 28:  # Clear defensive strength/weakness
+        if team_rank is not None and (team_rank <= 5 or team_rank >= 28):  # Clear defensive strength/weakness
             confidence_factors.append(1)
         
         if consistency < 20:  # Player is consistent

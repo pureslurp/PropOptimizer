@@ -1344,6 +1344,11 @@ def main():
         
         display_df = results_df[display_columns].copy()
         
+        # Format Team Rank as integer (show "N/A" if None)
+        display_df['team_rank'] = display_df['team_rank'].apply(
+            lambda x: int(x) if pd.notna(x) and x is not None else "N/A"
+        )
+        
         # Rename columns for display
         if is_historical:
             display_df.columns = [
@@ -1381,13 +1386,13 @@ def main():
         display_df['Score_numeric'] = display_df['Score']  # Store for styling
         display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.2f}")
         
-        # Handle None values for home/away over rates (when no games in that location)
-        display_df['L5_numeric'] = display_df['L5'].apply(lambda x: x * 100 if pd.notna(x) else None)
+        # Handle None values for all over rates (when no data available)
+        display_df['L5_numeric'] = display_df['L5'].apply(lambda x: x * 100 if x is not None and pd.notna(x) else None)
         display_df['Home_numeric'] = display_df['Home'].apply(lambda x: x * 100 if x is not None and pd.notna(x) else None)
         display_df['Away_numeric'] = display_df['Away'].apply(lambda x: x * 100 if x is not None and pd.notna(x) else None)
-        display_df['25/26_numeric'] = display_df['25/26'] * 100
+        display_df['25/26_numeric'] = display_df['25/26'].apply(lambda x: x * 100 if x is not None and pd.notna(x) else None)
         
-        # Format L5 over rate as percentage
+        # Format L5 over rate as percentage (N/A if no data)
         display_df['L5'] = display_df['L5_numeric'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
         
         # Format Home over rate as percentage (N/A if no home games)
@@ -1396,8 +1401,8 @@ def main():
         # Format Away over rate as percentage (N/A if no away games)
         display_df['Away'] = display_df['Away_numeric'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
         
-        # Format season over rate as percentage
-        display_df['25/26'] = display_df['25/26_numeric'].round(1).astype(str) + '%'
+        # Format season over rate as percentage (N/A if no data)
+        display_df['25/26'] = display_df['25/26_numeric'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
         
         # Define styling functions
         def style_team_rank(val):

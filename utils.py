@@ -690,7 +690,9 @@ def clean_player_name(name: str) -> str:
         "Jacory Merritt": "Jacory Croskey-Merritt",
         "Christopher Rodriguez": "Chris Rodriguez",
         "Tavion Sanders": "Ja'Tavion Sanders",
-        "quavious Marks": "Woody Marks",
+        "Woody Marks": "Jo'quavious Marks",  # Props use "Woody Marks", box scores have "Jo'quavious Marks"
+        "quavious Marks": "Jo'quavious Marks",  # Handle apostrophe stripping issue
+        "Joquavious Marks": "Jo'quavious Marks",  # Handle apostrophe removal
         "Tre Harris": "Tre' Harris",
         "Christopher Brooks": "Chris Brooks",
         "Nick Westbrook": "Nick Westbrook-Ikhine",
