@@ -140,11 +140,11 @@ class AdvancedPropScorer:
             weights['l5'] * l5_score
         )
         
-        # Apply streak multiplier (e.g., 5 game streak = 1.05x multiplier = 5% bonus)
-        streak_multiplier = (1 + (player_streak / 100))
-        total_score = base_score * streak_multiplier
+        # # Apply streak multiplier (e.g., 5 game streak = 1.05x multiplier = 5% bonus)
+        # streak_multiplier = (1 + (player_streak / 100))
+        # total_score = base_score * streak_multiplier
 
-        return max(0, min(100, total_score))
+        return max(0, min(100, base_score))
     
     def _calculate_consistency_score(self, consistency: float, player_avg: float) -> float:
         """Calculate score based on player consistency"""

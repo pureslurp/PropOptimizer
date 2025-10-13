@@ -464,10 +464,21 @@ def calculate_profit_from_odds(odds, stake=1.0):
         return stake * (odds / 100)
 
 
-def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-400, odds_max=-150):
+def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-400, odds_max=-150, 
+                                    streak_min=None, max_players=5, position_filter=False):
     """
     Calculate ROI for a strategy in a specific historical week.
     Returns total units won/lost for that week.
+    
+    Args:
+        week_num: Week number to calculate ROI for
+        score_min: Minimum score threshold
+        score_max: Maximum score threshold
+        odds_min: Minimum odds (e.g., -400)
+        odds_max: Maximum odds (e.g., -150)
+        streak_min: Minimum streak value (optional)
+        max_players: Maximum number of players to select
+        position_filter: If True, apply position-appropriate filtering
     """
     # Load historical data and box scores for the week
     props_df = load_historical_props_from_game_data(week_num)
@@ -529,30 +540,31 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     # Convert to DataFrame
     results_df = pd.DataFrame(all_props)
     
-    # Filter by strategy criteria
-    filtered_df = results_df[
-        (results_df['total_score'] >= score_min) & 
-        (results_df['total_score'] < score_max) &
-        (results_df['Odds'] >= odds_min) & 
-        (results_df['Odds'] <= odds_max)
-    ].copy()
+    # Use the reusable filter function
+    filtered_df = filter_props_by_strategy(
+        results_df,
+        data_processor=data_processor_historical,
+        score_min=score_min,
+        score_max=score_max,
+        odds_min=odds_min,
+        odds_max=odds_max,
+        streak_min=streak_min,
+        max_players=max_players,
+        position_filter=position_filter
+    )
     
     if filtered_df.empty:
         return 0.0, []
     
-    # Keep only highest score per player+stat type combination
-    filtered_df = filtered_df.sort_values('total_score', ascending=False)
-    filtered_df = filtered_df.drop_duplicates(subset=['Player', 'Stat Type'], keep='first')
+    # Get the filtered props (already limited to max_players by filter function)
+    top_props = filtered_df
     
-    # Get top 5
-    top_5 = filtered_df.head(5)
-    
-    # Calculate ROI as PARLAY (1 unit bet per week on all 5 props combined)
+    # Calculate ROI as PARLAY (1 unit bet per week on all props combined)
     bet_results = []
     all_props_hit = True
     parlay_decimal_odds = 1.0
     
-    for _, row in top_5.iterrows():
+    for _, row in top_props.iterrows():
         actual = row.get('actual_result')
         line = row['Line']
         odds = row['Odds']
@@ -616,9 +628,155 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     return total_roi, bet_results
 
 
+def is_position_appropriate_stat(player_name, stat_type, data_processor):
+    """
+    Determine if a stat type is appropriate for a player's position.
+    
+    Rules:
+    - QB: Allow Passing stats, NO Rushing stats
+    - RB: Allow Rushing stats, NO Receiving stats
+    - WR/TE: Allow Receiving stats
+    
+    Args:
+        player_name: Player name
+        stat_type: Stat type to check
+        data_processor: Data processor instance
+        
+    Returns:
+        bool: True if the stat is position-appropriate
+    """
+    try:
+        from utils import clean_player_name
+        
+        # Validate inputs
+        if not player_name or not stat_type or not data_processor:
+            return True  # Allow if missing data
+        
+        cleaned_name = clean_player_name(player_name)
+        
+        # Check if data processor has required attributes
+        if not hasattr(data_processor, 'player_name_index') or not hasattr(data_processor, 'player_season_stats'):
+            return True  # Allow if data structure is incomplete
+        
+        player_key = data_processor.player_name_index.get(cleaned_name)
+        
+        if not player_key or player_key not in data_processor.player_season_stats:
+            return True  # If we can't determine, allow it
+        
+        player_stats = data_processor.player_season_stats[player_key]
+        
+        # Determine position based on what stats they have
+        has_passing = 'Passing Yards' in player_stats or 'Passing TDs' in player_stats
+        has_rushing = 'Rushing Yards' in player_stats or 'Rushing TDs' in player_stats
+        has_receiving = 'Receiving Yards' in player_stats or 'Receptions' in player_stats or 'Receiving TDs' in player_stats
+        
+        # QB position detection (has passing stats)
+        if has_passing:
+            # No QB rushing allowed
+            if stat_type in ['Rushing Yards', 'Rushing TDs']:
+                return False
+            return True
+        
+        # RB position detection (has rushing but no passing)
+        if has_rushing and not has_passing:
+            # No RB receiving allowed
+            if stat_type in ['Receiving Yards', 'Receptions', 'Receiving TDs']:
+                return False
+            return True
+        
+        # WR/TE (has receiving stats)
+        if has_receiving:
+            return True
+        
+        return True  # Default to allowing the stat
+        
+    except Exception as e:
+        # Log error but don't crash - default to allowing the stat
+        print(f"Warning: Error in position filtering for {player_name} - {stat_type}: {e}")
+        return True
+
+
+def filter_props_by_strategy(df, data_processor=None, score_min=70, score_max=float('inf'), 
+                              odds_min=-400, odds_max=-150, streak_min=None, 
+                              max_players=5, position_filter=False):
+    """
+    Reusable function to filter props based on strategy criteria.
+    
+    Args:
+        df: DataFrame of props with scores
+        data_processor: Data processor instance (required for position filtering)
+        score_min: Minimum score threshold
+        score_max: Maximum score threshold
+        odds_min: Minimum odds (e.g., -400)
+        odds_max: Maximum odds (e.g., -150)
+        streak_min: Minimum streak value (optional)
+        max_players: Maximum number of players to return
+        position_filter: If True, apply position-appropriate filtering
+        
+    Returns:
+        DataFrame: Filtered props (empty DataFrame if no props match or error occurs)
+    """
+    try:
+        # Validate input DataFrame
+        if df is None or df.empty:
+            return pd.DataFrame()
+        
+        # Validate required columns exist
+        required_columns = ['total_score', 'Odds', 'Player', 'Stat Type']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            print(f"Warning: Missing required columns: {missing_columns}")
+            return pd.DataFrame()
+        
+        # Filter by score range
+        filtered_df = df[
+            (df['total_score'] >= score_min) & 
+            (df['total_score'] < score_max) &
+            (df['Odds'] >= odds_min) & 
+            (df['Odds'] <= odds_max)
+        ].copy()
+        
+        # Apply streak filter if specified
+        if streak_min is not None:
+            if 'streak' in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df['streak'] >= streak_min]
+            else:
+                print(f"Warning: Streak filter requested but 'streak' column not found")
+        
+        # Apply position filter if specified
+        if position_filter:
+            if data_processor is None:
+                print("Warning: Position filter requested but no data_processor provided")
+            else:
+                try:
+                    filtered_df = filtered_df[
+                        filtered_df.apply(
+                            lambda row: is_position_appropriate_stat(row['Player'], row['Stat Type'], data_processor),
+                            axis=1
+                        )
+                    ]
+                except Exception as e:
+                    print(f"Warning: Error applying position filter: {e}")
+                    # Continue without position filtering
+        
+        if not filtered_df.empty:
+            # Keep only highest score per player+stat type combination
+            filtered_df = filtered_df.sort_values('total_score', ascending=False)
+            filtered_df = filtered_df.drop_duplicates(subset=['Player', 'Stat Type'], keep='first')
+            
+            # Return top N players
+            return filtered_df.head(max_players)
+        
+        return pd.DataFrame()
+        
+    except Exception as e:
+        print(f"Error in filter_props_by_strategy: {e}")
+        return pd.DataFrame()
+
+
 def calculate_all_strategies_roi():
     """
-    Calculate ROI for all three strategies (Optimal, Greasy, Degen) 
+    Calculate ROI for all strategies (v1 and v2: Optimal, Greasy, Degen) 
     across all historical weeks (starting from week 4).
     Returns a dictionary with ROI data for display.
     """
@@ -631,35 +789,98 @@ def calculate_all_strategies_roi():
     if not historical_weeks:
         return None
     
-    # Define strategies
+    # Define strategies for v1 and v2
     strategies = {
-        'Optimal': {'score_min': 70, 'score_max': float('inf')},
-        'Greasy': {'score_min': 50, 'score_max': 70},
-        'Degen': {'score_min': 0, 'score_max': 50}
+        # V1 Strategies
+        'v1_Optimal': {
+            'score_min': 70, 
+            'score_max': float('inf'),
+            'odds_min': -400,
+            'odds_max': -150,
+            'max_players': 5
+        },
+        'v1_Greasy': {
+            'score_min': 50, 
+            'score_max': 70,
+            'odds_min': -400,
+            'odds_max': -150,
+            'max_players': 5
+        },
+        'v1_Degen': {
+            'score_min': 0, 
+            'score_max': 50,
+            'odds_min': -400,
+            'odds_max': -150,
+            'max_players': 5
+        },
+        # V2 Strategies
+        'v2_Optimal': {
+            'score_min': 80,
+            'score_max': float('inf'),
+            'odds_min': -300,
+            'odds_max': -150,
+            'streak_min': 3,
+            'max_players': 4,
+            'position_filter': True
+        },
+        'v2_Greasy': {
+            'score_min': 65,
+            'score_max': 80,
+            'odds_min': -300,
+            'odds_max': -150,
+            'streak_min': 2,
+            'max_players': 6,
+            'position_filter': True
+        },
+        'v2_Degen': {
+            'score_min': 70,
+            'score_max': 100,
+            'odds_min': 0,
+            'odds_max': 200,
+            'streak_min': None,
+            'max_players': 3,
+            'position_filter': False
+        }
     }
     
     # Calculate ROI for each strategy
     roi_data = {}
     
     for strategy_name, params in strategies.items():
-        total_roi = 0.0
-        all_results = []
-        
-        for week in historical_weeks:
-            week_roi, week_results = calculate_strategy_roi_for_week(
-                week, 
-                params['score_min'], 
-                params['score_max']
-            )
+        try:
+            total_roi = 0.0
+            all_results = []
             
-            if week_roi is not None:
-                total_roi += week_roi
-                all_results.extend(week_results)
-        
-        roi_data[strategy_name] = {
-            'total_roi': total_roi,
-            'results': all_results
-        }
+            for week in historical_weeks:
+                try:
+                    week_roi, week_results = calculate_strategy_roi_for_week(
+                        week, 
+                        params['score_min'], 
+                        params['score_max'],
+                        odds_min=params.get('odds_min', -400),
+                        odds_max=params.get('odds_max', -150),
+                        streak_min=params.get('streak_min'),
+                        max_players=params.get('max_players', 5),
+                        position_filter=params.get('position_filter', False)
+                    )
+                    
+                    if week_roi is not None:
+                        total_roi += week_roi
+                        all_results.extend(week_results)
+                except Exception as e:
+                    print(f"Warning: Error calculating ROI for {strategy_name} week {week}: {e}")
+                    continue
+            
+            roi_data[strategy_name] = {
+                'total_roi': total_roi,
+                'results': all_results
+            }
+        except Exception as e:
+            print(f"Warning: Error calculating ROI for {strategy_name}: {e}")
+            roi_data[strategy_name] = {
+                'total_roi': 0.0,
+                'results': []
+            }
     
     return roi_data
 
@@ -1432,23 +1653,29 @@ def main():
                 st.json(selected_row.to_dict())
         
         # Function to display prop picks based on score threshold
-        def display_prop_picks(df, score_min, score_max, odds_min=-400, odds_max=-150):
-            """Display top 5 props based on score threshold with parlay odds"""
-            # Filter: score in range and odds between odds_min and odds_max
-            filtered_df = df[
-                (df['total_score'] >= score_min) & 
-                (df['total_score'] < score_max) &
-                (df['Odds'] >= odds_min) & 
-                (df['Odds'] <= odds_max)
-            ].copy()
+        def display_prop_picks(df, score_min, score_max, odds_min=-400, odds_max=-150, 
+                                streak_min=None, max_players=5, position_filter=False):
+            """Display props based on strategy criteria with parlay odds"""
+            try:
+                # Use the reusable filter function
+                top_props = filter_props_by_strategy(
+                    df, 
+                    data_processor=data_processor,
+                    score_min=score_min,
+                    score_max=score_max,
+                    odds_min=odds_min,
+                    odds_max=odds_max,
+                    streak_min=streak_min,
+                    max_players=max_players,
+                    position_filter=position_filter
+                )
+            except Exception as e:
+                st.error(f"Error filtering props: {e}")
+                return
             
-            if not filtered_df.empty:
-                # Keep only highest score per player+stat type combination
-                filtered_df = filtered_df.sort_values('total_score', ascending=False)
-                filtered_df = filtered_df.drop_duplicates(subset=['Player', 'Stat Type'], keep='first')
-                
-                # Get top 5
-                top_5 = filtered_df.head(5)
+            if not top_props.empty:
+                # Use the filtered results
+                top_5 = top_props
                 
                 # Track if all props hit (for parlay result)
                 all_props_hit = True
@@ -1511,7 +1738,20 @@ def main():
                 
                 st.markdown(f"• **If Parlayed:** {parlay_odds_str} odds{parlay_result}", unsafe_allow_html=True)
             else:
-                st.markdown("*No props meet the criteria*")
+                # Build informative message about why no props were found
+                criteria_parts = []
+                criteria_parts.append(f"Score {score_min}+")
+                if score_max != float('inf'):
+                    criteria_parts.append(f"(max {score_max})")
+                criteria_parts.append(f"Odds {format_odds(odds_min)} to {format_odds(odds_max)}")
+                if streak_min is not None:
+                    criteria_parts.append(f"Streak {streak_min}+")
+                if position_filter:
+                    criteria_parts.append("Position-appropriate only")
+                
+                criteria_str = " | ".join(criteria_parts)
+                st.markdown(f"*No props meet the criteria: {criteria_str}*")
+                st.caption("💡 Try adjusting filters or check back when more games are available")
         
         st.subheader("Plum Props")
         # Three prop strategy sections in columns
@@ -1528,6 +1768,59 @@ def main():
         with col_3:
             with st.expander("🎲 Degen", expanded=False):
                 display_prop_picks(results_df, score_min=0, score_max=50)
+        
+        # V2 Strategy sections
+        st.subheader("Plum Props v2")
+        col_1_v2, col_2_v2, col_3_v2 = st.columns(3)
+        
+        with col_1_v2:
+            with st.expander("🎯 Optimal v2", expanded=False):
+                # v2 Optimal criteria:
+                # - Max of 4 players
+                # - Odds: -150 to -300 range
+                # - Score >= 80
+                # - Streak >= 3
+                # - Position-appropriate stats only (no RB rec yards, no QB rush)
+                display_prop_picks(
+                    results_df, 
+                    score_min=80, 
+                    score_max=float('inf'),
+                    odds_min=-300,
+                    odds_max=-150,
+                    streak_min=3,
+                    max_players=4,
+                    position_filter=True
+                )
+        
+        with col_2_v2:
+            with st.expander("🧈 Greasy v2", expanded=False):
+                # v2 Greasy criteria:
+                # - Max of 6 players
+                # - Odds: -150 to -300 range
+                # - Score 65 to 80
+                # - Streak >= 3
+                # - Position-appropriate stats only (no RB rec yards, no QB rush)
+                display_prop_picks(
+                    results_df, 
+                    score_min=65, 
+                    score_max=80,
+                    odds_min=-300,
+                    odds_max=-150,
+                    streak_min=2,
+                    max_players=6,
+                    position_filter=True
+                )
+        
+        with col_3_v2:
+            with st.expander("🎲 Degen v2", expanded=False):
+                display_prop_picks(
+                    results_df, 
+                    score_min=70, 
+                    score_max=100,
+                    odds_min=0,
+                    odds_max=200,
+                    max_players=3,
+                )
 
         # ROI Performance Table (only for current week)
         if not is_historical:
@@ -1537,70 +1830,94 @@ def main():
                 roi_data = calculate_all_strategies_roi()
             
             if roi_data:
-                # Calculate the week range for display
-                current_week = get_current_week_from_schedule()
-                historical_weeks = list(range(4, current_week))
-                if len(historical_weeks) == 1:
-                    week_range_str = f"Week {historical_weeks[0]}"
-                elif len(historical_weeks) == 2:
-                    week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
-                else:
-                    week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
-                
-                # Create ROI table with Version as rows and strategies as columns
-                # Format ROI values
-                optimal_roi = roi_data['Optimal']['total_roi']
-                greasy_roi = roi_data['Greasy']['total_roi']
-                degen_roi = roi_data['Degen']['total_roi']
-                
-                def format_roi(roi):
-                    if roi > 0:
-                        return f"+{roi:.2f}u"
-                    elif roi < 0:
-                        return f"{roi:.2f}u"
+                try:
+                    # Calculate the week range for display
+                    current_week = get_current_week_from_schedule()
+                    historical_weeks = list(range(4, current_week))
+                    if len(historical_weeks) == 1:
+                        week_range_str = f"Week {historical_weeks[0]}"
+                    elif len(historical_weeks) == 2:
+                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
                     else:
-                        return "0.00u"
+                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+                    
+                    # Create ROI table with Version as rows and strategies as columns
+                    def format_roi(roi):
+                        try:
+                            if roi > 0:
+                                return f"+{roi:.2f}u"
+                            elif roi < 0:
+                                return f"{roi:.2f}u"
+                            else:
+                                return "0.00u"
+                        except:
+                            return "N/A"
+                    
+                    # Extract ROI values for v1 and v2 with safe defaults
+                    v1_optimal_roi = roi_data.get('v1_Optimal', {}).get('total_roi', 0) or 0
+                    v1_greasy_roi = roi_data.get('v1_Greasy', {}).get('total_roi', 0) or 0
+                    v1_degen_roi = roi_data.get('v1_Degen', {}).get('total_roi', 0) or 0
+                    
+                    v2_optimal_roi = roi_data.get('v2_Optimal', {}).get('total_roi', 0) or 0
+                    v2_greasy_roi = roi_data.get('v2_Greasy', {}).get('total_roi', 0) or 0
+                    v2_degen_roi = roi_data.get('v2_Degen', {}).get('total_roi', 0) or 0
+                    
+                    roi_table_data = [
+                        {
+                            'Version': 'v1',
+                            'Optimal': format_roi(v1_optimal_roi),
+                            'Greasy': format_roi(v1_greasy_roi),
+                            'Degen': format_roi(v1_degen_roi),
+                            'Optimal_numeric': v1_optimal_roi,
+                            'Greasy_numeric': v1_greasy_roi,
+                            'Degen_numeric': v1_degen_roi
+                        },
+                        {
+                            'Version': 'v2',
+                            'Optimal': format_roi(v2_optimal_roi),
+                            'Greasy': format_roi(v2_greasy_roi),
+                            'Degen': format_roi(v2_degen_roi),
+                            'Optimal_numeric': v2_optimal_roi,
+                            'Greasy_numeric': v2_greasy_roi,
+                            'Degen_numeric': v2_degen_roi
+                        }
+                    ]
+                    
+                    roi_df = pd.DataFrame(roi_table_data)
+                    
+                    # Style the columns directly based on numeric values
+                    def color_roi(val, numeric_val):
+                        """Apply color based on numeric value"""
+                        if val == '-':
+                            return ''  # No styling for placeholder
+                        if numeric_val > 0:
+                            return 'background-color: #d4edda; color: #155724'  # Green
+                        elif numeric_val < 0:
+                            return 'background-color: #f8d7da; color: #721c24'  # Red
+                        return ''
+                    
+                    # Create display DataFrame (without numeric columns)
+                    display_roi_df = roi_df[['Version', 'Optimal', 'Greasy', 'Degen']].copy()
+                    
+                    # Apply styling using .applymap on each column with its numeric counterpart
+                    styled_roi_df = display_roi_df.style.apply(
+                        lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
+                                   else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
+                                   else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
+                                   else '' for col in x.index],
+                        axis=1
+                    )
                 
-                roi_table_data = [{
-                    'Version': 'v1',
-                    'Optimal': format_roi(optimal_roi),
-                    'Greasy': format_roi(greasy_roi),
-                    'Degen': format_roi(degen_roi),
-                    'Optimal_numeric': optimal_roi,
-                    'Greasy_numeric': greasy_roi,
-                    'Degen_numeric': degen_roi
-                }]
-                
-                roi_df = pd.DataFrame(roi_table_data)
-                
-                # Style the columns directly based on numeric values
-                def color_roi(val, numeric_val):
-                    """Apply color based on numeric value"""
-                    if numeric_val > 0:
-                        return 'background-color: #d4edda; color: #155724'  # Green
-                    elif numeric_val < 0:
-                        return 'background-color: #f8d7da; color: #721c24'  # Red
-                    return ''
-                
-                # Create display DataFrame (without numeric columns)
-                display_roi_df = roi_df[['Version', 'Optimal', 'Greasy', 'Degen']].copy()
-                
-                # Apply styling using .applymap on each column with its numeric counterpart
-                styled_roi_df = display_roi_df.style.apply(
-                    lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
-                               else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
-                               else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
-                               else '' for col in x.index],
-                    axis=1
-                )
-                
-                st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per week per strategy)")
-                st.dataframe(
-                    styled_roi_df,
-                    use_container_width=False,
-                    hide_index=True
-                )
-                st.caption("Note: Each strategy picks the top 5 props and parlays them (1 unit per week). All 5 must hit to win. ROI shows total return across all historical weeks.")
+                    st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per week per strategy)")
+                    st.dataframe(
+                        styled_roi_df,
+                        use_container_width=False,
+                        hide_index=True
+                    )
+                    st.caption("Note: v1 strategies pick top 5 props. v2 Optimal (4 props, score 80+), v2 Greasy (6 props, score 65-80), v2 Degen (5 props, score 70-100, wide odds). All strategies parlay props - all must hit to win. ROI shows total return across all historical weeks.")
+                except Exception as e:
+                    st.error(f"Error displaying ROI table: {e}")
+                    st.info("ℹ️ ROI data could not be displayed. Please check console for details.")
             else:
                 st.info("ℹ️ Not enough historical data to calculate ROI (requires weeks 4+)")
         
