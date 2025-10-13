@@ -1955,6 +1955,7 @@ def main():
             **Streak** - Number of consecutive games the player has gone OVER this line
             - 🟢 Green highlight (≥3): Player is hot, hit the over 3+ games in a row
             - Example: "3" means the player went over this line in their last 3 straight games
+            - **Note**: Streak resets to 0 if player misses 2 or more consecutive games (to avoid inflated streaks from injuries)
             
             **L5** - Over rate for the Last 5 games
             - Percentage of the last 5 games where the player exceeded this line
