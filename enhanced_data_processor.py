@@ -28,6 +28,7 @@ class EnhancedFootballDataProcessor:
         self.current_week = self._get_current_week()
         self.max_week = max_week  # Used for filtering historical data (None = use all weeks)
         self.schedule_data = self._load_schedule()
+        self.opponent_mapping = self._build_opponent_mapping_from_game_data()  # Build from game data
         
         # Create data directory if it doesn't exist
         os.makedirs(data_dir, exist_ok=True)
@@ -62,6 +63,68 @@ class EnhancedFootballDataProcessor:
             # Schedule is optional, silently return empty DataFrame
             return pd.DataFrame()
     
+    def _build_opponent_mapping_from_game_data(self):
+        """Build a mapping of week -> team -> opponent from game_data JSON files"""
+        opponent_map = {}  # {week: {team: opponent}}
+        
+        # Scan for week directories
+        year_dir = "2025"
+        if not os.path.exists(year_dir):
+            return opponent_map
+        
+        for week_folder in os.listdir(year_dir):
+            if not week_folder.startswith("WEEK"):
+                continue
+            
+            # Extract week number
+            try:
+                week_num = int(week_folder.replace("WEEK", ""))
+            except:
+                continue
+            
+            game_data_dir = os.path.join(year_dir, week_folder, "game_data")
+            if not os.path.exists(game_data_dir):
+                continue
+            
+            week_opponents = {}
+            
+            # Load all JSON files in the game_data directory
+            for json_file in os.listdir(game_data_dir):
+                if not json_file.endswith("_historical_odds.json"):
+                    continue
+                
+                json_path = os.path.join(game_data_dir, json_file)
+                try:
+                    with open(json_path, 'r') as f:
+                        game_data = json.load(f)
+                    
+                    # Extract home and away teams
+                    if 'data' in game_data:
+                        data = game_data['data']
+                        home_team = data.get('home_team', '')
+                        away_team = data.get('away_team', '')
+                        commence_time = data.get('commence_time', '')
+                        
+                        if home_team and away_team:
+                            week_opponents[home_team] = {
+                                'opponent': away_team,
+                                'is_home': True,
+                                'game_time': commence_time
+                            }
+                            week_opponents[away_team] = {
+                                'opponent': home_team,
+                                'is_home': False,
+                                'game_time': commence_time
+                            }
+                except Exception as e:
+                    print(f"Error loading {json_file}: {e}")
+                    continue
+            
+            if week_opponents:
+                opponent_map[week_num] = week_opponents
+        
+        return opponent_map
+    
     def is_home_game(self, team: str, week: int) -> Optional[bool]:
         """
         Determine if a team was home for a specific week
@@ -73,17 +136,9 @@ class EnhancedFootballDataProcessor:
         Returns:
             True for home, False for away, None if unknown/bye week
         """
-        if self.schedule_data.empty:
-            return None
-        
-        # Filter schedule for the specific week
-        week_games = self.schedule_data[self.schedule_data['Week'] == week]
-        
-        for _, game in week_games.iterrows():
-            if game['Home'].strip() == team:
-                return True
-            elif game['Away'].strip() == team:
-                return False
+        # Use opponent mapping from game data
+        if week in self.opponent_mapping and team in self.opponent_mapping[week]:
+            return self.opponent_mapping[week][team]['is_home']
         
         return None  # Team not found in schedule for this week (bye week or not found)
     
@@ -1141,21 +1196,9 @@ class EnhancedFootballDataProcessor:
             week = self.current_week
         
         try:
-            # Use loaded schedule data instead of re-loading
-            if self.schedule_data is None or self.schedule_data.empty:
-                return "Unknown"
-            
-            # Find the game for this team in the specified week
-            week_games = self.schedule_data[self.schedule_data['Week'] == week]
-            
-            for _, game in week_games.iterrows():
-                home_team = game['Home'].strip()
-                away_team = game['Away'].strip()
-                
-                if player_team == home_team:
-                    return away_team
-                elif player_team == away_team:
-                    return home_team
+            # Use opponent mapping from game data
+            if week in self.opponent_mapping and player_team in self.opponent_mapping[week]:
+                return self.opponent_mapping[week][player_team]['opponent']
             
             return "Unknown"
         except Exception as e:
@@ -1168,28 +1211,17 @@ class EnhancedFootballDataProcessor:
             week = self.current_week
         
         try:
-            # Use loaded schedule data
-            if self.schedule_data is None or self.schedule_data.empty:
-                return ""
-            
-            # Find the game for this team in the specified week
-            week_games = self.schedule_data[self.schedule_data['Week'] == week]
-            
-            for _, game in week_games.iterrows():
-                home_team = game['Home'].strip()
-                away_team = game['Away'].strip()
-                
-                if team == home_team or team == away_team:
-                    # Parse date (format: "Sep 4 2025")
-                    date_str = game['Date']
+            # Use opponent mapping from game data
+            if week in self.opponent_mapping and team in self.opponent_mapping[week]:
+                game_time = self.opponent_mapping[week][team]['game_time']
+                if game_time:
+                    # Parse ISO format datetime (e.g., "2025-10-07T00:16:00Z")
                     try:
-                        from datetime import datetime
-                        # Parse the date string
-                        date_obj = datetime.strptime(date_str, "%b %d %Y")
+                        date_obj = datetime.fromisoformat(game_time.replace('Z', '+00:00'))
                         # Return in MM/DD format
                         return date_obj.strftime("%m/%d")
                     except:
-                        return ""
+                        pass
             
             return ""
         except Exception as e:

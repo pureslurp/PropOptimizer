@@ -1378,10 +1378,9 @@ def main():
                 fig.add_trace(go.Bar(
                     x=game_labels,
                     y=game_values,
-                    marker_color=bar_colors,
+                    marker=dict(color=bar_colors),
                     text=[f"{val:.1f}" for val in game_values],
-                    textposition='outside',
-                    name='Actual'
+                    textposition='outside'
                 ))
                 
                 # Add horizontal line for the betting line
@@ -1420,7 +1419,7 @@ def main():
                                   '<extra></extra>'
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key=f"chart_{player_name}_{stat_type}")
                 
                 # Add context info
                 over_count = sum(1 for val in game_values if val > line)
