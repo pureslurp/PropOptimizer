@@ -815,7 +815,7 @@ def calculate_all_strategies_roi():
         },
         # V2 Strategies
         'v2_Optimal': {
-            'score_min': 80,
+            'score_min': 75,
             'score_max': float('inf'),
             'odds_min': -300,
             'odds_max': -150,
@@ -1790,7 +1790,7 @@ def main():
                 # - Position-appropriate stats only (no RB rec yards, no QB rush)
                 display_prop_picks(
                     results_df, 
-                    score_min=80, 
+                    score_min=75, 
                     score_max=float('inf'),
                     odds_min=-300,
                     odds_max=-150,
