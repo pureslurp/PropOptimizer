@@ -1574,37 +1574,26 @@ def main():
                 
                 roi_df = pd.DataFrame(roi_table_data)
                 
-                # Display as styled table
-                def style_roi(row):
-                    styles = pd.Series([''] * len(row), index=row.index)
-                    
-                    # Style Optimal column
-                    if 'Optimal_numeric' in row.index:
-                        val = row['Optimal_numeric']
-                        if val > 0:
-                            styles['Optimal'] = 'background-color: #d4edda; color: #155724'  # Green
-                        elif val < 0:
-                            styles['Optimal'] = 'background-color: #f8d7da; color: #721c24'  # Red
-                    
-                    # Style Greasy column
-                    if 'Greasy_numeric' in row.index:
-                        val = row['Greasy_numeric']
-                        if val > 0:
-                            styles['Greasy'] = 'background-color: #d4edda; color: #155724'  # Green
-                        elif val < 0:
-                            styles['Greasy'] = 'background-color: #f8d7da; color: #721c24'  # Red
-                    
-                    # Style Degen column
-                    if 'Degen_numeric' in row.index:
-                        val = row['Degen_numeric']
-                        if val > 0:
-                            styles['Degen'] = 'background-color: #d4edda; color: #155724'  # Green
-                        elif val < 0:
-                            styles['Degen'] = 'background-color: #f8d7da; color: #721c24'  # Red
-                    
-                    return styles
+                # Style the columns directly based on numeric values
+                def color_roi(val, numeric_val):
+                    """Apply color based on numeric value"""
+                    if numeric_val > 0:
+                        return 'background-color: #d4edda; color: #155724'  # Green
+                    elif numeric_val < 0:
+                        return 'background-color: #f8d7da; color: #721c24'  # Red
+                    return ''
                 
-                styled_roi_df = roi_df[['Version', 'Optimal', 'Greasy', 'Degen']].style.apply(style_roi, axis=1)
+                # Create display DataFrame (without numeric columns)
+                display_roi_df = roi_df[['Version', 'Optimal', 'Greasy', 'Degen']].copy()
+                
+                # Apply styling using .applymap on each column with its numeric counterpart
+                styled_roi_df = display_roi_df.style.apply(
+                    lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
+                               else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
+                               else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
+                               else '' for col in x.index],
+                    axis=1
+                )
                 
                 st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per week per strategy)")
                 st.dataframe(
