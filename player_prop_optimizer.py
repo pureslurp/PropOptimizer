@@ -861,6 +861,181 @@ def filter_props_by_strategy(df, data_processor=None, score_min=70, score_max=fl
         return pd.DataFrame()
 
 
+def calculate_high_score_straight_bets_roi():
+    """
+    Calculate ROI for all players with Score > 80 AND Streak >= 3 as straight bets (1 unit each).
+    This is separate from parlay strategies and treats each prop as an independent bet.
+    Only the highest-scoring prop per player/stat type combination is counted.
+    Returns a dictionary with ROI data by time window for display.
+    """
+    current_week = get_current_week_from_schedule()
+    
+    # Calculate for all weeks from 4 up to (but not including) current week
+    historical_weeks = list(range(4, current_week))
+    
+    if not historical_weeks:
+        return None
+    
+    # Time windows we're tracking
+    time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF', 'All']
+    
+    # Initialize ROI tracking by time window
+    roi_by_window = {window: {'roi': 0.0, 'total_bets': 0, 'wins': 0, 'losses': 0, 'results': []} for window in time_windows}
+    
+    for week in historical_weeks:
+        try:
+            # Load historical data and box scores for the week
+            props_df = load_historical_props_from_game_data(week)
+            
+            if props_df.empty:
+                continue
+            
+            # Add time window classification to each prop
+            props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
+            
+            # Create a data processor limited to data before this week
+            data_processor_historical = EnhancedFootballDataProcessor(max_week=week)
+            scorer_historical = AdvancedPropScorer(data_processor_historical)
+            
+            # Update team assignments
+            odds_api_temp = OddsAPI(ODDS_API_KEY)
+            props_df = odds_api_temp.update_team_assignments(props_df, data_processor_historical)
+            
+            # Score all props
+            all_props = []
+            stat_types_in_data = props_df['Stat Type'].unique()
+            
+            for stat_type in stat_types_in_data:
+                stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
+                
+                if stat_filtered_df.empty:
+                    continue
+                
+                for _, row in stat_filtered_df.iterrows():
+                    score_data = scorer_historical.calculate_comprehensive_score(
+                        row['Player'],
+                        row.get('Opposing Team Full', row['Opposing Team']),
+                        row['Stat Type'],
+                        row['Line'],
+                        row.get('Odds', 0),
+                        home_team=row.get('Home Team'),
+                        away_team=row.get('Away Team')
+                    )
+                    
+                    scored_prop = {
+                        **row.to_dict(),
+                        **score_data,
+                        'is_alternate': row.get('is_alternate', True),
+                        'time_window': row.get('time_window', 'Other')
+                    }
+                    all_props.append(scored_prop)
+            
+            # Load box score for actual results
+            box_score_df = load_box_score_for_week(week)
+            
+            if box_score_df.empty:
+                continue
+            
+            # Add actual results
+            for prop in all_props:
+                actual_stat = get_actual_stat(
+                    prop['Player'],
+                    prop['Stat Type'],
+                    box_score_df
+                )
+                prop['actual_result'] = actual_stat
+            
+            # Convert to DataFrame
+            results_df = pd.DataFrame(all_props)
+            
+            if results_df.empty:
+                continue
+            
+            # Filter to props with Score > 80 and Streak >= 3
+            high_score_props = results_df[
+                (results_df['total_score'] > 80) & 
+                (results_df['streak'] >= 3)
+            ]
+            
+            # Remove redundant props: keep only the highest score for each player+stat type combination
+            if not high_score_props.empty:
+                high_score_props = high_score_props.sort_values('total_score', ascending=False)
+                high_score_props = high_score_props.drop_duplicates(subset=['Player', 'Stat Type'], keep='first')
+            
+            # Calculate ROI for each bet by time window
+            for _, row in high_score_props.iterrows():
+                actual = row.get('actual_result')
+                line = row['Line']
+                odds = row['Odds']
+                score = row['total_score']
+                window = row.get('time_window', 'Other')
+                
+                # Skip if no actual result available
+                if pd.isna(actual) or actual is None:
+                    continue
+                
+                # Calculate payout for this bet (1 unit)
+                if odds < 0:
+                    # Negative odds: bet abs(odds) to win 100
+                    payout = 100 / abs(odds)  # Profit per $1 bet
+                else:
+                    # Positive odds: bet 100 to win odds
+                    payout = odds / 100  # Profit per $1 bet
+                
+                # Determine if bet hit
+                if actual > line:
+                    # Prop hit - win the bet
+                    bet_roi = payout  # Profit
+                    result = 'WIN'
+                    if window in roi_by_window:
+                        roi_by_window[window]['wins'] += 1
+                    roi_by_window['All']['wins'] += 1
+                else:
+                    # Prop missed - lose the stake
+                    bet_roi = -1.0  # Lose 1 unit
+                    result = 'LOSS'
+                    if window in roi_by_window:
+                        roi_by_window[window]['losses'] += 1
+                    roi_by_window['All']['losses'] += 1
+                
+                # Track ROI
+                if window in roi_by_window:
+                    roi_by_window[window]['roi'] += bet_roi
+                    roi_by_window[window]['total_bets'] += 1
+                    roi_by_window[window]['results'].append({
+                        'week': week,
+                        'player': row['Player'],
+                        'stat_type': row['Stat Type'],
+                        'line': line,
+                        'actual': actual,
+                        'odds': odds,
+                        'score': score,
+                        'result': result,
+                        'roi': bet_roi
+                    })
+                
+                # Always track in "All" window
+                roi_by_window['All']['roi'] += bet_roi
+                roi_by_window['All']['total_bets'] += 1
+                roi_by_window['All']['results'].append({
+                    'week': week,
+                    'player': row['Player'],
+                    'stat_type': row['Stat Type'],
+                    'line': line,
+                    'actual': actual,
+                    'odds': odds,
+                    'score': score,
+                    'result': result,
+                    'roi': bet_roi
+                })
+                
+        except Exception as e:
+            print(f"Warning: Error calculating high score ROI for week {week}: {e}")
+            continue
+    
+    return roi_by_window
+
+
 def calculate_all_strategies_roi():
     """
     Calculate ROI for all strategies (v1 and v2: Optimal, Greasy, Degen) 
@@ -1836,6 +2011,114 @@ def main():
                     st.info("ℹ️ ROI data could not be displayed. Please check console for details.")
             else:
                 st.info("ℹ️ Not enough historical data to calculate ROI (requires weeks 4+)")
+            
+            # High Score Straight Bets ROI Section (Score > 80 & Streak >= 3)
+            st.markdown("---")
+            st.subheader("High Score Props ROI (Score > 80 & Streak ≥ 3 - Straight Bets)")
+            
+            # Cache high score ROI data
+            if ('high_score_roi_cache' in st.session_state and 
+                'high_score_roi_cache_week' in st.session_state and 
+                st.session_state.high_score_roi_cache_week == current_week):
+                # Use cached data
+                high_score_roi = st.session_state.high_score_roi_cache
+            else:
+                # Calculate fresh high score ROI data
+                with st.spinner("Calculating ROI for high-scoring props (Score > 80)..."):
+                    high_score_roi = calculate_high_score_straight_bets_roi()
+                
+                # Cache the results
+                st.session_state.high_score_roi_cache = high_score_roi
+                st.session_state.high_score_roi_cache_week = current_week
+            
+            if high_score_roi:
+                try:
+                    # Calculate the week range for display
+                    current_week = get_current_week_from_schedule()
+                    historical_weeks = list(range(4, current_week))
+                    if len(historical_weeks) == 1:
+                        week_range_str = f"Week {historical_weeks[0]}"
+                    elif len(historical_weeks) == 2:
+                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+                    else:
+                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+                    
+                    # Format ROI function
+                    def format_roi(roi):
+                        try:
+                            if roi > 0:
+                                return f"+{roi:.2f}u"
+                            elif roi < 0:
+                                return f"{roi:.2f}u"
+                            else:
+                                return "0.00u"
+                        except:
+                            return "N/A"
+                    
+                    def format_win_rate(wins, losses):
+                        total = wins + losses
+                        if total == 0:
+                            return "0.0%"
+                        return f"{(wins / total * 100):.1f}%"
+                    
+                    # Time windows to display
+                    time_windows_display = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF', 'All']
+                    
+                    # Build table data
+                    high_score_table_data = []
+                    
+                    for window in time_windows_display:
+                        window_data = high_score_roi.get(window, {})
+                        roi_value = window_data.get('roi', 0) or 0
+                        total_bets = window_data.get('total_bets', 0)
+                        wins = window_data.get('wins', 0)
+                        losses = window_data.get('losses', 0)
+                        
+                        high_score_table_data.append({
+                            'Time Window': window,
+                            'Total Bets': total_bets,
+                            'Wins': wins,
+                            'Losses': losses,
+                            'Win Rate': format_win_rate(wins, losses),
+                            'ROI': format_roi(roi_value),
+                            'ROI_numeric': roi_value
+                        })
+                    
+                    high_score_df = pd.DataFrame(high_score_table_data)
+                    
+                    # Style the ROI column
+                    def color_roi(val, numeric_val):
+                        """Apply color based on numeric value"""
+                        if val == '-' or val == 'N/A':
+                            return ''  # No styling for placeholder
+                        if numeric_val > 0:
+                            return 'background-color: #d4edda; color: #155724'  # Green
+                        elif numeric_val < 0:
+                            return 'background-color: #f8d7da; color: #721c24'  # Red
+                        return ''
+                    
+                    # Create display DataFrame (without numeric column)
+                    display_high_score_df = high_score_df[['Time Window', 'Total Bets', 'Wins', 'Losses', 'Win Rate', 'ROI']].copy()
+                    
+                    # Apply styling
+                    styled_high_score_df = display_high_score_df.style.apply(
+                        lambda x: [color_roi(x['ROI'], high_score_df.loc[x.name, 'ROI_numeric']) if col == 'ROI'
+                                   else '' for col in x.index],
+                        axis=1
+                    )
+                    
+                    st.caption(f"ROI calculated from {week_range_str} (1 unit straight bet per prop with Score > 80 & Streak ≥ 3)")
+                    st.dataframe(
+                        styled_high_score_df,
+                        use_container_width=False,
+                        hide_index=True
+                    )
+                    st.caption("Note: This table shows ROI for ALL props with Score > 80 AND Streak ≥ 3, regardless of whether they were included in Optimal, Greasy, or Degen parlays. Each bet is treated as an independent straight bet (not parlayed). Only the highest-scoring prop per player/stat type is counted. TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night, All=combined across all time windows.")
+                except Exception as e:
+                    st.error(f"Error displaying high score ROI table: {e}")
+                    st.info("ℹ️ High score ROI data could not be displayed. Please check console for details.")
+            else:
+                st.info("ℹ️ Not enough historical data to calculate high score ROI (requires weeks 4+)")
         
         st.markdown("---")
         # Column Explanations Section
