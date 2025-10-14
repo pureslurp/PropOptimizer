@@ -235,6 +235,44 @@ class TeamNameNormalizer:
         'Washington Commanders': 'WAS',
     }
     
+    # 2025 NFL Bye Week Schedule
+    # Each team has exactly one bye week during the season (weeks 5-14)
+    # Use this to understand gaps in player stats and avoid confusion
+    BYE_WEEK_2025 = {
+        'Arizona Cardinals': 8,  # TODO: Fill in bye week
+        'Atlanta Falcons': 5,
+        'Baltimore Ravens': 7,
+        'Buffalo Bills': 7,
+        'Carolina Panthers': 14,
+        'Chicago Bears': 5,
+        'Cincinnati Bengals': 10,
+        'Cleveland Browns': 9,
+        'Dallas Cowboys': 10,
+        'Denver Broncos': 12,
+        'Detroit Lions': 8,
+        'Green Bay Packers': 5,
+        'Houston Texans': 6,
+        'Indianapolis Colts': 11,
+        'Jacksonville Jaguars': 8,
+        'Kansas City Chiefs': 10,
+        'Las Vegas Raiders': 8,
+        'Los Angeles Chargers': 12,
+        'Los Angeles Rams': 8,
+        'Miami Dolphins': 12,
+        'Minnesota Vikings': 6,
+        'New England Patriots': 14,
+        'New Orleans Saints': 11,
+        'New York Giants': 14,
+        'New York Jets': 9,
+        'Philadelphia Eagles': 9,
+        'Pittsburgh Steelers': 5,  # Confirmed: Week 5 bye
+        'San Francisco 49ers': 14,
+        'Seattle Seahawks': 8,
+        'Tampa Bay Buccaneers': 9,
+        'Tennessee Titans': 10,
+        'Washington Commanders': 12,
+    }
+    
     @classmethod
     def normalize(cls, team_name: str) -> str:
         """
@@ -282,6 +320,35 @@ class TeamNameNormalizer:
         return cls.TEAM_TO_ABBREV.get(normalized, team_name)
     
     @classmethod
+    def get_bye_week(cls, team_name: str) -> Optional[int]:
+        """
+        Get the bye week for a team in the 2025 season
+        
+        Args:
+            team_name: Any variation of a team name
+            
+        Returns:
+            Bye week number (5-14), or None if not set/unknown
+        """
+        normalized = cls.normalize(team_name)
+        return cls.BYE_WEEK_2025.get(normalized, None)
+    
+    @classmethod
+    def is_bye_week(cls, team_name: str, week: int) -> bool:
+        """
+        Check if a team is on bye for a specific week
+        
+        Args:
+            team_name: Any variation of a team name
+            week: NFL week number (1-18)
+            
+        Returns:
+            True if team is on bye this week, False otherwise
+        """
+        bye_week = cls.get_bye_week(team_name)
+        return bye_week is not None and bye_week == week
+    
+    @classmethod
     def get_all_variations(cls, team_name: str) -> list:
         """
         Get all known variations of a team name
@@ -309,6 +376,45 @@ def get_team_abbreviation(team_name: str) -> str:
 def get_team_variations(team_name: str) -> list:
     """Get all variations of a team name"""
     return TeamNameNormalizer.get_all_variations(team_name)
+
+
+def get_bye_week(team_name: str) -> Optional[int]:
+    """
+    Get the bye week for a team in the 2025 season
+    
+    Args:
+        team_name: Any variation of a team name
+        
+    Returns:
+        Bye week number (5-14), or None if not set/unknown
+        
+    Example:
+        >>> get_bye_week('Pittsburgh Steelers')
+        5
+        >>> get_bye_week('PIT')
+        5
+    """
+    return TeamNameNormalizer.get_bye_week(team_name)
+
+
+def is_bye_week(team_name: str, week: int) -> bool:
+    """
+    Check if a team is on bye for a specific week
+    
+    Args:
+        team_name: Any variation of a team name
+        week: NFL week number (1-18)
+        
+    Returns:
+        True if team is on bye this week, False otherwise
+        
+    Example:
+        >>> is_bye_week('Pittsburgh Steelers', 5)
+        True
+        >>> is_bye_week('PIT', 6)
+        False
+    """
+    return TeamNameNormalizer.is_bye_week(team_name, week)
 
 
 # ============================================================================

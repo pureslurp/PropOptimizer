@@ -147,14 +147,41 @@ class EnhancedFootballDataProcessor:
         return os.path.join(self.data_dir, f"{data_type}_cache.pkl")
     
     def _is_cache_valid(self, cache_file: str, max_age_hours: int = 24) -> bool:
-        """Check if cache file is still valid"""
+        """
+        Check if cache file is still valid
+        
+        Validates cache by checking:
+        1. File exists
+        2. Age is within max_age_hours
+        3. Source CSV files haven't been updated since cache was created
+        
+        This prevents stale cache issues when new week data is added on Tuesdays.
+        """
         if not os.path.exists(cache_file):
             return False
         
         # Check if cache is older than max_age_hours
         cache_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
         age_hours = (datetime.now() - cache_time).total_seconds() / 3600
-        return age_hours < max_age_hours
+        
+        if age_hours >= max_age_hours:
+            return False
+        
+        # For player_season and team_defensive cache, check if any CSV files are newer
+        # This is critical for detecting when new weeks are added (typically Tuesdays)
+        if 'player_season' in cache_file or 'team_defensive' in cache_file:
+            base_path = "2025"
+            if os.path.exists(base_path):
+                for week in range(1, 19):  # Check weeks 1-18
+                    csv_file = f"{base_path}/WEEK{week}/box_score_debug.csv"
+                    if os.path.exists(csv_file):
+                        csv_time = datetime.fromtimestamp(os.path.getmtime(csv_file))
+                        if csv_time > cache_time:
+                            cache_type = "player_season" if "player_season" in cache_file else "team_defensive"
+                            print(f"⚠️ {cache_type} cache invalid: WEEK{week} CSV is newer than cache")
+                            return False
+        
+        return True
     
     def _rebuild_player_name_index(self):
         """Rebuild the player name index for fast lookups"""
@@ -209,6 +236,87 @@ class EnhancedFootballDataProcessor:
             print(f"💾 Cached {data_type} data")
         except Exception as e:
             print(f"⚠️ Could not save cache for {data_type}: {e}")
+    
+    def clear_all_caches(self):
+        """
+        Clear all cache files to force fresh data load
+        
+        Use this when:
+        - You suspect stale cache issues
+        - New week data has been added
+        - You want to ensure fresh calculations
+        """
+        import glob
+        
+        print("🗑️  Clearing all caches...")
+        
+        # Clear main caches
+        cache_types = ['player_season', 'team_defensive', 'nfl_defensive_td']
+        for cache_type in cache_types:
+            cache_file = self._get_cache_file(cache_type)
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
+                print(f"   ✓ Removed {cache_type} cache")
+        
+        # Clear historical defensive rankings caches
+        ranking_caches = glob.glob(os.path.join(self.data_dir, 'defensive_rankings_week*.pkl'))
+        for cache_file in ranking_caches:
+            os.remove(cache_file)
+            week = cache_file.split('week')[1].replace('.pkl', '')
+            print(f"   ✓ Removed defensive_rankings_week{week} cache")
+        
+        # Reset in-memory data
+        self.player_season_stats = {}
+        self.team_defensive_stats = {}
+        self.historical_defensive_stats = {}
+        self.player_name_index = {}
+        
+        print("✅ All caches cleared. Data will be rebuilt on next access.")
+    
+    def get_cache_status(self):
+        """
+        Get status of all cache files
+        
+        Returns dict with cache info including age and validity
+        """
+        import glob
+        
+        status = {}
+        
+        # Check main caches
+        cache_types = ['player_season', 'team_defensive', 'nfl_defensive_td']
+        for cache_type in cache_types:
+            cache_file = self._get_cache_file(cache_type)
+            if os.path.exists(cache_file):
+                cache_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
+                age_hours = (datetime.now() - cache_time).total_seconds() / 3600
+                is_valid = self._is_cache_valid(cache_file, max_age_hours=168)
+                
+                status[cache_type] = {
+                    'exists': True,
+                    'age_hours': round(age_hours, 1),
+                    'age_days': round(age_hours / 24, 1),
+                    'last_modified': cache_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'is_valid': is_valid
+                }
+            else:
+                status[cache_type] = {'exists': False}
+        
+        # Check historical defensive ranking caches
+        ranking_caches = glob.glob(os.path.join(self.data_dir, 'defensive_rankings_week*.pkl'))
+        if ranking_caches:
+            status['defensive_rankings'] = {}
+            for cache_file in ranking_caches:
+                week = cache_file.split('week')[1].replace('.pkl', '')
+                cache_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
+                age_hours = (datetime.now() - cache_time).total_seconds() / 3600
+                
+                status['defensive_rankings'][f'week_{week}'] = {
+                    'age_hours': round(age_hours, 1),
+                    'last_modified': cache_time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+        
+        return status
     
     def _load_historical_defensive_rankings(self):
         """Load or calculate defensive rankings through max_week"""
