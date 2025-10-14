@@ -1,0 +1,1420 @@
+{
+  "timestamp": "2025-10-12T18:05:38Z",
+  "previous_timestamp": "2025-10-12T18:00:39Z",
+  "next_timestamp": "2025-10-12T18:10:38Z",
+  "data": {
+    "id": "4963bff460a5f26cab46a8e5ea6db148",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2025-10-12T20:06:00Z",
+    "home_team": "Las Vegas Raiders",
+    "away_team": "Tennessee Titans",
+    "bookmakers": [
+      {
+        "key": "fanduel",
+        "title": "FanDuel",
+        "last_update": "2025-10-12T18:05:23Z",
+        "markets": [
+          {
+            "key": "player_pass_tds_alternate",
+            "last_update": "2025-10-12T18:05:39Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": -550,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 102,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 390,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 1280,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": -235,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 240,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 920,
+                "point": 2.5
+              }
+            ]
+          },
+          {
+            "key": "player_pass_yds_alternate",
+            "last_update": "2025-10-12T18:05:39Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": -800,
+                "point": 149.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": -400,
+                "point": 174.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": -210,
+                "point": 199.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": -110,
+                "point": 224.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 174,
+                "point": 249.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 300,
+                "point": 274.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 550,
+                "point": 299.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 920,
+                "point": 324.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 1500,
+                "point": 349.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": -800,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": -350,
+                "point": 149.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": -174,
+                "point": 174.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 116,
+                "point": 199.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 210,
+                "point": 224.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 390,
+                "point": 249.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 680,
+                "point": 274.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 1200,
+                "point": 299.5
+              }
+            ]
+          },
+          {
+            "key": "player_reception_yds_alternate",
+            "last_update": "2025-10-12T18:05:39Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": -390,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": -245,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": -162,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": -113,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 122,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 162,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 255,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 400,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 600,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 870,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 1100,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 1500,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": -770,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": -430,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": -265,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": -180,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": -128,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 140,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 230,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 350,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 540,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 800,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 1100,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 1500,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -265,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -120,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 146,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 240,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 350,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -1200,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -700,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -460,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -320,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -172,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -102,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 154,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 230,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 330,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 470,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 630,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 900,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 1400,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -1000,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -620,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -310,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -178,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -106,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 144,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 215,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 310,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 440,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 600,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 1000,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -1600,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -850,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -500,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -350,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -250,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -140,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 120,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 186,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 280,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 400,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 600,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 830,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 1100,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 1700,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": -1800,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": -650,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": -340,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": -210,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": -132,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 112,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 220,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 390,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 630,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 1060,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": -770,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": -340,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": -196,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": -125,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": 124,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": 180,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": 340,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": 600,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -950,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -480,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -295,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -186,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -130,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 150,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 265,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 440,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 750,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 1060,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 1500,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -500,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -225,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -125,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 132,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 200,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 285,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 560,
+                "point": 39.5
+              }
+            ]
+          },
+          {
+            "key": "player_receptions_alternate",
+            "last_update": "2025-10-12T18:05:39Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": -500,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": -166,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 146,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 310,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Elic Ayomanor",
+                "price": 630,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -1450,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -360,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": -140,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 154,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 300,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Calvin Ridley",
+                "price": 580,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": -310,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": -104,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": 225,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": 490,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Gunnar Helm",
+                "price": 880,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": -470,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 102,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 310,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Dont'e Thornton Jr.",
+                "price": 800,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -900,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -270,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": -104,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 200,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 400,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Tre Tucker",
+                "price": 750,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": -650,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": -210,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 120,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 240,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 490,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Chigoziem Okonkwo",
+                "price": 880,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -1200,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -400,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": -180,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 116,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 220,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 390,
+                "point": 7.5
+              },
+              {
+                "name": "Over",
+                "description": "Jakobi Meyers",
+                "price": 640,
+                "point": 8.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -750,
+                "point": 0.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -158,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 178,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 400,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 800,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -900,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -270,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": -112,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 194,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 360,
+                "point": 5.5
+              },
+              {
+                "name": "Over",
+                "description": "Michael Mayer",
+                "price": 640,
+                "point": 6.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -440,
+                "point": 1.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -158,
+                "point": 2.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 152,
+                "point": 3.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 300,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 580,
+                "point": 5.5
+              }
+            ]
+          },
+          {
+            "key": "player_rush_yds_alternate",
+            "last_update": "2025-10-12T18:05:39Z",
+            "outcomes": [
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": -225,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 104,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 200,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 360,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 580,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 880,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Cam Ward",
+                "price": 1700,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -1100,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -470,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -270,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": -160,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 100,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 154,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 225,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 320,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 550,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Ashton Jeanty",
+                "price": 1200,
+                "point": 149.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -1800,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -900,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -500,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -240,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": -130,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 132,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 205,
+                "point": 69.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 310,
+                "point": 79.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 430,
+                "point": 89.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 640,
+                "point": 99.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 880,
+                "point": 109.5
+              },
+              {
+                "name": "Over",
+                "description": "Tony Pollard",
+                "price": 1280,
+                "point": 124.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": -310,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": -136,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 154,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 260,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 410,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 640,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Geno Smith",
+                "price": 1280,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": -1200,
+                "point": 4.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": -400,
+                "point": 9.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": -200,
+                "point": 14.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": -114,
+                "point": 19.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": 136,
+                "point": 24.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": 198,
+                "point": 29.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": 370,
+                "point": 39.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": 630,
+                "point": 49.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": 920,
+                "point": 59.5
+              },
+              {
+                "name": "Over",
+                "description": "Tyjae Spears",
+                "price": 1280,
+                "point": 69.5
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

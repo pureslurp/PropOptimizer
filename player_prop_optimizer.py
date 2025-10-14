@@ -7,6 +7,8 @@ import streamlit as st
 import pandas as pd
 from typing import Dict, List
 from datetime import datetime
+from dateutil import parser
+import pytz
 import os
 import plotly.graph_objects as go
 import sys
@@ -20,6 +22,12 @@ from odds_api import OddsAPI, AlternateLineManager
 from utils import clean_player_name, format_odds, format_line
 from config import ODDS_API_KEY, STAT_TYPES, CONFIDENCE_LEVELS, DEFAULT_MIN_SCORE, PREFERRED_BOOKMAKER
 from utils import get_current_week_from_schedule, get_available_weeks_with_data
+from prop_strategies import (
+    STRATEGIES, 
+    get_strategies_for_roi, 
+    display_all_strategies,
+    display_time_window_strategies
+)
 import warnings
 
 # Set page config
@@ -195,6 +203,59 @@ def load_historical_props_from_game_data(week_num):
     df = df[(df['Odds'] >= -450) & (df['Odds'] <= 200)]
     
     return df
+
+
+def classify_game_time_window(commence_time_str):
+    """
+    Classify a game into a time window based on its commence time.
+    
+    Args:
+        commence_time_str: ISO format timestamp string (e.g., "2025-09-07T17:00:00Z")
+    
+    Returns:
+        str: One of 'TNF', 'SunAM', 'SunPM', 'SNF', 'MNF', or 'Other'
+    """
+    if not commence_time_str:
+        return 'Other'
+    
+    try:
+        # Parse the UTC time
+        utc_time = parser.parse(commence_time_str)
+        
+        # Convert to Eastern Time
+        eastern = pytz.timezone('US/Eastern')
+        et_time = utc_time.astimezone(eastern)
+        
+        # Get day of week (0=Monday, 6=Sunday)
+        day_of_week = et_time.weekday()
+        hour = et_time.hour
+        
+        # Thursday Night Football (Thursday games)
+        if day_of_week == 3:  # Thursday
+            return 'TNF'
+        
+        # Sunday games
+        elif day_of_week == 6:  # Sunday
+            # Sunday AM: Games starting between 12pm-2:30pm ET
+            if 12 <= hour < 15:
+                return 'SunAM'
+            # Sunday PM: Games starting between 3pm-6pm ET
+            elif 15 <= hour < 18:
+                return 'SunPM'
+            # Sunday Night Football: Games starting at 6pm ET or later
+            elif hour >= 18:
+                return 'SNF'
+        
+        # Monday Night Football (Monday games)
+        elif day_of_week == 0:  # Monday
+            return 'MNF'
+        
+        # Saturday or other days (rare but can happen late season)
+        return 'Other'
+        
+    except Exception as e:
+        print(f"Error parsing commence time '{commence_time_str}': {e}")
+        return 'Other'
 
 
 def get_available_historical_weeks():
@@ -467,8 +528,8 @@ def calculate_profit_from_odds(odds, stake=1.0):
 def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-400, odds_max=-150, 
                                     streak_min=None, max_players=5, position_filter=False):
     """
-    Calculate ROI for a strategy in a specific historical week.
-    Returns total units won/lost for that week.
+    Calculate ROI for a strategy in a specific historical week, broken down by time window.
+    Returns dictionary of ROI by time window.
     
     Args:
         week_num: Week number to calculate ROI for
@@ -479,12 +540,18 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
         streak_min: Minimum streak value (optional)
         max_players: Maximum number of players to select
         position_filter: If True, apply position-appropriate filtering
+    
+    Returns:
+        dict: ROI data by time window, e.g., {'TNF': {'roi': 0.0, 'results': []}, ...}
     """
     # Load historical data and box scores for the week
     props_df = load_historical_props_from_game_data(week_num)
     
     if props_df.empty:
-        return None, []
+        return None
+    
+    # Add time window classification to each prop
+    props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
     
     # Create a data processor limited to data before this week
     data_processor_historical = EnhancedFootballDataProcessor(max_week=week_num)
@@ -518,7 +585,8 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
             scored_prop = {
                 **row.to_dict(),
                 **score_data,
-                'is_alternate': row.get('is_alternate', True)
+                'is_alternate': row.get('is_alternate', True),
+                'time_window': row.get('time_window', 'Other')
             }
             all_props.append(scored_prop)
     
@@ -526,7 +594,7 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     box_score_df = load_box_score_for_week(week_num)
     
     if box_score_df.empty:
-        return None, []
+        return None
     
     # Add actual results
     for prop in all_props:
@@ -540,92 +608,111 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     # Convert to DataFrame
     results_df = pd.DataFrame(all_props)
     
-    # Use the reusable filter function
-    filtered_df = filter_props_by_strategy(
-        results_df,
-        data_processor=data_processor_historical,
-        score_min=score_min,
-        score_max=score_max,
-        odds_min=odds_min,
-        odds_max=odds_max,
-        streak_min=streak_min,
-        max_players=max_players,
-        position_filter=position_filter
-    )
+    if results_df.empty:
+        return {}
     
-    if filtered_df.empty:
-        return 0.0, []
+    # Group props by time window FIRST, then apply strategy filters to each window
+    time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF']
+    roi_by_window = {}
     
-    # Get the filtered props (already limited to max_players by filter function)
-    top_props = filtered_df
-    
-    # Calculate ROI as PARLAY (1 unit bet per week on all props combined)
-    bet_results = []
-    all_props_hit = True
-    parlay_decimal_odds = 1.0
-    
-    for _, row in top_props.iterrows():
-        actual = row.get('actual_result')
-        line = row['Line']
-        odds = row['Odds']
-        score = row['total_score']
+    for window in time_windows:
+        # Filter to this time window first
+        window_props = results_df[results_df['time_window'] == window]
         
-        # Convert American odds to decimal for parlay calculation
-        if odds < 0:
-            decimal_odds = 1 + (100 / abs(odds))
-        else:
-            decimal_odds = 1 + (odds / 100)
+        if window_props.empty:
+            continue
         
-        if pd.notna(actual) and actual is not None:
-            if actual > line:
-                # Prop hit
-                parlay_decimal_odds *= decimal_odds
-                bet_results.append({
-                    'player': row['Player'],
-                    'stat_type': row['Stat Type'],
-                    'line': line,
-                    'actual': actual,
-                    'odds': odds,
-                    'score': score,
-                    'result': 'HIT',
-                    'roi': 0.0  # Individual ROI not applicable in parlay
-                })
+        # Apply strategy filter to this time window's props
+        filtered_window_props = filter_props_by_strategy(
+            window_props,
+            data_processor=data_processor_historical,
+            score_min=score_min,
+            score_max=score_max,
+            odds_min=odds_min,
+            odds_max=odds_max,
+            streak_min=streak_min,
+            max_players=max_players,
+            position_filter=position_filter
+        )
+        
+        if filtered_window_props.empty:
+            continue
+        
+        # filtered_window_props is already limited to max_players by filter_props_by_strategy
+        window_props = filtered_window_props
+        
+        # Calculate ROI as PARLAY (1 unit bet per time window)
+        bet_results = []
+        all_props_hit = True
+        parlay_decimal_odds = 1.0
+        
+        for _, row in window_props.iterrows():
+            actual = row.get('actual_result')
+            line = row['Line']
+            odds = row['Odds']
+            score = row['total_score']
+            
+            # Convert American odds to decimal for parlay calculation
+            if odds < 0:
+                decimal_odds = 1 + (100 / abs(odds))
             else:
-                # Prop missed - parlay loses
+                decimal_odds = 1 + (odds / 100)
+            
+            if pd.notna(actual) and actual is not None:
+                if actual > line:
+                    # Prop hit
+                    parlay_decimal_odds *= decimal_odds
+                    bet_results.append({
+                        'player': row['Player'],
+                        'stat_type': row['Stat Type'],
+                        'line': line,
+                        'actual': actual,
+                        'odds': odds,
+                        'score': score,
+                        'result': 'HIT',
+                        'roi': 0.0
+                    })
+                else:
+                    # Prop missed - parlay loses
+                    all_props_hit = False
+                    bet_results.append({
+                        'player': row['Player'],
+                        'stat_type': row['Stat Type'],
+                        'line': line,
+                        'actual': actual,
+                        'odds': odds,
+                        'score': score,
+                        'result': 'MISS',
+                        'roi': 0.0
+                    })
+            else:
+                # No result available - treat as incomplete parlay
                 all_props_hit = False
                 bet_results.append({
                     'player': row['Player'],
                     'stat_type': row['Stat Type'],
                     'line': line,
-                    'actual': actual,
+                    'actual': None,
                     'odds': odds,
                     'score': score,
-                    'result': 'MISS',
+                    'result': 'N/A',
                     'roi': 0.0
                 })
+        
+        # Calculate ROI for this time window
+        if all_props_hit:
+            # Parlay wins - profit is (decimal odds - 1) * stake
+            window_roi = parlay_decimal_odds - 1.0
         else:
-            # No result available - treat as incomplete parlay
-            all_props_hit = False
-            bet_results.append({
-                'player': row['Player'],
-                'stat_type': row['Stat Type'],
-                'line': line,
-                'actual': None,
-                'odds': odds,
-                'score': score,
-                'result': 'N/A',
-                'roi': 0.0
-            })
+            # Parlay loses - lose 1 unit stake
+            window_roi = -1.0
+        
+        roi_by_window[window] = {
+            'roi': window_roi,
+            'results': bet_results
+        }
     
-    # Calculate total ROI for the week based on parlay result
-    if all_props_hit:
-        # Parlay wins - profit is (decimal odds - 1) * stake
-        total_roi = parlay_decimal_odds - 1.0
-    else:
-        # Parlay loses - lose 1 unit stake
-        total_roi = -1.0
-    
-    return total_roi, bet_results
+    return roi_by_window
 
 
 def is_position_appropriate_stat(player_name, stat_type, data_processor):
@@ -777,8 +864,8 @@ def filter_props_by_strategy(df, data_processor=None, score_min=70, score_max=fl
 def calculate_all_strategies_roi():
     """
     Calculate ROI for all strategies (v1 and v2: Optimal, Greasy, Degen) 
-    across all historical weeks (starting from week 4).
-    Returns a dictionary with ROI data for display.
+    across all historical weeks (starting from week 4), broken down by time window.
+    Returns a dictionary with ROI data by strategy and time window for display.
     """
     current_week = get_current_week_from_schedule()
     
@@ -789,71 +876,23 @@ def calculate_all_strategies_roi():
     if not historical_weeks:
         return None
     
-    # Define strategies for v1 and v2
-    strategies = {
-        # V1 Strategies
-        'v1_Optimal': {
-            'score_min': 70, 
-            'score_max': float('inf'),
-            'odds_min': -400,
-            'odds_max': -150,
-            'max_players': 5
-        },
-        'v1_Greasy': {
-            'score_min': 50, 
-            'score_max': 70,
-            'odds_min': -400,
-            'odds_max': -150,
-            'max_players': 5
-        },
-        'v1_Degen': {
-            'score_min': 0, 
-            'score_max': 50,
-            'odds_min': -400,
-            'odds_max': -150,
-            'max_players': 5
-        },
-        # V2 Strategies
-        'v2_Optimal': {
-            'score_min': 75,
-            'score_max': float('inf'),
-            'odds_min': -300,
-            'odds_max': -150,
-            'streak_min': 3,
-            'max_players': 4,
-            'position_filter': True
-        },
-        'v2_Greasy': {
-            'score_min': 65,
-            'score_max': 80,
-            'odds_min': -300,
-            'odds_max': -150,
-            'streak_min': 2,
-            'max_players': 6,
-            'position_filter': True
-        },
-        'v2_Degen': {
-            'score_min': 70,
-            'score_max': 100,
-            'odds_min': 0,
-            'odds_max': 200,
-            'streak_min': None,
-            'max_players': 3,
-            'position_filter': False
-        }
-    }
+    # Get centralized strategy definitions
+    strategies = get_strategies_for_roi()
     
-    # Calculate ROI for each strategy
+    # Time windows we're tracking
+    time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF']
+    
+    # Calculate ROI for each strategy, broken down by time window
     roi_data = {}
     
     for strategy_name, params in strategies.items():
         try:
-            total_roi = 0.0
-            all_results = []
+            # Initialize ROI tracking by time window
+            roi_by_window = {window: {'roi': 0.0, 'results': []} for window in time_windows}
             
             for week in historical_weeks:
                 try:
-                    week_roi, week_results = calculate_strategy_roi_for_week(
+                    week_roi_by_window = calculate_strategy_roi_for_week(
                         week, 
                         params['score_min'], 
                         params['score_max'],
@@ -864,23 +903,21 @@ def calculate_all_strategies_roi():
                         position_filter=params.get('position_filter', False)
                     )
                     
-                    if week_roi is not None:
-                        total_roi += week_roi
-                        all_results.extend(week_results)
+                    if week_roi_by_window is not None:
+                        # Aggregate ROI by time window
+                        for window, window_data in week_roi_by_window.items():
+                            roi_by_window[window]['roi'] += window_data['roi']
+                            roi_by_window[window]['results'].extend(window_data['results'])
+                            
                 except Exception as e:
                     print(f"Warning: Error calculating ROI for {strategy_name} week {week}: {e}")
                     continue
             
-            roi_data[strategy_name] = {
-                'total_roi': total_roi,
-                'results': all_results
-            }
+            roi_data[strategy_name] = roi_by_window
+            
         except Exception as e:
             print(f"Warning: Error calculating ROI for {strategy_name}: {e}")
-            roi_data[strategy_name] = {
-                'total_roi': 0.0,
-                'results': []
-            }
+            roi_data[strategy_name] = {window: {'roi': 0.0, 'results': []} for window in time_windows}
     
     return roi_data
 
@@ -1659,182 +1696,57 @@ def main():
             with st.expander("🔍 View All Row Data"):
                 st.json(selected_row.to_dict())
         
-        # Function to display prop picks based on score threshold
-        def display_prop_picks(df, score_min, score_max, odds_min=-400, odds_max=-150, 
-                                streak_min=None, max_players=5, position_filter=False):
-            """Display props based on strategy criteria with parlay odds"""
-            try:
-                # Use the reusable filter function
-                top_props = filter_props_by_strategy(
-                    df, 
-                    data_processor=data_processor,
-                    score_min=score_min,
-                    score_max=score_max,
-                    odds_min=odds_min,
-                    odds_max=odds_max,
-                    streak_min=streak_min,
-                    max_players=max_players,
-                    position_filter=position_filter
-                )
-            except Exception as e:
-                st.error(f"Error filtering props: {e}")
-                return
+        # Display all v1 and v2 strategies using centralized configurations
+        display_all_strategies(results_df, filter_props_by_strategy, data_processor, is_historical)
+
+        # Time Window Sections
+        st.markdown("---")
+        st.subheader("Plum Props by Game Time")
+        st.caption("Props organized by when games are played (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night)")
+        
+        # Add time window classification to results_df if not already present
+        if 'time_window' not in results_df.columns:
+            results_df['time_window'] = results_df['Commence Time'].apply(classify_game_time_window)
+        
+        # Time windows to display
+        time_window_configs = [
+            ('TNF', 'Thursday Night Football', '🏈'),
+            ('SunAM', 'Sunday 1:00 PM ET', '🌅'),
+            ('SunPM', 'Sunday 4:00 PM ET', '☀️'),
+            ('SNF', 'Sunday Night Football', '🌙'),
+            ('MNF', 'Monday Night Football', '⭐')
+        ]
+        
+        for window_key, window_name, window_emoji in time_window_configs:
+            # Filter props for this time window
+            window_df = results_df[results_df['time_window'] == window_key]
             
-            if not top_props.empty:
-                # Use the filtered results
-                top_5 = top_props
-                
-                # Track if all props hit (for parlay result)
-                all_props_hit = True
-                
-                # Display as condensed bullets
-                for _, row in top_5.iterrows():
-                    # Abbreviate stat type
-                    stat_abbrev = row['Stat Type'].replace('Passing Yards', 'PassYds') \
-                                                  .replace('Rushing Yards', 'RushYds') \
-                                                  .replace('Receiving Yards', 'RecYds') \
-                                                  .replace('Passing TDs', 'PassTD') \
-                                                  .replace('Rushing TDs', 'RushTD') \
-                                                  .replace('Receiving TDs', 'RecTD') \
-                                                  .replace('Receptions', 'Rec')
-                    
-                    # Check if historical and if we have actual result
-                    result_text = ""
-                    if is_historical and 'actual_result' in row and pd.notna(row['actual_result']) and row['actual_result'] is not None:
-                        actual = row['actual_result']
-                        line = row['Line']
-                        
-                        if actual > line:
-                            result_text = ' <span style="color: #28a745; font-weight: bold;">✓ HIT</span>'
-                        else:
-                            result_text = ' <span style="color: #dc3545; font-weight: bold;">✗ MISS</span>'
-                            all_props_hit = False
-                    elif is_historical:
-                        # Historical but no result available
-                        result_text = ' <span style="color: #6c757d;">? N/A</span>'
-                        all_props_hit = False
-                    
-                    st.markdown(f"• **{row['Player']}** {row['Line']}+ {stat_abbrev} {format_odds(row['Odds'])} odds{result_text}", unsafe_allow_html=True)
-                
-                # Calculate parlay odds
-                parlay_decimal = 1.0
-                for _, row in top_5.iterrows():
-                    odds = row['Odds']
-                    # Convert American odds to decimal
-                    if odds < 0:
-                        decimal = 1 + (100 / abs(odds))
-                    else:
-                        decimal = 1 + (odds / 100)
-                    parlay_decimal *= decimal
-                
-                # Convert parlay decimal back to American odds
-                if parlay_decimal >= 2.0:
-                    parlay_american = int((parlay_decimal - 1) * 100)
-                    parlay_odds_str = f"+{parlay_american}"
-                else:
-                    parlay_american = int(-100 / (parlay_decimal - 1))
-                    parlay_odds_str = str(parlay_american)
-                
-                # Add parlay result indicator if historical
-                parlay_result = ""
-                if is_historical:
-                    if all_props_hit:
-                        parlay_result = ' <span style="color: #28a745; font-weight: bold; font-size: 1.2em;">✓</span>'
-                    else:
-                        parlay_result = ' <span style="color: #dc3545; font-weight: bold; font-size: 1.2em;">✗</span>'
-                
-                st.markdown(f"• **If Parlayed:** {parlay_odds_str} odds{parlay_result}", unsafe_allow_html=True)
-            else:
-                # Build informative message about why no props were found
-                criteria_parts = []
-                criteria_parts.append(f"Score {score_min}+")
-                if score_max != float('inf'):
-                    criteria_parts.append(f"(max {score_max})")
-                criteria_parts.append(f"Odds {format_odds(odds_min)} to {format_odds(odds_max)}")
-                if streak_min is not None:
-                    criteria_parts.append(f"Streak {streak_min}+")
-                if position_filter:
-                    criteria_parts.append("Position-appropriate only")
-                
-                criteria_str = " | ".join(criteria_parts)
-                st.markdown(f"*No props meet the criteria: {criteria_str}*")
-                st.caption("💡 Try adjusting filters or check back when more games are available")
-        
-        st.subheader("Plum Props")
-        # Three prop strategy sections in columns
-        col_1, col_2, col_3 = st.columns(3)
-        
-        with col_1:
-            with st.expander("🎯 Optimal", expanded=False):
-                display_prop_picks(results_df, score_min=70, score_max=float('inf'))
-        
-        with col_2:
-            with st.expander("🧈 Greasy", expanded=False):
-                display_prop_picks(results_df, score_min=50, score_max=70)
-        
-        with col_3:
-            with st.expander("🎲 Degen", expanded=False):
-                display_prop_picks(results_df, score_min=0, score_max=50)
-        
-        # V2 Strategy sections
-        st.subheader("Plum Props v2")
-        col_1_v2, col_2_v2, col_3_v2 = st.columns(3)
-        
-        with col_1_v2:
-            with st.expander("🎯 Optimal v2", expanded=False):
-                # v2 Optimal criteria:
-                # - Max of 4 players
-                # - Odds: -150 to -300 range
-                # - Score >= 80
-                # - Streak >= 3
-                # - Position-appropriate stats only (no RB rec yards, no QB rush)
-                display_prop_picks(
-                    results_df, 
-                    score_min=75, 
-                    score_max=float('inf'),
-                    odds_min=-300,
-                    odds_max=-150,
-                    streak_min=3,
-                    max_players=4,
-                    position_filter=True
-                )
-        
-        with col_2_v2:
-            with st.expander("🧈 Greasy v2", expanded=False):
-                # v2 Greasy criteria:
-                # - Max of 6 players
-                # - Odds: -150 to -300 range
-                # - Score 65 to 80
-                # - Streak >= 3
-                # - Position-appropriate stats only (no RB rec yards, no QB rush)
-                display_prop_picks(
-                    results_df, 
-                    score_min=65, 
-                    score_max=80,
-                    odds_min=-300,
-                    odds_max=-150,
-                    streak_min=2,
-                    max_players=6,
-                    position_filter=True
-                )
-        
-        with col_3_v2:
-            with st.expander("🎲 Degen v2", expanded=False):
-                display_prop_picks(
-                    results_df, 
-                    score_min=70, 
-                    score_max=100,
-                    odds_min=0,
-                    odds_max=200,
-                    max_players=3,
-                )
+            if not window_df.empty:
+                with st.expander(f"{window_emoji} {window_name} ({len(window_df)} props)", expanded=False):
+                    st.markdown(f"**{window_name}**")
+                    display_time_window_strategies(window_df, filter_props_by_strategy, data_processor, is_historical)
 
         # ROI Performance Table (only for current week)
         if not is_historical:
             st.subheader("Plum Props Performance (ROI)")
             
-            with st.spinner("Calculating historical ROI for strategies..."):
-                roi_data = calculate_all_strategies_roi()
+            # Cache ROI data to avoid recalculating when switching between weeks
+            current_week = get_current_week_from_schedule()
+            
+            # Check if we have cached ROI data for this week
+            if ('roi_data_cache' in st.session_state and 
+                'roi_cache_week' in st.session_state and 
+                st.session_state.roi_cache_week == current_week):
+                # Use cached data
+                roi_data = st.session_state.roi_data_cache
+            else:
+                # Calculate fresh ROI data
+                with st.spinner("Calculating historical ROI for strategies..."):
+                    roi_data = calculate_all_strategies_roi()
+                
+                # Cache the results
+                st.session_state.roi_data_cache = roi_data
+                st.session_state.roi_cache_week = current_week
             
             if roi_data:
                 try:
@@ -1848,7 +1760,7 @@ def main():
                     else:
                         week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
                     
-                    # Create ROI table with Version as rows and strategies as columns
+                    # Create ROI table with Version+TimeWindow as rows and strategies as columns
                     def format_roi(roi):
                         try:
                             if roi > 0:
@@ -1860,42 +1772,39 @@ def main():
                         except:
                             return "N/A"
                     
-                    # Extract ROI values for v1 and v2 with safe defaults
-                    v1_optimal_roi = roi_data.get('v1_Optimal', {}).get('total_roi', 0) or 0
-                    v1_greasy_roi = roi_data.get('v1_Greasy', {}).get('total_roi', 0) or 0
-                    v1_degen_roi = roi_data.get('v1_Degen', {}).get('total_roi', 0) or 0
+                    # Time windows to display
+                    time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF']
                     
-                    v2_optimal_roi = roi_data.get('v2_Optimal', {}).get('total_roi', 0) or 0
-                    v2_greasy_roi = roi_data.get('v2_Greasy', {}).get('total_roi', 0) or 0
-                    v2_degen_roi = roi_data.get('v2_Degen', {}).get('total_roi', 0) or 0
+                    # Build table data with rows for each version+time window combination
+                    roi_table_data = []
                     
-                    roi_table_data = [
-                        {
-                            'Version': 'v1',
-                            'Optimal': format_roi(v1_optimal_roi),
-                            'Greasy': format_roi(v1_greasy_roi),
-                            'Degen': format_roi(v1_degen_roi),
-                            'Optimal_numeric': v1_optimal_roi,
-                            'Greasy_numeric': v1_greasy_roi,
-                            'Degen_numeric': v1_degen_roi
-                        },
-                        {
-                            'Version': 'v2',
-                            'Optimal': format_roi(v2_optimal_roi),
-                            'Greasy': format_roi(v2_greasy_roi),
-                            'Degen': format_roi(v2_degen_roi),
-                            'Optimal_numeric': v2_optimal_roi,
-                            'Greasy_numeric': v2_greasy_roi,
-                            'Degen_numeric': v2_degen_roi
-                        }
-                    ]
+                    for version in ['v1', 'v2']:
+                        for window in time_windows:
+                            # Extract ROI values for this version and time window
+                            optimal_key = f'{version}_Optimal'
+                            greasy_key = f'{version}_Greasy'
+                            degen_key = f'{version}_Degen'
+                            
+                            optimal_roi = roi_data.get(optimal_key, {}).get(window, {}).get('roi', 0) or 0
+                            greasy_roi = roi_data.get(greasy_key, {}).get(window, {}).get('roi', 0) or 0
+                            degen_roi = roi_data.get(degen_key, {}).get(window, {}).get('roi', 0) or 0
+                            
+                            roi_table_data.append({
+                                'Strategy': f'{version}_{window}',
+                                'Optimal': format_roi(optimal_roi),
+                                'Greasy': format_roi(greasy_roi),
+                                'Degen': format_roi(degen_roi),
+                                'Optimal_numeric': optimal_roi,
+                                'Greasy_numeric': greasy_roi,
+                                'Degen_numeric': degen_roi
+                            })
                     
                     roi_df = pd.DataFrame(roi_table_data)
                     
                     # Style the columns directly based on numeric values
                     def color_roi(val, numeric_val):
                         """Apply color based on numeric value"""
-                        if val == '-':
+                        if val == '-' or val == 'N/A':
                             return ''  # No styling for placeholder
                         if numeric_val > 0:
                             return 'background-color: #d4edda; color: #155724'  # Green
@@ -1904,7 +1813,7 @@ def main():
                         return ''
                     
                     # Create display DataFrame (without numeric columns)
-                    display_roi_df = roi_df[['Version', 'Optimal', 'Greasy', 'Degen']].copy()
+                    display_roi_df = roi_df[['Strategy', 'Optimal', 'Greasy', 'Degen']].copy()
                     
                     # Apply styling using .applymap on each column with its numeric counterpart
                     styled_roi_df = display_roi_df.style.apply(
@@ -1915,13 +1824,13 @@ def main():
                         axis=1
                     )
                 
-                    st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per week per strategy)")
+                    st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per time window per strategy)")
                     st.dataframe(
                         styled_roi_df,
                         use_container_width=False,
                         hide_index=True
                     )
-                    st.caption("Note: v1 strategies pick top 5 props. v2 Optimal (4 props, score 80+), v2 Greasy (6 props, score 65-80), v2 Degen (5 props, score 70-100, wide odds). All strategies parlay props - all must hit to win. ROI shows total return across all historical weeks.")
+                    st.caption("Note: Each strategy is evaluated separately for each time window (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night). v1 strategies pick top 5 props. v2 Optimal (4 props, score 75+), v2 Greasy (6 props, score 65-80), v2 Degen (3 props, score 70-100, wide odds). All strategies parlay props - all must hit to win. ROI shows total return across all historical weeks.")
                 except Exception as e:
                     st.error(f"Error displaying ROI table: {e}")
                     st.info("ℹ️ ROI data could not be displayed. Please check console for details.")

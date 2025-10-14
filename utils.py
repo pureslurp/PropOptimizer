@@ -315,27 +315,28 @@ def get_team_variations(team_name: str) -> list:
 # NFL SEASON WEEK DATES
 # ============================================================================
 
-# NFL 2025 Season Week Start Dates (typically Thursday of each week)
-# These dates represent the start of each NFL week
+# NFL 2025 Season Week Start Dates (Tuesday after previous week's MNF ends)
+# These dates represent when we transition to preparing for the next week
+# Pattern: Each week transitions on Tuesday after the previous week's Monday Night Football
 NFL_2025_WEEK_DATES = {
-    1: '2025-09-04',   # Week 1 starts Sep 4 (Thursday Night Football)
-    2: '2025-09-11',   # Week 2
-    3: '2025-09-18',   # Week 3
-    4: '2025-09-25',   # Week 4
-    5: '2025-10-02',   # Week 5
-    6: '2025-10-09',   # Week 6
-    7: '2025-10-16',   # Week 7
-    8: '2025-10-23',   # Week 8
-    9: '2025-10-30',   # Week 9
-    10: '2025-11-06',  # Week 10
-    11: '2025-11-13',  # Week 11
-    12: '2025-11-20',  # Week 12 (Thanksgiving week)
-    13: '2025-11-27',  # Week 13
-    14: '2025-12-04',  # Week 14
-    15: '2025-12-11',  # Week 15
-    16: '2025-12-18',  # Week 16
-    17: '2025-12-25',  # Week 17 (Christmas week)
-    18: '2026-01-01',  # Week 18
+    1: '2025-09-04',   # Week 1 starts Sep 4 (Thursday - actual NFL season kickoff)
+    2: '2025-09-10',   # Week 2 starts Sep 10 (Tuesday after Week 1 MNF on Sep 9)
+    3: '2025-09-17',   # Week 3 starts Sep 17 (Tuesday after Week 2 MNF on Sep 16)
+    4: '2025-09-24',   # Week 4 starts Sep 24 (Tuesday after Week 3 MNF on Sep 23)
+    5: '2025-10-01',   # Week 5 starts Oct 1 (Tuesday after Week 4 MNF on Sep 30)
+    6: '2025-10-08',   # Week 6 starts Oct 8 (Tuesday after Week 5 MNF on Oct 7)
+    7: '2025-10-14',   # Week 7 starts Oct 14 (Tuesday after Week 6 MNF on Oct 13)
+    8: '2025-10-21',   # Week 8 starts Oct 21 (Tuesday after Week 7 MNF on Oct 20)
+    9: '2025-10-28',   # Week 9 starts Oct 28 (Tuesday after Week 8 MNF on Oct 27)
+    10: '2025-11-04',  # Week 10 starts Nov 4 (Tuesday after Week 9 MNF on Nov 3)
+    11: '2025-11-11',  # Week 11 starts Nov 11 (Tuesday after Week 10 MNF on Nov 10)
+    12: '2025-11-18',  # Week 12 starts Nov 18 (Tuesday after Week 11 MNF on Nov 17)
+    13: '2025-11-25',  # Week 13 starts Nov 25 (Tuesday after Week 12 Thanksgiving/MNF)
+    14: '2025-12-02',  # Week 14 starts Dec 2 (Tuesday after Week 13 MNF on Dec 1)
+    15: '2025-12-09',  # Week 15 starts Dec 9 (Tuesday after Week 14 MNF on Dec 8)
+    16: '2025-12-16',  # Week 16 starts Dec 16 (Tuesday after Week 15 MNF on Dec 15)
+    17: '2025-12-23',  # Week 17 starts Dec 23 (Tuesday after Week 16 MNF on Dec 22)
+    18: '2025-12-30',  # Week 18 starts Dec 30 (Tuesday after Week 17 MNF on Dec 29)
 }
 
 
