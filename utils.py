@@ -431,7 +431,7 @@ NFL_2025_WEEK_DATES = {
     4: '2025-09-24',   # Week 4 starts Sep 24 (Tuesday after Week 3 MNF on Sep 23)
     5: '2025-10-01',   # Week 5 starts Oct 1 (Tuesday after Week 4 MNF on Sep 30)
     6: '2025-10-08',   # Week 6 starts Oct 8 (Tuesday after Week 5 MNF on Oct 7)
-    7: '2025-10-14',   # Week 7 starts Oct 14 (Tuesday after Week 6 MNF on Oct 13)
+    7: '2025-10-15',   # Week 7 starts Oct 15 (Tuesday after Week 6 MNF on Oct 14)
     8: '2025-10-21',   # Week 8 starts Oct 21 (Tuesday after Week 7 MNF on Oct 20)
     9: '2025-10-28',   # Week 9 starts Oct 28 (Tuesday after Week 8 MNF on Oct 27)
     10: '2025-11-04',  # Week 10 starts Nov 4 (Tuesday after Week 9 MNF on Nov 3)
