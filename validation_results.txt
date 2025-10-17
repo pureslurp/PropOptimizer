@@ -1,0 +1,23 @@
+Position-Specific Defensive Rankings Validation Results
+============================================================
+
+GB_RB:
+  rushing_yards: CBS=331, Ours=331, Match=True
+  receiving_yards: CBS=122, Ours=122, Match=True
+
+BUF_WR:
+  rushing_yards: CBS=23, Ours=23, Match=True
+  receiving_yards: CBS=799, Ours=799, Match=True
+
+KC_TE:
+  rushing_yards: CBS=2, Ours=2, Match=True
+  receiving_yards: CBS=219, Ours=219, Match=True
+
+PHI_RB:
+  rushing_yards: CBS=602, Ours=602, Match=True
+  receiving_yards: CBS=217, Ours=217, Match=True
+
+LAR_WR:
+  rushing_yards: CBS=22, Ours=22, Match=True
+  receiving_yards: CBS=872, Ours=872, Match=True
+

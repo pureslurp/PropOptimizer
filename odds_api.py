@@ -179,9 +179,9 @@ class OddsAPI:
         # Return empty DataFrame with correct structure
         # Alternate lines will be the primary data source
         return pd.DataFrame(columns=[
-            'Player', 'Team', 'Opposing Team', 'Stat Type', 'Line', 'Odds',
+            'Player', 'Team', 'Opp. Team', 'Stat Type', 'Line', 'Odds',
             'Bookmaker', 'Market', 'Home Team', 'Away Team', 'Commence Time', 
-            'Opposing Team Full'
+            'Opp. Team Full'
         ])
     
     def update_team_assignments(self, props_df: pd.DataFrame, data_processor) -> pd.DataFrame:
@@ -224,8 +224,8 @@ class OddsAPI:
             # Update the row
             updated_row = row.copy()
             updated_row['Team'] = player_team
-            updated_row['Opposing Team'] = opposing_team  # Display version
-            updated_row['Opposing Team Full'] = opposing_team_full  # Full name for lookups
+            updated_row['Opp. Team'] = opposing_team  # Display version
+            updated_row['Opp. Team Full'] = opposing_team_full  # Full name for lookups
             updated_props.append(updated_row)
         
         return pd.DataFrame(updated_props)
@@ -671,7 +671,7 @@ class AlternateLineManager:
                     props.append({
                         'Player': player_name,
                         'Team': 'Unknown',  # Will be updated later
-                        'Opposing Team': 'Unknown',  # Will be updated later
+                        'Opp. Team': 'Unknown',  # Will be updated later
                         'Stat Type': stat_type,
                         'Line': line_data['line'],
                         'Odds': line_data['odds'],
@@ -680,7 +680,7 @@ class AlternateLineManager:
                         'Home Team': line_data.get('home_team', ''),
                         'Away Team': line_data.get('away_team', ''),
                         'Commence Time': line_data.get('commence_time', ''),
-                        'Opposing Team Full': 'Unknown',
+                        'Opp. Team Full': 'Unknown',
                         'is_alternate': True
                     })
         

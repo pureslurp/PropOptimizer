@@ -58,7 +58,7 @@ def load_props_from_csv(week_num):
         df = pd.read_csv(props_file)
         
         # Convert CSV format to match API props format
-        # CSV has: week,saved_date,Player,Team,Opposing Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
+        # CSV has: week,saved_date,Player,Team,Opp. Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
         # We need the same structure as parse_player_props returns
         
         # Rename/select columns to match expected format
@@ -71,14 +71,14 @@ def load_props_from_csv(week_num):
                 df['is_alternate'] = False
             
             # Ensure all required columns exist
-            required_cols = ['Player', 'Team', 'Opposing Team', 'Stat Type', 'Line', 'Odds', 
+            required_cols = ['Player', 'Team', 'Opp. Team', 'Stat Type', 'Line', 'Odds', 
                            'Bookmaker', 'Home Team', 'Away Team', 'Commence Time']
             for col in required_cols:
                 if col not in df.columns:
                     df[col] = ''
             
-            # Add Opposing Team Full if not present (for lookups)
-            if 'Opposing Team Full' not in df.columns:
+            # Add Opp. Team Full if not present (for lookups)
+            if 'Opp. Team Full' not in df.columns:
                 # Extract full team name from "vs TEAM" or "@ TEAM" format
                 def extract_full_team(opposing_str, home_team, away_team, player_team):
                     if pd.isna(opposing_str) or opposing_str == '':
@@ -91,9 +91,9 @@ def load_props_from_csv(week_num):
                         return home_team if pd.notna(home_team) else ''
                     return ''
                 
-                df['Opposing Team Full'] = df.apply(
+                df['Opp. Team Full'] = df.apply(
                     lambda row: extract_full_team(
-                        row.get('Opposing Team', ''),
+                        row.get('Opp. Team', ''),
                         row.get('Home Team', ''),
                         row.get('Away Team', ''),
                         row.get('Team', '')
@@ -176,8 +176,8 @@ def load_historical_props_from_game_data(week_num):
                         prop_row = {
                             'Player': player_name,
                             'Team': '',  # Will be filled in later
-                            'Opposing Team': '',
-                            'Opposing Team Full': '',
+                            'Opp. Team': '',
+                            'Opp. Team Full': '',
                             'Stat Type': stat_type,
                             'Line': line,
                             'Odds': odds,
@@ -355,7 +355,7 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
             for _, row in stat_filtered_df.iterrows():
                 score_data = scorer.calculate_comprehensive_score(
                     row['Player'],
-                    row.get('Opposing Team Full', row['Opposing Team']),
+                    row.get('Opp. Team Full', row['Opp. Team']),
                     row['Stat Type'],
                     row['Line'],
                     row.get('Odds', 0),
@@ -390,7 +390,7 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                 if -450 <= odds <= 200:
                     score_data = scorer.calculate_comprehensive_score(
                         row['Player'],
-                        row.get('Opposing Team Full', row['Opposing Team']),
+                        row.get('Opp. Team Full', row['Opp. Team']),
                         row['Stat Type'],
                         row['Line'],
                         odds,
@@ -574,7 +574,7 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
         for _, row in stat_filtered_df.iterrows():
             score_data = scorer_historical.calculate_comprehensive_score(
                 row['Player'],
-                row.get('Opposing Team Full', row['Opposing Team']),
+                row.get('Opp. Team Full', row['Opp. Team']),
                 row['Stat Type'],
                 row['Line'],
                 row.get('Odds', 0),
@@ -914,7 +914,7 @@ def calculate_high_score_straight_bets_roi():
                 for _, row in stat_filtered_df.iterrows():
                     score_data = scorer_historical.calculate_comprehensive_score(
                         row['Player'],
-                        row.get('Opposing Team Full', row['Opposing Team']),
+                        row.get('Opp. Team Full', row['Opp. Team']),
                         row['Stat Type'],
                         row['Line'],
                         row.get('Odds', 0),
@@ -1355,10 +1355,10 @@ def main():
                         'Stat Type': prop['Stat Type'],
                         'Player': prop['Player'],
                         'Team': prop['Team'],
-                        'Opposing Team': prop['Opposing Team'],
+                        'Opp. Team': prop['Opp. Team'],
                         'Line': prop['Line'],
                         'Odds': format_odds(prop.get('Odds', 0)),
-                        'Team Rank': prop['team_rank'],
+                        'Opp. Pos. Rank': prop['team_rank'],
                         'Score': prop['total_score'],
                         'L5': f"{prop['l5_over_rate']*100:.1f}%",
                         'Over Rate': f"{prop['over_rate']*100:.1f}%",
@@ -1545,18 +1545,18 @@ def main():
         # Format the display - include Result column if viewing historical data
         if is_historical:
             display_columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
+                'Stat Type', 'Player', 'Opp. Team', 'team_rank', 'total_score',
                 'Line', 'Odds', 'actual_result', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
             ]
         else:
             display_columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
+                'Stat Type', 'Player', 'Opp. Team', 'team_rank', 'total_score',
                 'Line', 'Odds', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
             ]
         
         display_df = results_df[display_columns].copy()
         
-        # Format Team Rank as integer (show "N/A" if None)
+        # Format Opp. Pos. Rank as integer (show "N/A" if None)
         display_df['team_rank'] = display_df['team_rank'].apply(
             lambda x: int(x) if pd.notna(x) and x is not None else "N/A"
         )
@@ -1564,12 +1564,12 @@ def main():
         # Rename columns for display
         if is_historical:
             display_df.columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
+                'Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Score',
                 'Line', 'Odds', 'Result', 'Streak', 'L5', 'Home', 'Away', '25/26'
             ]
         else:
             display_df.columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
+                'Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Score',
                 'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26'
             ]
         
@@ -1644,13 +1644,13 @@ def main():
             styles = pd.Series([''] * len(row), index=row.index)
             
             # Style Team Rank
-            if 'Team Rank' in row.index:
+            if 'Opp. Pos. Rank' in row.index:
                 try:
-                    val = row['Team Rank']
+                    val = row['Opp. Pos. Rank']
                     if val <= 10:
-                        styles['Team Rank'] = 'background-color: #f8d7da; color: #721c24'
+                        styles['Opp. Pos. Rank'] = 'background-color: #f8d7da; color: #721c24'
                     elif val >= 21:
-                        styles['Team Rank'] = 'background-color: #d4edda; color: #155724'
+                        styles['Opp. Pos. Rank'] = 'background-color: #d4edda; color: #155724'
                 except:
                     pass
             
@@ -1712,9 +1712,9 @@ def main():
         
         # Drop the numeric columns from display
         if is_historical:
-            display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Result', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+            display_columns_final = ['Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Line', 'Odds', 'Result', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         else:
-            display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+            display_columns_final = ['Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         
         # Display API usage info above the table
         usage_caption = f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)"
@@ -2128,10 +2128,10 @@ def main():
             
             **Player** - The NFL player's name for this prop bet
             
-            **Opposing Team** - The defense the player is facing this week
+            **Opp. Team** - The defense the player is facing this week
             - Format: "vs TEAM" (home game) or "@ TEAM" (away game)
             
-            **Team Rank** - Defensive ranking against this stat type (1-32)
+            **Opp. Pos. Rank** - Position-specific defensive ranking against this stat type (1-32)
             - Lower rank = tougher defense (e.g., rank 1 is hardest to score against)
             - Higher rank = easier defense (e.g., rank 32 is easiest to score against)
             - 🔴 Red highlight (≤10): Favorable matchup - defense is weak against this stat
@@ -2179,7 +2179,7 @@ def main():
             ### How to Use This Information
             
             **Look for green highlights** - These indicate favorable conditions:
-            - Green Team Rank = weak opposing defense
+            - Green Opp. Pos. Rank = weak opposing defense
             - Green Streak = player is on a hot streak
             - Green percentages = player frequently hits this line
             

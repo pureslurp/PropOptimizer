@@ -135,7 +135,7 @@ def fetch_alternate_lines(odds_data, standard_props_df):
                         alt_prop = {
                             'Player': player_name,
                             'Team': base_prop['Team'],
-                            'Opposing Team': base_prop['Opposing Team'],
+                            'Opp. Team': base_prop['Opp. Team'],
                             'Stat Type': stat_type,
                             'Line': alt_line_data['line'],
                             'Odds': odds,
@@ -255,7 +255,7 @@ def save_to_file(df, week_number):
     
     # Select columns to save (exclude temporary columns)
     columns_to_save = [
-        'week', 'saved_date', 'Player', 'Team', 'Opposing Team', 
+        'week', 'saved_date', 'Player', 'Team', 'Opp. Team', 
         'Stat Type', 'Line', 'Odds', 'Bookmaker', 'Commence Time', 'is_alternate'
     ]
     
@@ -264,7 +264,7 @@ def save_to_file(df, week_number):
     
     # Add any additional columns that exist (exclude temporary keys)
     for col in df.columns:
-        if col not in columns_to_save and col not in ['player_stat_key', 'Opposing Team Full']:
+        if col not in columns_to_save and col not in ['player_stat_key', 'Opp. Team Full']:
             columns_to_save.append(col)
     
     save_df = df[columns_to_save].copy()

@@ -1,4 +1,4 @@
-week,saved_date,Player,Team,Opposing Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
+week,saved_date,Player,Team,Opp. Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
 6,2025-10-10 07:59:42,AJ Barner,Seattle Seahawks,@ JAX,Receiving Yards,14.5,-320,FanDuel,2025-10-12T17:00:00Z,True,player_reception_yds,Jacksonville Jaguars,Seattle Seahawks
 6,2025-10-10 07:59:42,AJ Barner,Seattle Seahawks,@ JAX,Receiving Yards,19.5,-198,FanDuel,2025-10-12T17:00:00Z,True,player_reception_yds,Jacksonville Jaguars,Seattle Seahawks
 6,2025-10-10 07:59:42,AJ Barner,Seattle Seahawks,@ JAX,Receiving Yards,24.5,-125,FanDuel,2025-10-12T17:00:00Z,True,player_reception_yds,Jacksonville Jaguars,Seattle Seahawks

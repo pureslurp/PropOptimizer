@@ -13,6 +13,7 @@ import pickle
 # from dfs_box_scores import FootballDBScraper  # Not needed for production
 from simple_box_score_processor import process_box_score_simple, create_simplified_defensive_rankings, convert_to_defensive_yards
 from defensive_scraper import DefensiveScraper
+from position_defensive_ranks import PositionDefensiveRankings
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -39,6 +40,10 @@ class EnhancedFootballDataProcessor:
         # If max_week is set, load or calculate historical defensive rankings
         if self.max_week is not None:
             self._load_historical_defensive_rankings()
+        
+        # Initialize position-specific defensive rankings
+        self.position_defensive_rankings = PositionDefensiveRankings(data_dir="2025")
+        self.position_defensive_rankings.calculate_position_defensive_stats(max_week=self.max_week)
         
     def _get_current_week(self) -> int:
         """Get current NFL week"""
@@ -913,6 +918,22 @@ class EnhancedFootballDataProcessor:
                 return stats[defensive_stat]
         
         return None  # Return None if team not found (will display as N/A)
+    
+    def get_position_defensive_rank(self, team: str, player_name: str, stat_type: str) -> int:
+        """
+        Get position-specific defensive ranking for a team against a player's stat type
+        
+        Args:
+            team: Opposing team name
+            player_name: Player name
+            stat_type: Stat type (e.g., 'Passing Yards', 'Receiving Yards')
+            
+        Returns:
+            Defensive ranking (1 = worst defense, higher = better defense) or None
+        """
+        if hasattr(self, 'position_defensive_rankings'):
+            return self.position_defensive_rankings.get_position_defensive_rank(team, player_name, stat_type)
+        return None
     
     def _get_historical_team_defensive_rank(self, team: str, stat_type: str) -> int:
         """Get historical defensive ranking for a team (used when max_week is set)"""
