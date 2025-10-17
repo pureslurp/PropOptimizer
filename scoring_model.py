@@ -36,9 +36,12 @@ class AdvancedPropScorer:
         Returns:
             Dictionary with score breakdown and analysis
         """
-        # Get team defensive ranking
-        # Pass the base stat type - get_team_defensive_rank will handle the conversion
-        team_rank = self.data_processor.get_team_defensive_rank(opposing_team, stat_type)
+        # Get position-specific defensive ranking
+        # Try position-specific ranking first, fallback to general defensive ranking
+        team_rank = self.data_processor.get_position_defensive_rank(opposing_team, player, stat_type)
+        if team_rank is None:
+            # Fallback to general defensive ranking
+            team_rank = self.data_processor.get_team_defensive_rank(opposing_team, stat_type)
         
         # Get player's team and determine home/away status
         player_team = self.data_processor.get_player_team(player)
@@ -278,7 +281,7 @@ class AdvancedPropScorer:
         for prop in props_data:
             score_data = self.calculate_comprehensive_score(
                 prop['Player'],
-                prop['Opposing Team'],
+                prop['Opp. Team'],
                 prop['Stat Type'],
                 prop['Line'],
                 prop.get('Odds', 0),

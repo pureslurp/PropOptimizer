@@ -58,7 +58,7 @@ def load_props_from_csv(week_num):
         df = pd.read_csv(props_file)
         
         # Convert CSV format to match API props format
-        # CSV has: week,saved_date,Player,Team,Opposing Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
+        # CSV has: week,saved_date,Player,Team,Opp. Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
         # We need the same structure as parse_player_props returns
         
         # Rename/select columns to match expected format
@@ -71,14 +71,14 @@ def load_props_from_csv(week_num):
                 df['is_alternate'] = False
             
             # Ensure all required columns exist
-            required_cols = ['Player', 'Team', 'Opposing Team', 'Stat Type', 'Line', 'Odds', 
+            required_cols = ['Player', 'Team', 'Opp. Team', 'Stat Type', 'Line', 'Odds', 
                            'Bookmaker', 'Home Team', 'Away Team', 'Commence Time']
             for col in required_cols:
                 if col not in df.columns:
                     df[col] = ''
             
-            # Add Opposing Team Full if not present (for lookups)
-            if 'Opposing Team Full' not in df.columns:
+            # Add Opp. Team Full if not present (for lookups)
+            if 'Opp. Team Full' not in df.columns:
                 # Extract full team name from "vs TEAM" or "@ TEAM" format
                 def extract_full_team(opposing_str, home_team, away_team, player_team):
                     if pd.isna(opposing_str) or opposing_str == '':
@@ -91,9 +91,9 @@ def load_props_from_csv(week_num):
                         return home_team if pd.notna(home_team) else ''
                     return ''
                 
-                df['Opposing Team Full'] = df.apply(
+                df['Opp. Team Full'] = df.apply(
                     lambda row: extract_full_team(
-                        row.get('Opposing Team', ''),
+                        row.get('Opp. Team', ''),
                         row.get('Home Team', ''),
                         row.get('Away Team', ''),
                         row.get('Team', '')
@@ -176,8 +176,8 @@ def load_historical_props_from_game_data(week_num):
                         prop_row = {
                             'Player': player_name,
                             'Team': '',  # Will be filled in later
-                            'Opposing Team': '',
-                            'Opposing Team Full': '',
+                            'Opp. Team': '',
+                            'Opp. Team Full': '',
                             'Stat Type': stat_type,
                             'Line': line,
                             'Odds': odds,
@@ -341,35 +341,43 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
     
     if fallback_used:
         # CSV fallback: process all rows (already includes alternates)
+        print(f"DEBUG: Processing {len(stat_types_in_data)} stat types in fallback mode")
         for idx, stat_type in enumerate(stat_types_in_data):
             stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
             
             if stat_filtered_df.empty:
+                print(f"DEBUG: No props for {stat_type}")
                 continue
             
-            progress_text = f"Processing {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
-            progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
-            progress_bar.progress(progress_val, text=progress_text)
+            print(f"DEBUG: Processing {len(stat_filtered_df)} props for {stat_type}")
+            if progress_bar:
+                progress_text = f"Processing {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
+                progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
+                progress_bar.progress(progress_val, text=progress_text)
             
             # Process all rows from CSV (both main and alternate lines)
             for _, row in stat_filtered_df.iterrows():
-                score_data = scorer.calculate_comprehensive_score(
-                    row['Player'],
-                    row.get('Opposing Team Full', row['Opposing Team']),
-                    row['Stat Type'],
-                    row['Line'],
-                    row.get('Odds', 0),
-                    home_team=row.get('Home Team'),
-                    away_team=row.get('Away Team')
-                )
-                
-                # score_data already includes l5_over_rate, home_over_rate, away_over_rate, and streak
-                scored_prop = {
-                    **row.to_dict(),
-                    **score_data,
-                    'is_alternate': row.get('is_alternate', False)
-                }
-                all_props.append(scored_prop)
+                try:
+                    score_data = scorer.calculate_comprehensive_score(
+                        row['Player'],
+                        row.get('Opp. Team Full', row['Opp. Team']),
+                        row['Stat Type'],
+                        row['Line'],
+                        row.get('Odds', 0),
+                        home_team=row.get('Home Team'),
+                        away_team=row.get('Away Team')
+                    )
+                    
+                    # score_data already includes l5_over_rate, home_over_rate, away_over_rate, and streak
+                    scored_prop = {
+                        **row.to_dict(),
+                        **score_data,
+                        'is_alternate': row.get('is_alternate', False)
+                    }
+                    all_props.append(scored_prop)
+                except Exception as e:
+                    print(f"DEBUG: Error scoring prop for {row['Player']}: {e}")
+                    continue
     else:
         # API mode (OPTIMIZED): All props come from alternate lines
         # No main props are fetched to save API calls
@@ -390,7 +398,7 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                 if -450 <= odds <= 200:
                     score_data = scorer.calculate_comprehensive_score(
                         row['Player'],
-                        row.get('Opposing Team Full', row['Opposing Team']),
+                        row.get('Opp. Team Full', row['Opp. Team']),
                         row['Stat Type'],
                         row['Line'],
                         odds,
@@ -405,6 +413,7 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                     }
                     all_props.append(scored_prop)
     
+    print(f"DEBUG: process_props_and_score returning {len(all_props)} props")
     return all_props
 
 
@@ -574,7 +583,7 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
         for _, row in stat_filtered_df.iterrows():
             score_data = scorer_historical.calculate_comprehensive_score(
                 row['Player'],
-                row.get('Opposing Team Full', row['Opposing Team']),
+                row.get('Opp. Team Full', row['Opp. Team']),
                 row['Stat Type'],
                 row['Line'],
                 row.get('Odds', 0),
@@ -914,7 +923,7 @@ def calculate_high_score_straight_bets_roi():
                 for _, row in stat_filtered_df.iterrows():
                     score_data = scorer_historical.calculate_comprehensive_score(
                         row['Player'],
-                        row.get('Opposing Team Full', row['Opposing Team']),
+                        row.get('Opp. Team Full', row['Opp. Team']),
                         row['Stat Type'],
                         row['Line'],
                         row.get('Odds', 0),
@@ -1263,7 +1272,7 @@ def main():
                 odds_data = []  # Empty for compatibility
                 progress_bar.progress(30, text=f"Loaded {len(props_df)} props from Week {selected_week} historical data...")
             else:
-                # Fetch props with automatic CSV fallback
+                # Fetch props with automatic CSV fallback (normal mode - no midweek_mode parameter)
                 props_df, odds_data, fallback_used = fetch_props_with_fallback(odds_api, progress_bar)
             
             # Cache the raw data
@@ -1355,10 +1364,10 @@ def main():
                         'Stat Type': prop['Stat Type'],
                         'Player': prop['Player'],
                         'Team': prop['Team'],
-                        'Opposing Team': prop['Opposing Team'],
+                        'Opp. Team': prop['Opp. Team'],
                         'Line': prop['Line'],
                         'Odds': format_odds(prop.get('Odds', 0)),
-                        'Team Rank': prop['team_rank'],
+                        'Opp. Pos. Rank': prop['team_rank'],
                         'Score': prop['total_score'],
                         'L5': f"{prop['l5_over_rate']*100:.1f}%",
                         'Over Rate': f"{prop['over_rate']*100:.1f}%",
@@ -1545,18 +1554,18 @@ def main():
         # Format the display - include Result column if viewing historical data
         if is_historical:
             display_columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
+                'Stat Type', 'Player', 'Opp. Team', 'team_rank', 'total_score',
                 'Line', 'Odds', 'actual_result', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
             ]
         else:
             display_columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'team_rank', 'total_score',
+                'Stat Type', 'Player', 'Opp. Team', 'team_rank', 'total_score',
                 'Line', 'Odds', 'streak', 'l5_over_rate', 'home_over_rate', 'away_over_rate', 'over_rate'
             ]
         
         display_df = results_df[display_columns].copy()
         
-        # Format Team Rank as integer (show "N/A" if None)
+        # Format Opp. Pos. Rank as integer (show "N/A" if None)
         display_df['team_rank'] = display_df['team_rank'].apply(
             lambda x: int(x) if pd.notna(x) and x is not None else "N/A"
         )
@@ -1564,12 +1573,12 @@ def main():
         # Rename columns for display
         if is_historical:
             display_df.columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
+                'Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Score',
                 'Line', 'Odds', 'Result', 'Streak', 'L5', 'Home', 'Away', '25/26'
             ]
         else:
             display_df.columns = [
-                'Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Score',
+                'Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Score',
                 'Line', 'Odds', 'Streak', 'L5', 'Home', 'Away', '25/26'
             ]
         
@@ -1644,13 +1653,13 @@ def main():
             styles = pd.Series([''] * len(row), index=row.index)
             
             # Style Team Rank
-            if 'Team Rank' in row.index:
+            if 'Opp. Pos. Rank' in row.index:
                 try:
-                    val = row['Team Rank']
+                    val = row['Opp. Pos. Rank']
                     if val <= 10:
-                        styles['Team Rank'] = 'background-color: #f8d7da; color: #721c24'
+                        styles['Opp. Pos. Rank'] = 'background-color: #f8d7da; color: #721c24'
                     elif val >= 21:
-                        styles['Team Rank'] = 'background-color: #d4edda; color: #155724'
+                        styles['Opp. Pos. Rank'] = 'background-color: #d4edda; color: #155724'
                 except:
                     pass
             
@@ -1712,9 +1721,9 @@ def main():
         
         # Drop the numeric columns from display
         if is_historical:
-            display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Result', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+            display_columns_final = ['Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Line', 'Odds', 'Result', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         else:
-            display_columns_final = ['Stat Type', 'Player', 'Opposing Team', 'Team Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
+            display_columns_final = ['Stat Type', 'Player', 'Opp. Team', 'Opp. Pos. Rank', 'Line', 'Odds', 'Score', 'Streak', 'L5', 'Home', 'Away', '25/26']
         
         # Display API usage info above the table
         usage_caption = f"📊 Odds from {PREFERRED_BOOKMAKER} (prioritized)"
@@ -1879,6 +1888,45 @@ def main():
         st.subheader("Plum Props by Game Time")
         st.caption("Props organized by when games are played (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night)")
         
+        # Load and process historical data for time windows to show past games (TNF, etc.)
+        historical_time_window_data = None
+        if not is_historical:
+            try:
+                current_week = get_current_week_from_schedule()
+                
+                # Load historical props from game_data folder
+                historical_props_df = load_historical_props_from_game_data(current_week)
+                
+                if not historical_props_df.empty:
+                    print(f"DEBUG: Loaded {len(historical_props_df)} historical props")
+                    # Update team assignments
+                    historical_props_df = odds_api.update_team_assignments(historical_props_df, data_processor)
+                    
+                    # Process and score historical props through the same pipeline
+                    historical_stat_types = historical_props_df['Stat Type'].unique()
+                    print(f"DEBUG: Historical stat types: {historical_stat_types}")
+                    print(f"DEBUG: Historical props sample: {historical_props_df.head(2).to_dict()}")
+                    historical_all_props = process_props_and_score(
+                        historical_props_df, historical_stat_types, scorer, data_processor, 
+                        alt_line_manager, True, None  # fallback_used=True, no progress bar
+                    )
+                    print(f"DEBUG: Historical props after processing: {len(historical_all_props) if historical_all_props else 0}")
+                    
+                    if historical_all_props:
+                        # Convert to DataFrame and add time window classification
+                        historical_time_window_data = pd.DataFrame(historical_all_props)
+                        historical_time_window_data['time_window'] = historical_time_window_data['Commence Time'].apply(classify_game_time_window)
+                        print(f"DEBUG: Processed {len(historical_time_window_data)} scored historical props")
+                        print(f"DEBUG: Time windows: {historical_time_window_data['time_window'].value_counts().to_dict()}")
+                    else:
+                        print("DEBUG: No historical props after processing")
+                else:
+                    print("DEBUG: No historical props loaded")
+                        
+            except Exception as e:
+                # Silently fail - historical data is optional
+                pass
+        
         # Add time window classification to results_df if not already present
         if 'time_window' not in results_df.columns:
             results_df['time_window'] = results_df['Commence Time'].apply(classify_game_time_window)
@@ -1893,232 +1941,244 @@ def main():
         ]
         
         for window_key, window_name, window_emoji in time_window_configs:
-            # Filter props for this time window
+            # Filter props for this time window from current data
             window_df = results_df[results_df['time_window'] == window_key]
+            
+            # If we have historical data, merge it for this time window
+            if historical_time_window_data is not None and not historical_time_window_data.empty:
+                historical_window_df = historical_time_window_data[historical_time_window_data['time_window'] == window_key]
+                if not historical_window_df.empty:
+                    print(f"DEBUG: Adding {len(historical_window_df)} historical props to {window_key}")
+                    # Combine current and historical data for this time window
+                    window_df = pd.concat([window_df, historical_window_df], ignore_index=True)
+                else:
+                    print(f"DEBUG: No historical props for {window_key}")
+            else:
+                print(f"DEBUG: No historical data available")
             
             if not window_df.empty:
                 with st.expander(f"{window_emoji} {window_name} ({len(window_df)} props)", expanded=False):
                     st.markdown(f"**{window_name}**")
                     display_time_window_strategies(window_df, filter_props_by_strategy, data_processor, is_historical)
 
-        # ROI Performance Table (only for current week)
-        if not is_historical:
-            st.subheader("Plum Props Performance (ROI)")
+        # # ROI Performance Table (only for current week)
+        # if not is_historical:
+        #     st.subheader("Plum Props Performance (ROI)")
             
-            # Cache ROI data to avoid recalculating when switching between weeks
-            current_week = get_current_week_from_schedule()
+        #     # Cache ROI data to avoid recalculating when switching between weeks
+        #     current_week = get_current_week_from_schedule()
             
-            # Check if we have cached ROI data for this week
-            if ('roi_data_cache' in st.session_state and 
-                'roi_cache_week' in st.session_state and 
-                st.session_state.roi_cache_week == current_week):
-                # Use cached data
-                roi_data = st.session_state.roi_data_cache
-            else:
-                # Calculate fresh ROI data
-                with st.spinner("Calculating historical ROI for strategies..."):
-                    roi_data = calculate_all_strategies_roi()
+        #     # Check if we have cached ROI data for this week
+        #     if ('roi_data_cache' in st.session_state and 
+        #         'roi_cache_week' in st.session_state and 
+        #         st.session_state.roi_cache_week == current_week):
+        #         # Use cached data
+        #         roi_data = st.session_state.roi_data_cache
+        #     else:
+        #         # Calculate fresh ROI data
+        #         with st.spinner("Calculating historical ROI for strategies..."):
+        #             roi_data = calculate_all_strategies_roi()
                 
-                # Cache the results
-                st.session_state.roi_data_cache = roi_data
-                st.session_state.roi_cache_week = current_week
+        #         # Cache the results
+        #         st.session_state.roi_data_cache = roi_data
+        #         st.session_state.roi_cache_week = current_week
             
-            if roi_data:
-                try:
-                    # Calculate the week range for display
-                    current_week = get_current_week_from_schedule()
-                    historical_weeks = list(range(4, current_week))
-                    if len(historical_weeks) == 1:
-                        week_range_str = f"Week {historical_weeks[0]}"
-                    elif len(historical_weeks) == 2:
-                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
-                    else:
-                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+        #     if roi_data:
+        #         try:
+        #             # Calculate the week range for display
+        #             current_week = get_current_week_from_schedule()
+        #             historical_weeks = list(range(4, current_week))
+        #             if len(historical_weeks) == 1:
+        #                 week_range_str = f"Week {historical_weeks[0]}"
+        #             elif len(historical_weeks) == 2:
+        #                 week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+        #             else:
+        #                 week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
                     
-                    # Create ROI table with Version+TimeWindow as rows and strategies as columns
-                    def format_roi(roi):
-                        try:
-                            if roi > 0:
-                                return f"+{roi:.2f}u"
-                            elif roi < 0:
-                                return f"{roi:.2f}u"
-                            else:
-                                return "0.00u"
-                        except:
-                            return "N/A"
+        #             # Create ROI table with Version+TimeWindow as rows and strategies as columns
+        #             def format_roi(roi):
+        #                 try:
+        #                     if roi > 0:
+        #                         return f"+{roi:.2f}u"
+        #                     elif roi < 0:
+        #                         return f"{roi:.2f}u"
+        #                     else:
+        #                         return "0.00u"
+        #                 except:
+        #                     return "N/A"
                     
-                    # Time windows to display
-                    time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF']
+        #             # Time windows to display
+        #             time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF']
                     
-                    # Build table data with rows for each version+time window combination
-                    roi_table_data = []
+        #             # Build table data with rows for each version+time window combination
+        #             roi_table_data = []
                     
-                    for version in ['v1', 'v2']:
-                        for window in time_windows:
-                            # Extract ROI values for this version and time window
-                            optimal_key = f'{version}_Optimal'
-                            greasy_key = f'{version}_Greasy'
-                            degen_key = f'{version}_Degen'
+        #             for version in ['v1', 'v2']:
+        #                 for window in time_windows:
+        #                     # Extract ROI values for this version and time window
+        #                     optimal_key = f'{version}_Optimal'
+        #                     greasy_key = f'{version}_Greasy'
+        #                     degen_key = f'{version}_Degen'
                             
-                            optimal_roi = roi_data.get(optimal_key, {}).get(window, {}).get('roi', 0) or 0
-                            greasy_roi = roi_data.get(greasy_key, {}).get(window, {}).get('roi', 0) or 0
-                            degen_roi = roi_data.get(degen_key, {}).get(window, {}).get('roi', 0) or 0
+        #                     optimal_roi = roi_data.get(optimal_key, {}).get(window, {}).get('roi', 0) or 0
+        #                     greasy_roi = roi_data.get(greasy_key, {}).get(window, {}).get('roi', 0) or 0
+        #                     degen_roi = roi_data.get(degen_key, {}).get(window, {}).get('roi', 0) or 0
                             
-                            roi_table_data.append({
-                                'Strategy': f'{version}_{window}',
-                                'Optimal': format_roi(optimal_roi),
-                                'Greasy': format_roi(greasy_roi),
-                                'Degen': format_roi(degen_roi),
-                                'Optimal_numeric': optimal_roi,
-                                'Greasy_numeric': greasy_roi,
-                                'Degen_numeric': degen_roi
-                            })
+        #                     roi_table_data.append({
+        #                         'Strategy': f'{version}_{window}',
+        #                         'Optimal': format_roi(optimal_roi),
+        #                         'Greasy': format_roi(greasy_roi),
+        #                         'Degen': format_roi(degen_roi),
+        #                         'Optimal_numeric': optimal_roi,
+        #                         'Greasy_numeric': greasy_roi,
+        #                         'Degen_numeric': degen_roi
+        #                     })
                     
-                    roi_df = pd.DataFrame(roi_table_data)
+        #             roi_df = pd.DataFrame(roi_table_data)
                     
-                    # Style the columns directly based on numeric values
-                    def color_roi(val, numeric_val):
-                        """Apply color based on numeric value"""
-                        if val == '-' or val == 'N/A':
-                            return ''  # No styling for placeholder
-                        if numeric_val > 0:
-                            return 'background-color: #d4edda; color: #155724'  # Green
-                        elif numeric_val < 0:
-                            return 'background-color: #f8d7da; color: #721c24'  # Red
-                        return ''
+        #             # Style the columns directly based on numeric values
+        #             def color_roi(val, numeric_val):
+        #                 """Apply color based on numeric value"""
+        #                 if val == '-' or val == 'N/A':
+        #                     return ''  # No styling for placeholder
+        #                 if numeric_val > 0:
+        #                     return 'background-color: #d4edda; color: #155724'  # Green
+        #                 elif numeric_val < 0:
+        #                     return 'background-color: #f8d7da; color: #721c24'  # Red
+        #                 return ''
                     
-                    # Create display DataFrame (without numeric columns)
-                    display_roi_df = roi_df[['Strategy', 'Optimal', 'Greasy', 'Degen']].copy()
+        #             # Create display DataFrame (without numeric columns)
+        #             display_roi_df = roi_df[['Strategy', 'Optimal', 'Greasy', 'Degen']].copy()
                     
-                    # Apply styling using .applymap on each column with its numeric counterpart
-                    styled_roi_df = display_roi_df.style.apply(
-                        lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
-                                   else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
-                                   else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
-                                   else '' for col in x.index],
-                        axis=1
-                    )
+        #             # Apply styling using .applymap on each column with its numeric counterpart
+        #             styled_roi_df = display_roi_df.style.apply(
+        #                 lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
+        #                            else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
+        #                            else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
+        #                            else '' for col in x.index],
+        #                 axis=1
+        #             )
                 
-                    st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per time window per strategy)")
-                    st.dataframe(
-                        styled_roi_df,
-                        use_container_width=False,
-                        hide_index=True
-                    )
-                    st.caption("Note: Each strategy is evaluated separately for each time window (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night). v1 strategies pick top 5 props. v2 Optimal (4 props, score 75+), v2 Greasy (6 props, score 65-80), v2 Degen (3 props, score 70-100, wide odds). All strategies parlay props - all must hit to win. ROI shows total return across all historical weeks.")
-                except Exception as e:
-                    st.error(f"Error displaying ROI table: {e}")
-                    st.info("ℹ️ ROI data could not be displayed. Please check console for details.")
-            else:
-                st.info("ℹ️ Not enough historical data to calculate ROI (requires weeks 4+)")
+        #             st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per time window per strategy)")
+        #             st.dataframe(
+        #                 styled_roi_df,
+        #                 use_container_width=False,
+        #                 hide_index=True
+        #             )
+        #             st.caption("Note: Each strategy is evaluated separately for each time window (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night). v1 strategies pick top 5 props. v2 Optimal (4 props, score 75+), v2 Greasy (6 props, score 65-80), v2 Degen (3 props, score 70-100, wide odds). All strategies parlay props - all must hit to win. ROI shows total return across all historical weeks.")
+        #         except Exception as e:
+        #             st.error(f"Error displaying ROI table: {e}")
+        #             st.info("ℹ️ ROI data could not be displayed. Please check console for details.")
+        #     else:
+        #         st.info("ℹ️ Not enough historical data to calculate ROI (requires weeks 4+)")
             
-            # High Score Straight Bets ROI Section (Score > 80 & Streak >= 3)
-            st.markdown("---")
-            st.subheader("High Score Props ROI (Score > 80 & Streak ≥ 3 - Straight Bets)")
+        #     # High Score Straight Bets ROI Section (Score > 80 & Streak >= 3)
+        #     st.markdown("---")
+        #     st.subheader("High Score Props ROI (Score > 80 & Streak ≥ 3 - Straight Bets)")
             
-            # Cache high score ROI data
-            if ('high_score_roi_cache' in st.session_state and 
-                'high_score_roi_cache_week' in st.session_state and 
-                st.session_state.high_score_roi_cache_week == current_week):
-                # Use cached data
-                high_score_roi = st.session_state.high_score_roi_cache
-            else:
-                # Calculate fresh high score ROI data
-                with st.spinner("Calculating ROI for high-scoring props (Score > 80)..."):
-                    high_score_roi = calculate_high_score_straight_bets_roi()
+        #     # Cache high score ROI data
+        #     if ('high_score_roi_cache' in st.session_state and 
+        #         'high_score_roi_cache_week' in st.session_state and 
+        #         st.session_state.high_score_roi_cache_week == current_week):
+        #         # Use cached data
+        #         high_score_roi = st.session_state.high_score_roi_cache
+        #     else:
+        #         # Calculate fresh high score ROI data
+        #         with st.spinner("Calculating ROI for high-scoring props (Score > 80)..."):
+        #             high_score_roi = calculate_high_score_straight_bets_roi()
                 
-                # Cache the results
-                st.session_state.high_score_roi_cache = high_score_roi
-                st.session_state.high_score_roi_cache_week = current_week
+        #         # Cache the results
+        #         st.session_state.high_score_roi_cache = high_score_roi
+        #         st.session_state.high_score_roi_cache_week = current_week
             
-            if high_score_roi:
-                try:
-                    # Calculate the week range for display
-                    current_week = get_current_week_from_schedule()
-                    historical_weeks = list(range(4, current_week))
-                    if len(historical_weeks) == 1:
-                        week_range_str = f"Week {historical_weeks[0]}"
-                    elif len(historical_weeks) == 2:
-                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
-                    else:
-                        week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+        #     if high_score_roi:
+        #         try:
+        #             # Calculate the week range for display
+        #             current_week = get_current_week_from_schedule()
+        #             historical_weeks = list(range(4, current_week))
+        #             if len(historical_weeks) == 1:
+        #                 week_range_str = f"Week {historical_weeks[0]}"
+        #             elif len(historical_weeks) == 2:
+        #                 week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+        #             else:
+        #                 week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
                     
-                    # Format ROI function
-                    def format_roi(roi):
-                        try:
-                            if roi > 0:
-                                return f"+{roi:.2f}u"
-                            elif roi < 0:
-                                return f"{roi:.2f}u"
-                            else:
-                                return "0.00u"
-                        except:
-                            return "N/A"
+        #             # Format ROI function
+        #             def format_roi(roi):
+        #                 try:
+        #                     if roi > 0:
+        #                         return f"+{roi:.2f}u"
+        #                     elif roi < 0:
+        #                         return f"{roi:.2f}u"
+        #                     else:
+        #                         return "0.00u"
+        #                 except:
+        #                     return "N/A"
                     
-                    def format_win_rate(wins, losses):
-                        total = wins + losses
-                        if total == 0:
-                            return "0.0%"
-                        return f"{(wins / total * 100):.1f}%"
+        #             def format_win_rate(wins, losses):
+        #                 total = wins + losses
+        #                 if total == 0:
+        #                     return "0.0%"
+        #                 return f"{(wins / total * 100):.1f}%"
                     
-                    # Time windows to display
-                    time_windows_display = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF', 'All']
+        #             # Time windows to display
+        #             time_windows_display = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF', 'All']
                     
-                    # Build table data
-                    high_score_table_data = []
+        #             # Build table data
+        #             high_score_table_data = []
                     
-                    for window in time_windows_display:
-                        window_data = high_score_roi.get(window, {})
-                        roi_value = window_data.get('roi', 0) or 0
-                        total_bets = window_data.get('total_bets', 0)
-                        wins = window_data.get('wins', 0)
-                        losses = window_data.get('losses', 0)
+        #             for window in time_windows_display:
+        #                 window_data = high_score_roi.get(window, {})
+        #                 roi_value = window_data.get('roi', 0) or 0
+        #                 total_bets = window_data.get('total_bets', 0)
+        #                 wins = window_data.get('wins', 0)
+        #                 losses = window_data.get('losses', 0)
                         
-                        high_score_table_data.append({
-                            'Time Window': window,
-                            'Total Bets': total_bets,
-                            'Wins': wins,
-                            'Losses': losses,
-                            'Win Rate': format_win_rate(wins, losses),
-                            'ROI': format_roi(roi_value),
-                            'ROI_numeric': roi_value
-                        })
+        #                 high_score_table_data.append({
+        #                     'Time Window': window,
+        #                     'Total Bets': total_bets,
+        #                     'Wins': wins,
+        #                     'Losses': losses,
+        #                     'Win Rate': format_win_rate(wins, losses),
+        #                     'ROI': format_roi(roi_value),
+        #                     'ROI_numeric': roi_value
+        #                 })
                     
-                    high_score_df = pd.DataFrame(high_score_table_data)
+        #             high_score_df = pd.DataFrame(high_score_table_data)
                     
-                    # Style the ROI column
-                    def color_roi(val, numeric_val):
-                        """Apply color based on numeric value"""
-                        if val == '-' or val == 'N/A':
-                            return ''  # No styling for placeholder
-                        if numeric_val > 0:
-                            return 'background-color: #d4edda; color: #155724'  # Green
-                        elif numeric_val < 0:
-                            return 'background-color: #f8d7da; color: #721c24'  # Red
-                        return ''
+        #             # Style the ROI column
+        #             def color_roi(val, numeric_val):
+        #                 """Apply color based on numeric value"""
+        #                 if val == '-' or val == 'N/A':
+        #                     return ''  # No styling for placeholder
+        #                 if numeric_val > 0:
+        #                     return 'background-color: #d4edda; color: #155724'  # Green
+        #                 elif numeric_val < 0:
+        #                     return 'background-color: #f8d7da; color: #721c24'  # Red
+        #                 return ''
                     
-                    # Create display DataFrame (without numeric column)
-                    display_high_score_df = high_score_df[['Time Window', 'Total Bets', 'Wins', 'Losses', 'Win Rate', 'ROI']].copy()
+        #             # Create display DataFrame (without numeric column)
+        #             display_high_score_df = high_score_df[['Time Window', 'Total Bets', 'Wins', 'Losses', 'Win Rate', 'ROI']].copy()
                     
-                    # Apply styling
-                    styled_high_score_df = display_high_score_df.style.apply(
-                        lambda x: [color_roi(x['ROI'], high_score_df.loc[x.name, 'ROI_numeric']) if col == 'ROI'
-                                   else '' for col in x.index],
-                        axis=1
-                    )
+        #             # Apply styling
+        #             styled_high_score_df = display_high_score_df.style.apply(
+        #                 lambda x: [color_roi(x['ROI'], high_score_df.loc[x.name, 'ROI_numeric']) if col == 'ROI'
+        #                            else '' for col in x.index],
+        #                 axis=1
+        #             )
                     
-                    st.caption(f"ROI calculated from {week_range_str} (1 unit straight bet per prop with Score > 80 & Streak ≥ 3)")
-                    st.dataframe(
-                        styled_high_score_df,
-                        use_container_width=False,
-                        hide_index=True
-                    )
-                    st.caption("Note: This table shows ROI for ALL props with Score > 80 AND Streak ≥ 3, regardless of whether they were included in Optimal, Greasy, or Degen parlays. Each bet is treated as an independent straight bet (not parlayed). Only the highest-scoring prop per player/stat type is counted. TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night, All=combined across all time windows.")
-                except Exception as e:
-                    st.error(f"Error displaying high score ROI table: {e}")
-                    st.info("ℹ️ High score ROI data could not be displayed. Please check console for details.")
-            else:
-                st.info("ℹ️ Not enough historical data to calculate high score ROI (requires weeks 4+)")
+        #             st.caption(f"ROI calculated from {week_range_str} (1 unit straight bet per prop with Score > 80 & Streak ≥ 3)")
+        #             st.dataframe(
+        #                 styled_high_score_df,
+        #                 use_container_width=False,
+        #                 hide_index=True
+        #             )
+        #             st.caption("Note: This table shows ROI for ALL props with Score > 80 AND Streak ≥ 3, regardless of whether they were included in Optimal, Greasy, or Degen parlays. Each bet is treated as an independent straight bet (not parlayed). Only the highest-scoring prop per player/stat type is counted. TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night, All=combined across all time windows.")
+        #         except Exception as e:
+        #             st.error(f"Error displaying high score ROI table: {e}")
+        #             st.info("ℹ️ High score ROI data could not be displayed. Please check console for details.")
+        #     else:
+        #         st.info("ℹ️ Not enough historical data to calculate high score ROI (requires weeks 4+)")
         
         st.markdown("---")
         # Column Explanations Section
@@ -2128,10 +2188,10 @@ def main():
             
             **Player** - The NFL player's name for this prop bet
             
-            **Opposing Team** - The defense the player is facing this week
+            **Opp. Team** - The defense the player is facing this week
             - Format: "vs TEAM" (home game) or "@ TEAM" (away game)
             
-            **Team Rank** - Defensive ranking against this stat type (1-32)
+            **Opp. Pos. Rank** - Position-specific defensive ranking against this stat type (1-32)
             - Lower rank = tougher defense (e.g., rank 1 is hardest to score against)
             - Higher rank = easier defense (e.g., rank 32 is easiest to score against)
             - 🔴 Red highlight (≤10): Favorable matchup - defense is weak against this stat
@@ -2179,7 +2239,7 @@ def main():
             ### How to Use This Information
             
             **Look for green highlights** - These indicate favorable conditions:
-            - Green Team Rank = weak opposing defense
+            - Green Opp. Pos. Rank = weak opposing defense
             - Green Streak = player is on a hot streak
             - Green percentages = player frequently hits this line
             

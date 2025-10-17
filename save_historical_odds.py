@@ -375,8 +375,8 @@ def main():
     print(f"\n📅 Available weeks: {', '.join(map(str, available_weeks))}")
     
     # CONFIGURATION - UPDATE THESE VALUES
-    week_number = 6  # ← Change this to the week you want
-    max_games = None    # ← Set to None to fetch ALL games, 2 for initial testing, then 3, then None
+    week_number = 7  # ← Change this to the week you want
+    max_games = 1    # ← Set to None to fetch ALL games, 2 for initial testing, then 3, then None
     
     # Get week start date from utils
     week_start_date = get_week_start_date(week_number)
