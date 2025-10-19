@@ -292,7 +292,7 @@ def fetch_props_with_fallback(odds_api, progress_bar):
         st.info("🔧 CSV Mode: Using saved props (--use-csv flag detected)")
     else:
         try:
-            odds_data = odds_api.get_player_props()
+            odds_data = odds_api.get_player_props(num_events=None)
             progress_bar.progress(10, text="Processing player props data...")
             
             if not odds_data:
