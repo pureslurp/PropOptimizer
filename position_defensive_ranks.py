@@ -439,6 +439,8 @@ class PositionDefensiveRankings:
                 continue
             
             # Sort teams by value (lower values = better defense = lower rank)
+            # For yards allowed: lower is better (rank 1 = best defense)
+            # For TDs allowed: lower is better (rank 1 = best defense)
             sorted_teams = sorted(team_values.items(), key=lambda x: x[1], reverse=False)
             
             # Create ranking (1 = best defense, higher number = worse defense)

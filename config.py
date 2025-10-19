@@ -16,8 +16,8 @@ def get_api_key():
     
     # Try Streamlit secrets (for local development)
     try:
-        if hasattr(st, 'secrets') and 'api' in st.secrets:
-            return st.secrets['api']['odds_api_key']
+        if hasattr(st, 'secrets') and 'ODDS_API_KEY' in st.secrets:
+            return st.secrets['ODDS_API_KEY']
     except:
         pass
     
@@ -52,4 +52,4 @@ STAT_TYPES = [
 CONFIDENCE_LEVELS = ["All", "High", "Medium", "Low"]
 
 # Preferred bookmaker for odds
-PREFERRED_BOOKMAKER = "FanDuel"
+PREFERRED_BOOKMAKER = "fanduel"

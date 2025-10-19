@@ -19,6 +19,7 @@ import glob
 from enhanced_data_processor import EnhancedFootballDataProcessor
 from scoring_model import AdvancedPropScorer
 from odds_api import OddsAPI, AlternateLineManager
+from odds_api_with_db import OddsAPIWithDB
 from utils import clean_player_name, format_odds, format_line
 from config import ODDS_API_KEY, STAT_TYPES, CONFIDENCE_LEVELS, DEFAULT_MIN_SCORE, PREFERRED_BOOKMAKER
 from utils import get_current_week_from_schedule, get_available_weeks_with_data
@@ -37,8 +38,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Parse command-line arguments for CSV mode
-USE_CSV_MODE = '--use-csv' in sys.argv or '--csv' in sys.argv
+# Database-only mode - no more CSV fallbacks needed
 
 
 # Removed - now using get_available_weeks_with_data() from week_utils
@@ -46,9 +46,12 @@ USE_CSV_MODE = '--use-csv' in sys.argv or '--csv' in sys.argv
 
 def load_props_from_csv(week_num):
     """
-    Load props data from CSV file for a specific week
+    DEPRECATED: Load props data from CSV file for a specific week
+    This function is deprecated. Use database_manager.get_props_as_dataframe() instead.
     Returns DataFrame in the same format as API props_df
     """
+    import warnings
+    warnings.warn("load_props_from_csv is deprecated. Use database_manager.get_props_as_dataframe() instead.", DeprecationWarning, stacklevel=2)
     props_file = f"2025/WEEK{week_num}/props.csv"
     
     if not os.path.exists(props_file):
@@ -108,15 +111,23 @@ def load_props_from_csv(week_num):
 
 
 def load_historical_props_for_week(week_num):
-    """Load historical props data for a specific week (legacy function)"""
+    """
+    DEPRECATED: Load historical props data for a specific week (legacy function)
+    This function is deprecated. Use database_manager.get_props_as_dataframe() instead.
+    """
+    import warnings
+    warnings.warn("load_historical_props_for_week is deprecated. Use database_manager.get_props_as_dataframe() instead.", DeprecationWarning, stacklevel=2)
     return load_props_from_csv(week_num)
 
 
 def load_historical_props_from_game_data(week_num):
     """
-    Load historical props from game_data folder JSON files
+    DEPRECATED: Load historical props from game_data folder JSON files
+    This function is deprecated. Use database_manager.get_props_as_dataframe() instead.
     Returns DataFrame in the same format as API props_df
     """
+    import warnings
+    warnings.warn("load_historical_props_from_game_data is deprecated. Use database_manager.get_props_as_dataframe() instead.", DeprecationWarning, stacklevel=2)
     game_data_folder = f"2025/WEEK{week_num}/game_data"
     
     if not os.path.exists(game_data_folder):
@@ -219,8 +230,23 @@ def classify_game_time_window(commence_time_str):
         return 'Other'
     
     try:
-        # Parse the UTC time
-        utc_time = parser.parse(commence_time_str)
+        # Handle both string and datetime/Timestamp objects
+        if isinstance(commence_time_str, str):
+            # Parse the UTC time string
+            utc_time = parser.parse(commence_time_str)
+        else:
+            # Already a datetime/Timestamp object
+            utc_time = commence_time_str
+        
+        # Ensure the datetime is timezone-aware (localize to UTC if tz-naive)
+        if utc_time.tzinfo is None or utc_time.tzinfo.utcoffset(utc_time) is None:
+            # Timestamp is tz-naive, assume it's in UTC and localize it
+            if hasattr(utc_time, 'tz_localize'):
+                # Pandas Timestamp
+                utc_time = utc_time.tz_localize('UTC')
+            else:
+                # Python datetime
+                utc_time = pytz.utc.localize(utc_time)
         
         # Convert to Eastern Time
         eastern = pytz.timezone('US/Eastern')
@@ -254,110 +280,59 @@ def classify_game_time_window(commence_time_str):
         return 'Other'
         
     except Exception as e:
-        print(f"Error parsing commence time '{commence_time_str}': {e}")
+        # Silently return 'Other' on parsing errors
         return 'Other'
 
 
 def get_available_historical_weeks():
     """
-    Get list of weeks that have historical game_data available
-    Returns list of week numbers
+    Get list of available historical weeks from database.
+    This function is now deprecated - use DatabaseManager.get_available_weeks_from_db() instead.
     """
-    available_weeks = []
-    
-    for week in range(1, 19):  # NFL has 18 weeks
-        game_data_folder = f"2025/WEEK{week}/game_data"
-        if os.path.exists(game_data_folder):
-            json_files = glob.glob(os.path.join(game_data_folder, "*_historical_odds.json"))
-            if json_files:
-                available_weeks.append(week)
-    
-    return available_weeks
+    from database_manager import DatabaseManager
+    db_manager = DatabaseManager()
+    return db_manager.get_available_weeks_from_db()
 
 
-def fetch_props_with_fallback(odds_api, progress_bar):
-    """
-    Fetch props from API with automatic CSV fallback if API fails.
-    Can be forced to use CSV mode with --use-csv or --csv flag.
-    
-    Returns:
-        tuple: (props_df, odds_data, fallback_used)
-    """
-    api_failed = False
-    fallback_used = False
-    
-    # Check if CSV mode is forced via command line
-    if USE_CSV_MODE:
-        api_failed = True
-        st.info("🔧 CSV Mode: Using saved props (--use-csv flag detected)")
-    else:
-        try:
-            odds_data = odds_api.get_player_props()
-            progress_bar.progress(10, text="Processing player props data...")
-            
-            if not odds_data:
-                api_failed = True
-        except Exception as api_error:
-            api_failed = True
-            st.warning(f"⚠️ API Error: {str(api_error)}")
-    
-    # Fallback to CSV if API failed or CSV mode is forced
-    if api_failed:
-        current_week = get_current_week_from_schedule()
-        if not USE_CSV_MODE:
-            st.info(f"📁 API limit reached or unavailable. Loading from saved Week {current_week} props...")
-        progress_bar.progress(10, text=f"Loading props from Week {current_week} CSV...")
-        
-        props_df = load_props_from_csv(current_week)
-        
-        if props_df.empty:
-            st.error(f"❌ No saved props found for Week {current_week}. Please try again when API quota resets.")
-            st.stop()
-        
-        fallback_used = True
-        odds_data = []  # Empty for compatibility
-        progress_bar.progress(20, text="Processing saved props data...")
-    else:
-        # OPTIMIZED: Parse returns empty DataFrame
-        # Actual props come from alternate lines (populated later)
-        props_df = odds_api.parse_player_props(odds_data)
-        progress_bar.progress(20, text="Events loaded, will fetch alternate lines...")
-        
-        # Note: props_df is intentionally empty here
-        # It will be populated from alternate lines in the main flow
-    
-    return props_df, odds_data, fallback_used
+# Removed fetch_props_with_fallback - no longer needed since everything is in database
 
 
 def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor, 
                             alt_line_manager, fallback_used, progress_bar):
     """
-    Process props and calculate scores (handles both API and CSV data).
+    Process props and calculate scores (database mode).
     
     Returns:
         list: All scored props including alternates
     """
     all_props = []
     
+    # Check if props_df is empty
+    if props_df.empty:
+        return all_props
+    
     if fallback_used:
-        # CSV fallback: process all rows (already includes alternates)
-        print(f"DEBUG: Processing {len(stat_types_in_data)} stat types in fallback mode")
+        # Database mode: process all rows (already includes alternates)
         for idx, stat_type in enumerate(stat_types_in_data):
             stat_filtered_df = props_df[props_df['Stat Type'] == stat_type].copy()
             
             if stat_filtered_df.empty:
-                print(f"DEBUG: No props for {stat_type}")
                 continue
             
-            print(f"DEBUG: Processing {len(stat_filtered_df)} props for {stat_type}")
             if progress_bar:
                 progress_text = f"Processing {stat_type}... ({idx+1}/{len(stat_types_in_data)})"
                 progress_val = 50 + int((idx + 1) / len(stat_types_in_data) * 40)
                 progress_bar.progress(progress_val, text=progress_text)
             
-            # Process all rows from CSV (both main and alternate lines)
+            # Process all rows from database (both main and alternate lines)
             for _, row in stat_filtered_df.iterrows():
                 try:
+                    import pandas as pd
+                    if pd.isna(row.get('Player')) or row.get('Player') is None:
+                        continue
+                    if pd.isna(row.get('Stat Type')) or row.get('Stat Type') is None:
+                        continue
+                    
                     score_data = scorer.calculate_comprehensive_score(
                         row['Player'],
                         row.get('Opp. Team Full', row['Opp. Team']),
@@ -365,7 +340,9 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                         row['Line'],
                         row.get('Odds', 0),
                         home_team=row.get('Home Team'),
-                        away_team=row.get('Away Team')
+                        away_team=row.get('Away Team'),
+                        player_team=row.get('Team'),  # Use pre-calculated from database
+                        team_rank=row.get('team_pos_rank_stat_type')  # Use pre-calculated from database
                     )
                     
                     # score_data already includes l5_over_rate, home_over_rate, away_over_rate, and streak
@@ -376,7 +353,6 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                     }
                     all_props.append(scored_prop)
                 except Exception as e:
-                    print(f"DEBUG: Error scoring prop for {row['Player']}: {e}")
                     continue
     else:
         # API mode (OPTIMIZED): All props come from alternate lines
@@ -403,7 +379,9 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                         row['Line'],
                         odds,
                         home_team=row.get('Home Team'),
-                        away_team=row.get('Away Team')
+                        away_team=row.get('Away Team'),
+                        player_team=row.get('Team'),  # Use pre-calculated from database/API
+                        team_rank=row.get('team_pos_rank_stat_type')  # Use pre-calculated from database/API
                     )
                     
                     scored_prop = {
@@ -413,12 +391,16 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
                     }
                     all_props.append(scored_prop)
     
-    print(f"DEBUG: process_props_and_score returning {len(all_props)} props")
     return all_props
 
 
 def load_box_score_for_week(week_num):
-    """Load box score data for a specific week"""
+    """
+    DEPRECATED: Load box score data for a specific week
+    This function is deprecated. Use DatabaseBoxScoreLoader.load_week_data_from_db() instead.
+    """
+    import warnings
+    warnings.warn("load_box_score_for_week is deprecated. Use DatabaseBoxScoreLoader.load_week_data_from_db() instead.", DeprecationWarning, stacklevel=2)
     box_score_path = f"2025/WEEK{week_num}/box_score_debug.csv"
     
     if not os.path.exists(box_score_path):
@@ -563,7 +545,7 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
     
     # Create a data processor limited to data before this week
-    data_processor_historical = EnhancedFootballDataProcessor(max_week=week_num)
+    data_processor_historical = EnhancedFootballDataProcessor(max_week=week_num, use_database=True)
     scorer_historical = AdvancedPropScorer(data_processor_historical)
     
     # Update team assignments
@@ -599,8 +581,10 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
             }
             all_props.append(scored_prop)
     
-    # Load box score for actual results
-    box_score_df = load_box_score_for_week(week_num)
+    # Load box score for actual results from database
+    from database_enhanced_data_processor import DatabaseBoxScoreLoader
+    box_score_loader = DatabaseBoxScoreLoader()
+    box_score_df = box_score_loader.load_week_data_from_db(week_num)
     
     if box_score_df.empty:
         return None
@@ -903,7 +887,7 @@ def calculate_high_score_straight_bets_roi():
             props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
             
             # Create a data processor limited to data before this week
-            data_processor_historical = EnhancedFootballDataProcessor(max_week=week)
+            data_processor_historical = EnhancedFootballDataProcessor(max_week=week, use_database=True)
             scorer_historical = AdvancedPropScorer(data_processor_historical)
             
             # Update team assignments
@@ -939,8 +923,10 @@ def calculate_high_score_straight_bets_roi():
                     }
                     all_props.append(scored_prop)
             
-            # Load box score for actual results
-            box_score_df = load_box_score_for_week(week)
+            # Load box score for actual results from database
+            from database_enhanced_data_processor import DatabaseBoxScoreLoader
+            box_score_loader = DatabaseBoxScoreLoader()
+            box_score_df = box_score_loader.load_week_data_from_db(week)
             
             if box_score_df.empty:
                 continue
@@ -1137,8 +1123,13 @@ def main():
         st.stop()
     
     # Get current week and available historical weeks first
-    current_week_temp = get_current_week_from_schedule()
-    historical_weeks = get_available_historical_weeks()
+    from utils import get_current_week_from_dates
+    current_week_temp = get_current_week_from_dates()
+    
+    # Get available weeks from database instead of CSV
+    from database_manager import DatabaseManager
+    db_manager = DatabaseManager()
+    historical_weeks = db_manager.get_available_weeks_from_db()
     
     # Create week selector options
     week_options = [f"Week {current_week_temp} (Current)"]
@@ -1158,49 +1149,73 @@ def main():
     selected_week = int(selected_week_display.split()[1])
     is_historical = selected_week != current_week_temp
     
-    # Initialize components with max_week for historical filtering
-    odds_api = OddsAPI(ODDS_API_KEY)
-    # For historical weeks, set max_week to the selected week so stats only include games before it
-    max_week_for_processor = selected_week if is_historical else None
-    data_processor = EnhancedFootballDataProcessor(max_week=max_week_for_processor)
-    scorer = AdvancedPropScorer(data_processor)
+    # Initialize components with max_week for historical filtering (cache in session state)
+    # Only create once per week selection to avoid repeated expensive initialization
+    if ('data_processor' not in st.session_state or 
+        'data_processor_week' not in st.session_state or 
+        st.session_state.data_processor_week != selected_week):
+        
+        data_processor = EnhancedFootballDataProcessor(max_week=selected_week, use_database=True, skip_calculations=True)
+        st.session_state.data_processor = data_processor
+        st.session_state.data_processor_week = selected_week
+    else:
+        data_processor = st.session_state.data_processor
     
-    # Store odds_api in session state for accessing usage info
+    if ('scorer' not in st.session_state or 
+        'scorer_week' not in st.session_state or 
+        st.session_state.scorer_week != selected_week):
+        
+        scorer = AdvancedPropScorer(data_processor)
+        st.session_state.scorer = scorer
+        st.session_state.scorer_week = selected_week
+    else:
+        scorer = st.session_state.scorer
+    
+    # Initialize odds_api (lightweight, doesn't need caching)
+    odds_api = OddsAPIWithDB(ODDS_API_KEY)
     st.session_state.odds_api = odds_api
     
-    # Clear cache if week changes
+    # Check and merge historical props for games that have started
+    # ONLY check current week, not historical weeks the user is browsing
+    if not is_historical:
+        # Create progress bar for historical merge check
+        hist_progress_bar = st.progress(0, text="Checking for historical odds updates...")
+        
+        def update_progress(progress, message):
+            hist_progress_bar.progress(progress, text=message)
+        
+        db_manager.check_and_merge_historical_props(current_week_temp, odds_api=odds_api, progress_callback=update_progress)
+        hist_progress_bar.empty()  # Clear the progress bar
+    
+    # Initialize per-week cache dictionary if not exists
+    if 'week_cache' not in st.session_state:
+        st.session_state.week_cache = {}
+    
+    # Cache management when week changes
     if 'selected_week' not in st.session_state or st.session_state.selected_week != selected_week:
         old_week = st.session_state.get('selected_week')
-        st.session_state.selected_week = selected_week
         
-        # If switching FROM current week TO historical week, preserve current week data
-        if old_week == current_week_temp and is_historical:
-            # Save current week data before clearing
-            st.session_state.current_week_cache = {
+        # Save current week data to cache before switching
+        if old_week is not None:
+            st.session_state.week_cache[old_week] = {
                 'alt_line_manager': st.session_state.get('alt_line_manager'),
                 'all_scored_props': st.session_state.get('all_scored_props'),
                 'props_df_cache': st.session_state.get('props_df_cache'),
                 'odds_data_cache': st.session_state.get('odds_data_cache')
             }
-            # Now clear the regular cache so historical data can be loaded fresh
-            for key in ['alt_line_manager', 'all_scored_props', 'props_df_cache', 'odds_data_cache']:
-                if key in st.session_state:
-                    del st.session_state[key]
         
-        # If switching TO current week FROM historical week, restore cached data
-        elif selected_week == current_week_temp and 'current_week_cache' in st.session_state:
-            # Restore current week data from cache
-            cache = st.session_state.current_week_cache
-            if cache.get('alt_line_manager') is not None:
-                st.session_state.alt_line_manager = cache['alt_line_manager']
-            if cache.get('all_scored_props') is not None:
-                st.session_state.all_scored_props = cache['all_scored_props']
-            if cache.get('props_df_cache') is not None:
-                st.session_state.props_df_cache = cache['props_df_cache']
-            if cache.get('odds_data_cache') is not None:
-                st.session_state.odds_data_cache = cache['odds_data_cache']
+        # Update selected week
+        st.session_state.selected_week = selected_week
+        
+        # Restore cached data for new week if available
+        if selected_week in st.session_state.week_cache:
+            cache = st.session_state.week_cache[selected_week]
+            st.session_state.alt_line_manager = cache.get('alt_line_manager')
+            st.session_state.all_scored_props = cache.get('all_scored_props')
+            st.session_state.props_df_cache = cache.get('props_df_cache')
+            st.session_state.odds_data_cache = cache.get('odds_data_cache')
         else:
-            # Clear all cached data when switching between different weeks
+            # Clear cache for new week (will be loaded fresh)
             for key in ['alt_line_manager', 'all_scored_props', 'props_df_cache', 'odds_data_cache']:
                 if key in st.session_state:
                     del st.session_state[key]
@@ -1210,31 +1225,8 @@ def main():
         st.header("⚙️ Settings")
         st.markdown("---")
         
-        # Control buttons
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            if st.button("🔄 Refresh", type="primary", use_container_width=True):
-                # Clear all cached data on refresh
-                if 'alt_line_manager' in st.session_state:
-                    del st.session_state.alt_line_manager
-                if 'all_scored_props' in st.session_state:
-                    del st.session_state.all_scored_props
-                if 'props_df_cache' in st.session_state:
-                    del st.session_state.props_df_cache
-                if 'odds_data_cache' in st.session_state:
-                    del st.session_state.odds_data_cache
-                # Clear filter selections
-                if 'selected_stat_types' in st.session_state:
-                    del st.session_state.selected_stat_types
-                if 'selected_games' in st.session_state:
-                    del st.session_state.selected_games
-                st.rerun()
-        
-        with col2:
-            export_button = st.button("Export to CSV", type="secondary", use_container_width=True)
-        
-        st.markdown("---")
+        # Export button
+        export_button = st.button("📥 Export to CSV", type="secondary", use_container_width=True)
     
     # Fetch and display data
     try:
@@ -1254,62 +1246,318 @@ def main():
                 info_messages.append(('info', f"ℹ️ Using cached data ({len(all_props)} total props)"))
         else:
             # Fetch fresh data with progress bars
-            progress_bar = st.progress(0, text="Fetching player props data...")
+            progress_bar = st.progress(0, text="Loading player props data from database...")
             
-            # Check if we're loading historical data
+            # Always load from database (both current and historical data)
+            from database_manager import DatabaseManager
+            db_manager = DatabaseManager()
+            
             if is_historical:
-                progress_bar.progress(10, text=f"Loading Week {selected_week} historical data...")
-                props_df = load_historical_props_from_game_data(selected_week)
+                progress_bar.progress(10, text=f"Loading Week {selected_week} historical data from database...")
+                # For historical data, show all games (including completed ones)
+                props_df = db_manager.get_props_as_dataframe(week=selected_week, upcoming_only=False)
                 
                 if props_df.empty:
-                    st.error(f"❌ No historical data found for Week {selected_week}. Please check the game_data folder.")
+                    st.error(f"❌ No historical data found for Week {selected_week} in database.")
                     st.stop()
+                
+                progress_bar.progress(20, text=f"Loaded {len(props_df)} historical props from database...")
+                
+                # For historical weeks, skip all API calls and use database data only                
+                # Skip all API processing for historical weeks
+                odds_data = []  # Empty for compatibility
+                fallback_used = True  # Always use database mode
+                
+                # Cache the raw data
+                st.session_state.props_df_cache = props_df
+                st.session_state.odds_data_cache = odds_data
+                
+                # Initialize alternate line manager (for compatibility)
+                alt_line_manager = AlternateLineManager(ODDS_API_KEY, odds_data)
+                st.session_state.alt_line_manager = alt_line_manager
+                
+                # Database mode: all data is already loaded with alternates
+                progress_bar.progress(40, text="Using database data (includes alternates)...")
+                
+                # For historical weeks, we can skip the rest of the API processing
+                # and go directly to scoring the props
+                progress_bar.progress(50, text="Calculating scores for historical props...")
+                
+                stat_types_in_data = props_df['Stat Type'].unique() if not props_df.empty else []
+                
+                # Process and score all props for historical weeks
+                all_props = process_props_and_score(
+                    props_df, stat_types_in_data, scorer, data_processor, 
+                    alt_line_manager, fallback_used, progress_bar
+                )
+                
+                # Cache the scored props
+                st.session_state.all_scored_props = all_props
+                
+                progress_bar.progress(100, text="Historical data loaded successfully!")
+                progress_bar.empty()  # Clear the progress bar
+                
+                # Info messages are collected but not displayed to keep UI clean
+                # (Messages are still logged to console for debugging)
+                
+                # Continue to table display (don't return early)
+            elif not is_historical:
+                # For current week, get the latest week with data
+                latest_week = db_manager.get_latest_week_with_props()
+                if not latest_week:
+                    st.warning("⚠️ No props data found in database. Please run the data population script first.")
+                    st.stop()
+                
+                # First, check database for upcoming games with fresh data
+                progress_bar.progress(10, text=f"Checking database for Week {latest_week} upcoming games...")
+                from datetime import datetime
+                all_props_df = db_manager.get_props_as_dataframe(week=latest_week, upcoming_only=False)
+                
+                # Filter to upcoming games only
+                if not all_props_df.empty:
+                    # Convert Commence Time to datetime if it's a string
+                    if 'Commence Time' in all_props_df.columns:
+                        if all_props_df['Commence Time'].dtype == 'object':
+                            all_props_df['Commence Time'] = pd.to_datetime(all_props_df['Commence Time'], utc=True)
+                        elif str(all_props_df['Commence Time'].dtype).startswith('datetime64'):
+                            # Already datetime64, make sure it's timezone-aware
+                            if all_props_df['Commence Time'].dt.tz is None:
+                                all_props_df['Commence Time'] = all_props_df['Commence Time'].dt.tz_localize('UTC')
+                    
+                    # Filter to upcoming games (use pd.Timestamp for comparison with datetime64)
+                    from datetime import timezone
+                    current_time = pd.Timestamp.now(tz='UTC')
+                    upcoming_props_df = all_props_df[all_props_df['Commence Time'] > current_time].copy()
+                else:
+                    upcoming_props_df = pd.DataFrame()
+                
+                # Determine if we need to fetch from API
+                need_api_fetch = False
+                fetch_reason = ""
+                
+                if upcoming_props_df.empty:
+                    # No upcoming games in database - need fresh data from API
+                    need_api_fetch = True
+                    fetch_reason = "No upcoming games found in database"
+                elif not db_manager.is_data_fresh('props', max_age_hours=2):
+                    # Data exists but is stale - refresh from API
+                    need_api_fetch = True
+                    fetch_reason = "Database props are stale (> 2 hours old)"
+                else:
+                    # Fresh upcoming games found in database - use them!
+                    props_df = upcoming_props_df
+                    progress_bar.progress(20, text=f"Using fresh database props (< 2 hours old)...")
+                    info_messages.append(('success', f"✅ Loaded {len(props_df)} upcoming game props from database (fresh data)"))
+                
+                # Fetch from API if needed
+                if need_api_fetch:
+                    st.info(f"📡 {fetch_reason}. Fetching fresh odds from API...")
+                    progress_bar.progress(30, text="Fetching fresh odds from API...")
+                    
+                    try:
+                        # Fetch fresh odds data
+                        progress_bar.progress(35, text="Fetching events from API...")
+                        events_data = odds_api.get_player_props()
+                        
+                        if not events_data:
+                            if not all_props_df.empty:
+                                st.warning("⚠️ No events found from API. Using database data as fallback.")
+                                props_df = all_props_df.copy()
+                            else:
+                                st.error("❌ No events found from API and no data in database.")
+                                st.stop()
+                        else:
+                            # Now fetch alternate lines
+                            progress_bar.progress(40, text="Fetching alternate lines from API (this may take 30-60 seconds)...")
+                            odds_data = odds_api.fetch_all_alternate_lines_optimized()
+                            
+                            if odds_data:
+                                progress_bar.progress(50, text="Processing fresh odds data...")
+                                
+                                # Convert API data to DataFrame format
+                                props_df = odds_api.convert_alternate_lines_to_props_df(odds_data)
+                                
+                                if not props_df.empty:
+                                    # Update team assignments
+                                    progress_bar.progress(55, text="Updating team assignments...")
+                                    props_df = odds_api.update_team_assignments(props_df, data_processor)
+                                    
+                                    # Calculate defensive rankings for each prop
+                                    # Need to temporarily create a data processor with calculations enabled
+                                    progress_bar.progress(60, text="Calculating defensive rankings...")
+                                    # Note: EnhancedFootballDataProcessor is already imported at top of file
+                                    temp_processor = EnhancedFootballDataProcessor(
+                                        max_week=latest_week, 
+                                        use_database=True, 
+                                        skip_calculations=False  # Enable calculations to get rankings
+                                    )
+                                    for idx in props_df.index:
+                                        player = props_df.at[idx, 'Player']
+                                        opp_team = props_df.at[idx, 'Opp. Team Full']
+                                        stat_type = props_df.at[idx, 'Stat Type']
+                                        
+                                        if pd.isna(opp_team) or opp_team == 'Unknown' or not opp_team:
+                                            props_df.at[idx, 'team_pos_rank_stat_type'] = None
+                                            continue
+                                        
+                                        try:
+                                            # Use temp_processor to get defensive rank (it has position rankings loaded)
+                                            rank = temp_processor.get_position_defensive_rank(opp_team, player, stat_type)
+                                            props_df.at[idx, 'team_pos_rank_stat_type'] = rank
+                                        except Exception as e:
+                                            print(f"⚠️ Error calculating rank for {player} vs {opp_team}: {e}")
+                                            props_df.at[idx, 'team_pos_rank_stat_type'] = None
+                                    
+                                    # Add week number
+                                    props_df['week'] = latest_week
+                                    
+                                    # Filter to only complete props (with all required fields)
+                                    complete_props = props_df[
+                                        props_df['team_pos_rank_stat_type'].notna() & 
+                                        props_df['week'].notna() &
+                                        (props_df['Team'] != 'Unknown') &
+                                        props_df['Team'].notna()
+                                    ].copy()
+                                    
+                                    # Calculate how many were incomplete
+                                    incomplete_count = len(props_df) - len(complete_props)
+                                    
+                                    # Store ONLY complete props to database
+                                    if not complete_props.empty:
+                                        progress_bar.progress(65, text="Storing to database...")
+                                        # Convert to database format
+                                        props_list = []
+                                        for _, row in complete_props.iterrows():
+                                            prop_dict = {
+                                                'player': row['Player'],
+                                                'stat_type': row['Stat Type'],
+                                                'line': row['Line'],
+                                                'odds': row['Odds'],
+                                                'bookmaker': row.get('Bookmaker', 'FanDuel'),
+                                                'is_alternate': row.get('is_alternate', True),
+                                                'player_team': row['Team'],
+                                                'opp_team': row.get('Opp. Team', ''),
+                                                'opp_team_full': row['Opp. Team Full'],
+                                                'team_pos_rank_stat_type': row['team_pos_rank_stat_type'],
+                                                'week': row['week'],
+                                                'home_team': row['Home Team'],
+                                                'away_team': row['Away Team'],
+                                                'commence_time': row['Commence Time'],
+                                                'game_id': row.get('event_id', f"{row['Away Team']}_at_{row['Home Team']}")
+                                            }
+                                            props_list.append(prop_dict)
+                                        
+                                        games_data = odds_api._extract_games_data(odds_data)
+                                        odds_api.store_props_to_db(props_list, games_data)
+                                        
+                                        # After storing new games, check if any need historical merge
+                                        # (e.g., games starting soon that just got added)
+                                        def update_merge_progress(prog, msg):
+                                            # Map 0-10 progress to 66-69 range
+                                            actual_progress = 66 + int((prog / 10) * 3)
+                                            progress_bar.progress(actual_progress, text=msg)
+                                        
+                                        db_manager.check_and_merge_historical_props(latest_week, odds_api=odds_api, progress_callback=update_merge_progress)
+                                        
+                                        # Use complete_props for display
+                                        props_df = complete_props
+                                        
+                                        progress_bar.progress(70, text=f"Loaded {len(props_df)} fresh props from API...")
+                                        info_messages.append(('success', f"✅ Successfully fetched and stored {len(props_df)} complete props from API"))
+                                        if incomplete_count > 0:
+                                            info_messages.append(('warning', f"⚠️ Skipped {incomplete_count} props with incomplete data"))
+                                    else:
+                                        st.error("❌ No complete props to store after processing")
+                                        st.stop()
+                                else:
+                                    if not all_props_df.empty:
+                                        st.warning("⚠️ No props found in API response. Using database data as fallback.")
+                                        props_df = all_props_df.copy()
+                                    else:
+                                        st.error("❌ No props found in API response and no data in database.")
+                                        st.stop()
+                            else:
+                                if not all_props_df.empty:
+                                    st.warning("⚠️ Failed to fetch odds from API. Using database data as fallback.")
+                                    props_df = all_props_df.copy()
+                                else:
+                                    st.error("❌ Failed to fetch odds from API and no data in database.")
+                                    st.stop()
+                                
+                    except Exception as e:
+                        if not all_props_df.empty:
+                            st.warning(f"⚠️ Error fetching fresh odds from API: {e}")
+                            st.info("ℹ️ Falling back to database data...")
+                            props_df = all_props_df.copy()
+                        else:
+                            st.error(f"❌ Error fetching fresh odds from API: {e}")
+                            st.error("No data in database to fall back to.")
+                            st.stop()
+                
+                # Merge in completed games from this week (so user can see historical recommendations)
+                if not all_props_df.empty:
+                    current_time = pd.Timestamp.now(tz='UTC')
+                    
+                    # Ensure datetime is timezone-aware
+                    if 'Commence Time' in all_props_df.columns:
+                        if all_props_df['Commence Time'].dtype == 'object':
+                            all_props_df['Commence Time'] = pd.to_datetime(all_props_df['Commence Time'], utc=True)
+                        elif str(all_props_df['Commence Time'].dtype).startswith('datetime64'):
+                            if all_props_df['Commence Time'].dt.tz is None:
+                                all_props_df['Commence Time'] = all_props_df['Commence Time'].dt.tz_localize('UTC')
+                    
+                    # Get completed games from this week
+                    completed_props_df = all_props_df[all_props_df['Commence Time'] <= current_time].copy()
+                    
+                    if not completed_props_df.empty:
+                        # Merge completed games with upcoming games
+                        props_df = pd.concat([props_df, completed_props_df], ignore_index=True)
+                        # Remove duplicates (in case of overlap)
+                        props_df = props_df.drop_duplicates(subset=['Player', 'Stat Type', 'Line', 'Bookmaker', 'Commence Time'], keep='first')
+                        print(f"📊 Included {len(completed_props_df)} props from {completed_props_df['Commence Time'].nunique()} completed game(s) this week")
+                
+                # Show user what games are being displayed
+                if not props_df.empty:
+                    # Ensure datetime comparison is timezone-aware
+                    if 'Commence Time' in props_df.columns:
+                        if props_df['Commence Time'].dtype == 'object':
+                            props_df['Commence Time'] = pd.to_datetime(props_df['Commence Time'], utc=True)
+                        elif str(props_df['Commence Time'].dtype).startswith('datetime64'):
+                            if props_df['Commence Time'].dt.tz is None:
+                                props_df['Commence Time'] = props_df['Commence Time'].dt.tz_localize('UTC')
+                    
+                    game_times = props_df['Commence Time'].unique()
+                    current_time = pd.Timestamp.now(tz='UTC')
+                    upcoming_games = [gt for gt in game_times if pd.notna(gt) and gt > current_time]
+                    if upcoming_games:
+                        next_game = min(upcoming_games)
+                        # Convert to datetime for formatting
+                        if hasattr(next_game, 'to_pydatetime'):
+                            next_game = next_game.to_pydatetime()
+                    else:
+                        st.warning("⚠️ No upcoming games found - all games may have already started")
                 
                 # Update team assignments using data processor
                 props_df = odds_api.update_team_assignments(props_df, data_processor)
                 
-                fallback_used = True  # Treat as fallback mode
+                # Set compatibility variables
                 odds_data = []  # Empty for compatibility
-                progress_bar.progress(30, text=f"Loaded {len(props_df)} props from Week {selected_week} historical data...")
-            else:
-                # Fetch props with automatic CSV fallback (normal mode - no midweek_mode parameter)
-                props_df, odds_data, fallback_used = fetch_props_with_fallback(odds_api, progress_bar)
-            
-            # Cache the raw data
-            st.session_state.props_df_cache = props_df
-            st.session_state.odds_data_cache = odds_data
-            
-            # Initialize alternate line manager
-            alt_line_manager = AlternateLineManager(ODDS_API_KEY, odds_data)
-            st.session_state.alt_line_manager = alt_line_manager
-            
-            # Handle alternate lines based on data source
-            if is_historical:
-                # Historical data already loaded, skip alternate line fetching
-                progress_bar.progress(40, text="Using historical alternate lines...")
-            elif fallback_used:
-                # CSV already has alternate lines, no need to fetch
-                progress_bar.progress(30, text="Using saved alternate lines from CSV...")
-            else:
-                # OPTIMIZED: Fetch ONLY alternate lines (no main props call)
-                # This saves ~5 API calls per launch!
-                progress_bar.progress(30, text="Fetching alternate lines...")
-                all_alternate_lines = alt_line_manager.fetch_all_alternate_lines_optimized()
-                alt_line_manager.alternate_lines = all_alternate_lines
+                fallback_used = True  # Always use database mode
                 
-                # Convert alternate lines to props_df format
-                progress_bar.progress(40, text="Converting alternate lines to props...")
-                props_df = alt_line_manager.convert_alternates_to_props_df(odds_data)
-                
-                # Update team assignments
-                if not props_df.empty:
-                    props_df = odds_api.update_team_assignments(props_df, data_processor)
-                
-                # Update cache with new props_df
+                # Cache the raw data
                 st.session_state.props_df_cache = props_df
+                st.session_state.odds_data_cache = odds_data
+                
+                # Initialize alternate line manager (for compatibility)
+                alt_line_manager = AlternateLineManager(ODDS_API_KEY, odds_data)
+                st.session_state.alt_line_manager = alt_line_manager
+                
+                # Database mode: all data is already loaded with alternates
+                progress_bar.progress(40, text="Using database data (includes alternates)...")
             
             # Process and score all props
             progress_bar.progress(50, text="Calculating scores for all props...")
+            
             stat_types_in_data = props_df['Stat Type'].unique() if not props_df.empty else []
             all_props = process_props_and_score(
                 props_df, stat_types_in_data, scorer, data_processor, 
@@ -1318,8 +1566,12 @@ def main():
             
             # If viewing historical data, add actual results from box score
             if is_historical:
-                progress_bar.progress(90, text="Loading actual results from box score...")
-                box_score_df = load_box_score_for_week(selected_week)
+                progress_bar.progress(90, text="Loading actual results from database...")
+                
+                # Load box score data from database instead of CSV files
+                from database_enhanced_data_processor import DatabaseBoxScoreLoader
+                box_score_loader = DatabaseBoxScoreLoader()
+                box_score_df = box_score_loader.load_week_data_from_db(selected_week)
                 
                 if not box_score_df.empty:
                     for prop in all_props:
@@ -1347,11 +1599,8 @@ def main():
             # Add appropriate success message based on data source
             if is_historical:
                 info_messages.append(('info', f"📜 Loaded {len(all_props)} historical props from Week {selected_week}"))
-            elif fallback_used:
-                current_week = get_current_week_from_schedule()
-                info_messages.append(('warning', f"📁 Loaded {len(all_props)} props from saved Week {current_week} CSV (API unavailable)"))
             else:
-                info_messages.append(('success', f"✅ Loaded {len(all_props)} total props from {len(odds_data)} games"))
+                info_messages.append(('success', f"✅ Loaded {len(all_props)} total props from database"))
         
         # Handle export if button was clicked
         if export_button:
@@ -1405,12 +1654,51 @@ def main():
         results_df['Matchup'] = results_df.apply(get_matchup_string, axis=1)
         available_matchups = sorted([m for m in results_df['Matchup'].unique() if m is not None])
         
+        # Determine which games are upcoming (not started yet) - only for current week
+        matchup_to_upcoming = {}
+        if not is_historical:
+            # Only filter past games when viewing current week
+            current_time = pd.Timestamp.now(tz='UTC')
+            
+            # Create a map of matchup -> is_upcoming
+            for matchup in available_matchups:
+                # Get all props for this matchup to find its commence time
+                matchup_props = results_df[results_df['Matchup'] == matchup]
+                if not matchup_props.empty:
+                    # Get the first commence time for this matchup (they should all be the same)
+                    commence_time = matchup_props.iloc[0]['Commence Time']
+                    
+                    # Ensure datetime comparison is timezone-aware
+                    if pd.notna(commence_time):
+                        if isinstance(commence_time, str):
+                            commence_time = pd.to_datetime(commence_time, utc=True)
+                        elif hasattr(commence_time, 'tz_localize') and commence_time.tz is None:
+                            commence_time = commence_time.tz_localize('UTC')
+                        elif not hasattr(commence_time, 'tz') or commence_time.tz is None:
+                            # Python datetime without timezone
+                            commence_time = pd.Timestamp(commence_time).tz_localize('UTC')
+                        
+                        # Check if game is upcoming
+                        matchup_to_upcoming[matchup] = commence_time > current_time
+                    else:
+                        # If no commence time, assume it's upcoming
+                        matchup_to_upcoming[matchup] = True
+                else:
+                    matchup_to_upcoming[matchup] = True
+        
         # Initialize session state for checkbox selections if not exists
         if 'selected_stat_types' not in st.session_state:
             st.session_state.selected_stat_types = {stat: True for stat in available_stat_types}
         
         if 'selected_games' not in st.session_state:
-            st.session_state.selected_games = {game: True for game in available_matchups}
+            if is_historical:
+                # Historical weeks: all games selected by default
+                st.session_state.selected_games = {game: True for game in available_matchups}
+            else:
+                # Current week: only upcoming games selected by default
+                st.session_state.selected_games = {
+                    game: matchup_to_upcoming.get(game, True) for game in available_matchups
+                }
         
         # Update session state with any new stat types or games
         for stat in available_stat_types:
@@ -1419,7 +1707,22 @@ def main():
         
         for game in available_matchups:
             if game not in st.session_state.selected_games:
-                st.session_state.selected_games[game] = True
+                if is_historical:
+                    # Historical weeks: new games default to selected
+                    st.session_state.selected_games[game] = True
+                else:
+                    # Current week: new games default to selected only if they're upcoming
+                    st.session_state.selected_games[game] = matchup_to_upcoming.get(game, True)
+        
+        # Remove stat types and games that are no longer in the current week's data
+        # (Important when switching between weeks)
+        stats_to_remove = [stat for stat in st.session_state.selected_stat_types if stat not in available_stat_types]
+        for stat in stats_to_remove:
+            del st.session_state.selected_stat_types[stat]
+        
+        games_to_remove = [game for game in st.session_state.selected_games if game not in available_matchups]
+        for game in games_to_remove:
+            del st.session_state.selected_games[game]
         
         # Sidebar filters
         with st.sidebar:
@@ -1888,78 +2191,64 @@ def main():
         st.subheader("Plum Props by Game Time")
         st.caption("Props organized by when games are played (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night)")
         
-        # Load and process historical data for time windows to show past games (TNF, etc.)
-        historical_time_window_data = None
-        if not is_historical:
-            try:
-                current_week = get_current_week_from_schedule()
-                
-                # Load historical props from game_data folder
-                historical_props_df = load_historical_props_from_game_data(current_week)
-                
-                if not historical_props_df.empty:
-                    print(f"DEBUG: Loaded {len(historical_props_df)} historical props")
-                    # Update team assignments
-                    historical_props_df = odds_api.update_team_assignments(historical_props_df, data_processor)
+        with st.spinner("Loading props by game time..."):
+            # Load and process historical data for time windows to show past games (TNF, etc.)
+            historical_time_window_data = None
+            if not is_historical:
+                try:
+                    current_week = get_current_week_from_schedule()
                     
-                    # Process and score historical props through the same pipeline
-                    historical_stat_types = historical_props_df['Stat Type'].unique()
-                    print(f"DEBUG: Historical stat types: {historical_stat_types}")
-                    print(f"DEBUG: Historical props sample: {historical_props_df.head(2).to_dict()}")
-                    historical_all_props = process_props_and_score(
-                        historical_props_df, historical_stat_types, scorer, data_processor, 
-                        alt_line_manager, True, None  # fallback_used=True, no progress bar
-                    )
-                    print(f"DEBUG: Historical props after processing: {len(historical_all_props) if historical_all_props else 0}")
+                    # Load historical props from game_data folder
+                    historical_props_df = load_historical_props_from_game_data(current_week)
                     
-                    if historical_all_props:
-                        # Convert to DataFrame and add time window classification
-                        historical_time_window_data = pd.DataFrame(historical_all_props)
-                        historical_time_window_data['time_window'] = historical_time_window_data['Commence Time'].apply(classify_game_time_window)
-                        print(f"DEBUG: Processed {len(historical_time_window_data)} scored historical props")
-                        print(f"DEBUG: Time windows: {historical_time_window_data['time_window'].value_counts().to_dict()}")
-                    else:
-                        print("DEBUG: No historical props after processing")
-                else:
-                    print("DEBUG: No historical props loaded")
+                    if not historical_props_df.empty:
+                        # Update team assignments
+                        historical_props_df = odds_api.update_team_assignments(historical_props_df, data_processor)
                         
-            except Exception as e:
-                # Silently fail - historical data is optional
-                pass
-        
-        # Add time window classification to results_df if not already present
-        if 'time_window' not in results_df.columns:
-            results_df['time_window'] = results_df['Commence Time'].apply(classify_game_time_window)
-        
-        # Time windows to display
-        time_window_configs = [
-            ('TNF', 'Thursday Night Football', '🏈'),
-            ('SunAM', 'Sunday 1:00 PM ET', '🌅'),
-            ('SunPM', 'Sunday 4:00 PM ET', '☀️'),
-            ('SNF', 'Sunday Night Football', '🌙'),
-            ('MNF', 'Monday Night Football', '⭐')
-        ]
-        
-        for window_key, window_name, window_emoji in time_window_configs:
-            # Filter props for this time window from current data
-            window_df = results_df[results_df['time_window'] == window_key]
+                        # Process and score historical props through the same pipeline
+                        historical_stat_types = historical_props_df['Stat Type'].unique()
+                        historical_all_props = process_props_and_score(
+                            historical_props_df, historical_stat_types, scorer, data_processor, 
+                            alt_line_manager, True, None  # fallback_used=True, no progress bar
+                        )
+                        
+                        if historical_all_props:
+                            # Convert to DataFrame and add time window classification
+                            historical_time_window_data = pd.DataFrame(historical_all_props)
+                            historical_time_window_data['time_window'] = historical_time_window_data['Commence Time'].apply(classify_game_time_window)
+                            
+                except Exception as e:
+                    # Silently fail - historical data is optional
+                    pass
             
-            # If we have historical data, merge it for this time window
-            if historical_time_window_data is not None and not historical_time_window_data.empty:
-                historical_window_df = historical_time_window_data[historical_time_window_data['time_window'] == window_key]
-                if not historical_window_df.empty:
-                    print(f"DEBUG: Adding {len(historical_window_df)} historical props to {window_key}")
-                    # Combine current and historical data for this time window
-                    window_df = pd.concat([window_df, historical_window_df], ignore_index=True)
-                else:
-                    print(f"DEBUG: No historical props for {window_key}")
-            else:
-                print(f"DEBUG: No historical data available")
+            # Add time window classification to results_df if not already present
+            if 'time_window' not in results_df.columns:
+                results_df['time_window'] = results_df['Commence Time'].apply(classify_game_time_window)
             
-            if not window_df.empty:
-                with st.expander(f"{window_emoji} {window_name} ({len(window_df)} props)", expanded=False):
-                    st.markdown(f"**{window_name}**")
-                    display_time_window_strategies(window_df, filter_props_by_strategy, data_processor, is_historical)
+            # Time windows to display
+            time_window_configs = [
+                ('TNF', 'Thursday Night Football', '🏈'),
+                ('SunAM', 'Sunday 1:00 PM ET', '🌅'),
+                ('SunPM', 'Sunday 4:00 PM ET', '☀️'),
+                ('SNF', 'Sunday Night Football', '🌙'),
+                ('MNF', 'Monday Night Football', '⭐')
+            ]
+            
+            for window_key, window_name, window_emoji in time_window_configs:
+                # Filter props for this time window from current data
+                window_df = results_df[results_df['time_window'] == window_key]
+                
+                # If we have historical data, merge it for this time window
+                if historical_time_window_data is not None and not historical_time_window_data.empty:
+                    historical_window_df = historical_time_window_data[historical_time_window_data['time_window'] == window_key]
+                    if not historical_window_df.empty:
+                        # Combine current and historical data for this time window
+                        window_df = pd.concat([window_df, historical_window_df], ignore_index=True)
+                
+                if not window_df.empty:
+                    with st.expander(f"{window_emoji} {window_name} ({len(window_df)} props)", expanded=False):
+                        st.markdown(f"**{window_name}**")
+                        display_time_window_strategies(window_df, filter_props_by_strategy, data_processor, is_historical)
 
         # # ROI Performance Table (only for current week)
         # if not is_historical:
