@@ -10,8 +10,8 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 import pandas as pd
-from database_manager import DatabaseManager
-from database_models import Game
+from database.database_manager import DatabaseManager
+from database.database_models import Game
 import streamlit as st
 
 
@@ -206,7 +206,7 @@ class OddsAPIWithDB:
             True if we need to fetch fresh props for upcoming games, False otherwise
         """
         try:
-            from database_models import Game
+            from database.database_models import Game
             from datetime import datetime
             
             with self.db_manager.get_session() as session:

@@ -41,7 +41,7 @@ class EnhancedFootballDataProcessor:
         
         # Initialize database loader if using database
         if use_database:
-            from database_enhanced_data_processor import DatabaseBoxScoreLoader
+            from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
             self.db_loader = DatabaseBoxScoreLoader()
             print("🗄️ Using database for box score data loading")
         else:
@@ -62,11 +62,13 @@ class EnhancedFootballDataProcessor:
             self._load_historical_defensive_rankings()
         
         # Initialize position-specific defensive rankings (skip if requested)
+        # Note: In production, defensive ranks come from database, not calculated here
         if skip_calculations:
             self.position_defensive_rankings = None
         else:
-            self.position_defensive_rankings = PositionDefensiveRankings(data_dir="2025")
-            self.position_defensive_rankings.calculate_position_defensive_stats(max_week=self.max_week)
+            # This is only used for initial database population or testing
+            # In normal app usage, ranks are retrieved from database
+            self.position_defensive_rankings = None
         
     def _get_current_week(self) -> int:
         """Get current NFL week"""
@@ -983,11 +985,11 @@ class EnhancedFootballDataProcessor:
         if self.skip_calculations:
             # Load from database instead of calculating
             try:
-                from database_manager import DatabaseManager
+                from database.database_manager import DatabaseManager
                 db_manager = DatabaseManager()
                 
                 with db_manager.get_session() as session:
-                    from database_models import Prop
+                    from database.database_models import Prop
                     # Get the most recent prop for this team/stat combination
                     prop = session.query(Prop).filter(
                         Prop.opp_team == team,
@@ -1206,6 +1208,30 @@ class EnhancedFootballDataProcessor:
         
         if player_key and 'team' in self.player_season_stats[player_key]:
             return self.player_season_stats[player_key]['team']
+        
+        # Fallback: Check player_positions table for players without box score history
+        # (rookies, injured reserve, new signings, etc.)
+        try:
+            from database.database_manager import DatabaseManager
+            from database.database_models import PlayerPosition
+            
+            db_manager = DatabaseManager()
+            with db_manager.get_session() as session:
+                # Try exact match first
+                player_pos = session.query(PlayerPosition).filter(
+                    PlayerPosition.player == player
+                ).first()
+                
+                # Try cleaned name match if exact fails
+                if not player_pos:
+                    player_pos = session.query(PlayerPosition).filter(
+                        PlayerPosition.cleaned_name == cleaned_input
+                    ).first()
+                
+                if player_pos and player_pos.team:
+                    return player_pos.team
+        except Exception as e:
+            print(f"⚠️ Error looking up player team from database: {e}")
         
         return "Unknown"
     

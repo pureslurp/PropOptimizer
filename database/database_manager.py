@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from database_config import SessionLocal, engine
-from database_models import Base, Game, Prop, BoxScore, CacheMetadata
+from .database_config import SessionLocal, engine
+from .database_models import Base, Game, Prop, BoxScore, CacheMetadata
 from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
@@ -338,7 +338,13 @@ class DatabaseManager:
             for key, hist_props_list in historical_groups.items():
                 player, stat_type, bookmaker = key
                 
+                # PRESERVE defensive rank from existing props (if available)
+                existing_defensive_rank = None
                 if key in existing_groups:
+                    # Get defensive rank from first existing prop (they should all have same rank)
+                    if existing_groups[key] and existing_groups[key][0].team_pos_rank_stat_type:
+                        existing_defensive_rank = existing_groups[key][0].team_pos_rank_stat_type
+                    
                     # DELETE all existing props for this combo
                     for existing_prop in existing_groups[key]:
                         session.delete(existing_prop)
@@ -348,6 +354,51 @@ class DatabaseManager:
                 # ADD all historical props for this combo
                 for hist_prop in hist_props_list:
                     hist_prop['prop_source'] = 'historical_api'
+                    
+                    # PRESERVE defensive rank from existing prop if available
+                    if existing_defensive_rank and (hist_prop.get('team_pos_rank_stat_type') is None or 'team_pos_rank_stat_type' not in hist_prop):
+                        hist_prop['team_pos_rank_stat_type'] = existing_defensive_rank
+                        print(f"✅ Preserved rank {existing_defensive_rank} for {player} {stat_type}")
+                    elif not hist_prop.get('team_pos_rank_stat_type'):
+                        # No existing rank and no rank in historical prop - calculate it
+                        try:
+                            from position_defensive_ranks import PositionDefensiveRankings
+                            import tempfile
+                            import os
+                            
+                            # Get week from the prop
+                            prop_week = hist_prop.get('week', 7)  # Default to 7 if not specified
+                            
+                            # Create temporary directory for ranking calculation
+                            with tempfile.TemporaryDirectory() as temp_dir:
+                                # Export box score data for ranking calculation
+                                from .database_enhanced_data_processor import DatabaseBoxScoreLoader
+                                box_score_loader = DatabaseBoxScoreLoader()
+                                weeks_to_export = list(range(1, prop_week))  # Export weeks 1 through prop_week-1
+                                
+                                for week in weeks_to_export:
+                                    week_data = box_score_loader.load_week_data_from_db(week)
+                                    if not week_data.empty:
+                                        week_dir = os.path.join(temp_dir, f'WEEK{week}')
+                                        os.makedirs(week_dir, exist_ok=True)
+                                        week_data.to_csv(os.path.join(week_dir, 'box_scores.csv'), index=False)
+                                
+                                # Initialize ranking calculator
+                                rankings_calc = PositionDefensiveRankings(data_dir=temp_dir)
+                                
+                                # Calculate rank for this opponent/stat combination
+                                opp_team = hist_prop.get('opp_team_full', hist_prop.get('opp_team'))
+                                calculated_rank = rankings_calc.get_position_defensive_rank(
+                                    opp_team, stat_type, prop_week
+                                )
+                                
+                                hist_prop['team_pos_rank_stat_type'] = calculated_rank
+                                print(f"📊 Calculated rank {calculated_rank} for {player} vs {opp_team} {stat_type}")
+                        
+                        except Exception as e:
+                            print(f"⚠️ Error calculating defensive rank for {player} {stat_type}: {e}")
+                            hist_prop['team_pos_rank_stat_type'] = None
+                    
                     new_prop = Prop(**hist_prop)
                     session.add(new_prop)
                     added_count += 1
@@ -414,10 +465,17 @@ class DatabaseManager:
                 # 2. Are within 2 hours of starting OR have already started (commence_time <= current_time + 2 hours)
                 #    This ensures we fetch historical props as soon as they're available (at the 2-hour mark)
                 # 3. Haven't been merged yet (historical_merged = False)
+                # 4. Haven't been checked recently (last_historical_check is None or > 8 hours ago)
+                
+                eight_hours_ago = current_time - timedelta(hours=8)
                 games_needing_merge = session.query(Game).filter(
                     Game.week == week,
                     Game.commence_time <= two_hours_before_cutoff,
-                    Game.historical_merged == False
+                    Game.historical_merged == False,
+                    or_(
+                        Game.last_historical_check.is_(None),
+                        Game.last_historical_check <= eight_hours_ago
+                    )
                 ).all()
                 
                 if not games_needing_merge:
@@ -535,13 +593,16 @@ class DatabaseManager:
                                 Prop.prop_source == 'live_capture'
                             ).count()
                             
+                            # Update the last_historical_check timestamp
+                            game.last_historical_check = current_time
+                            
                             if remaining_live_props > 0:
                                 # Check how long ago the game started
                                 time_since_game = (current_time - game.commence_time).total_seconds() / 3600
                                 
                                 if time_since_game < 48:  # Less than 48 hours ago
-                                    print(f"  ⏰ {remaining_live_props} live_capture props remain - will retry (game started {time_since_game:.1f}h ago)")
-                                    # Don't mark as merged - keep trying
+                                    print(f"  ⏰ {remaining_live_props} live_capture props remain - will retry in 8h (game started {time_since_game:.1f}h ago)")
+                                    # Don't mark as merged - keep trying, but update timestamp
                                 else:
                                     print(f"  ⏰ {remaining_live_props} live_capture props remain, marking as merged (48h timeout)")
                                     game.historical_merged = True

@@ -10,8 +10,8 @@ import glob
 import toml
 import pandas as pd
 from datetime import datetime
-from database_manager import DatabaseManager
-from database_models import Prop
+from .database_manager import DatabaseManager
+from .database_models import Prop
 from enhanced_data_processor import EnhancedFootballDataProcessor
 from odds_api_with_db import OddsAPIWithDB
 
@@ -172,8 +172,8 @@ def populate_historical_database():
                                     game_week = 1
                                 
                                 if game_week == 1:
-                                    # Week 1: No historical data, use default rank
-                                    team_pos_rank = 16
+                                    # Week 1: No historical data, use NULL
+                                    team_pos_rank = None
                                 else:
                                     # Use data from previous weeks only
                                     max_week = game_week - 1

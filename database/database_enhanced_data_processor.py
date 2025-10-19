@@ -17,8 +17,8 @@ from utils import clean_player_name
 
 # Import the original processor and our database loader
 from enhanced_data_processor import EnhancedFootballDataProcessor
-from database_manager import DatabaseManager
-from database_models import BoxScore
+from .database_manager import DatabaseManager
+from .database_models import BoxScore
 
 class DatabaseBoxScoreLoader:
     """Load box score data from database instead of CSV files"""
@@ -215,11 +215,11 @@ class DatabaseEnhancedFootballDataProcessor(EnhancedFootballDataProcessor):
         if self.skip_calculations:
             # Use existing data from database instead of calculating
             try:
-                from database_manager import DatabaseManager
+                from .database_manager import DatabaseManager
                 db_manager = DatabaseManager()
                 
                 with db_manager.get_session() as session:
-                    from database_models import Prop
+                    from .database_models import Prop
                     # Get the most recent prop for this team/stat combination
                     prop = session.query(Prop).filter(
                         Prop.opp_team == team,

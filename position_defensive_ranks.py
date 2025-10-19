@@ -102,30 +102,29 @@ class PositionDefensiveRankings:
         }
     
     def _load_player_positions(self):
-        """Load player position data from CSV"""
+        """Load player position data from database"""
         try:
-            csv_path = os.path.join(self.data_dir, "player_positions.csv")
-            if os.path.exists(csv_path):
-                df = pd.read_csv(csv_path)
+            from database.database_manager import DatabaseManager
+            from database.database_models import PlayerPosition
+            
+            db_manager = DatabaseManager()
+            
+            with db_manager.get_session() as session:
+                # Get all player positions from database
+                positions = session.query(PlayerPosition).all()
                 
-                # Create a mapping from cleaned_name to position
-                for _, row in df.iterrows():
-                    cleaned_name = row['cleaned_name']
-                    position = row['position']
+                if positions:
+                    for player_pos in positions:
+                        self.player_positions[player_pos.cleaned_name] = player_pos.position
                     
-                    # Store the primary position (some players might have multiple positions)
-                    if cleaned_name not in self.player_positions:
-                        self.player_positions[cleaned_name] = position
-                    else:
-                        # If we already have this player, keep the first position found
-                        pass
-                
-                print(f"✅ Loaded {len(self.player_positions)} player positions")
-            else:
-                print(f"⚠️ Player positions file not found at {csv_path}")
+                    print(f"✅ Loaded {len(self.player_positions)} player positions from database")
+                else:
+                    print(f"⚠️ No player positions found in database")
+                    print(f"   Run: python3 scrape_player_positions_to_db.py")
                 
         except Exception as e:
-            print(f"❌ Error loading player positions: {e}")
+            print(f"⚠️ Could not load player positions from database: {e}")
+            print(f"   Player positions may not be available")
     
     def get_player_position(self, player_name: str) -> Optional[str]:
         """
@@ -192,7 +191,7 @@ class PositionDefensiveRankings:
             # Extract week number
             try:
                 week_num = int(week_folder.replace("WEEK", ""))
-                if max_week is not None and week_num > max_week:
+                if max_week is not None and week_num >= max_week:
                     continue
             except:
                 continue
@@ -259,11 +258,14 @@ class PositionDefensiveRankings:
                 players_with_position += 1
                 
                 # Find opposing team
+                # Normalize team names for comparison (game data uses underscores, box scores use spaces)
+                player_team_normalized = player_team.replace(' ', '_')
+                
                 opposing_team = None
                 for home_team, away_team in team_matchups.items():
-                    if player_team == home_team:
+                    if player_team_normalized == home_team:
                         opposing_team = away_team
-                    elif player_team == away_team:
+                    elif player_team_normalized == away_team:
                         opposing_team = home_team
                 
                 # If multiple matches found, we need to be more specific
@@ -470,9 +472,12 @@ class PositionDefensiveRankings:
         # Create position-specific stat key
         position_stat = f"{position}_{stat_type.replace(' ', '_')}_Allowed"
         
+        # Normalize team name (rankings use underscores, inputs may have spaces)
+        team_normalized = team.replace(' ', '_')
+        
         # Get ranking
         if position_stat in self.position_defensive_rankings:
-            return self.position_defensive_rankings[position_stat].get(team)
+            return self.position_defensive_rankings[position_stat].get(team_normalized)
         
         return None
     

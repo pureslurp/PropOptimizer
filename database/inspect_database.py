@@ -16,8 +16,8 @@ except Exception as e:
     print(f"❌ Error loading secrets: {e}")
     sys.exit(1)
 
-from database_manager import DatabaseManager
-from database_models import Game, Prop, BoxScore, CacheMetadata
+from .database_manager import DatabaseManager
+from .database_models import Game, Prop, BoxScore, CacheMetadata
 
 def inspect_database():
     """Inspect the database structure and data"""

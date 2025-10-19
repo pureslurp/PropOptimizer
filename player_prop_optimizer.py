@@ -29,6 +29,7 @@ from prop_strategies import (
     display_all_strategies,
     display_time_window_strategies
 )
+from database.database_models import Prop
 import warnings
 
 # Set page config
@@ -289,7 +290,7 @@ def get_available_historical_weeks():
     Get list of available historical weeks from database.
     This function is now deprecated - use DatabaseManager.get_available_weeks_from_db() instead.
     """
-    from database_manager import DatabaseManager
+    from database.database_manager import DatabaseManager
     db_manager = DatabaseManager()
     return db_manager.get_available_weeks_from_db()
 
@@ -582,7 +583,7 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
             all_props.append(scored_prop)
     
     # Load box score for actual results from database
-    from database_enhanced_data_processor import DatabaseBoxScoreLoader
+    from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
     box_score_loader = DatabaseBoxScoreLoader()
     box_score_df = box_score_loader.load_week_data_from_db(week_num)
     
@@ -924,7 +925,7 @@ def calculate_high_score_straight_bets_roi():
                     all_props.append(scored_prop)
             
             # Load box score for actual results from database
-            from database_enhanced_data_processor import DatabaseBoxScoreLoader
+            from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
             box_score_loader = DatabaseBoxScoreLoader()
             box_score_df = box_score_loader.load_week_data_from_db(week)
             
@@ -1127,7 +1128,7 @@ def main():
     current_week_temp = get_current_week_from_dates()
     
     # Get available weeks from database instead of CSV
-    from database_manager import DatabaseManager
+    from database.database_manager import DatabaseManager
     db_manager = DatabaseManager()
     historical_weeks = db_manager.get_available_weeks_from_db()
     
@@ -1249,7 +1250,7 @@ def main():
             progress_bar = st.progress(0, text="Loading player props data from database...")
             
             # Always load from database (both current and historical data)
-            from database_manager import DatabaseManager
+            from database.database_manager import DatabaseManager
             db_manager = DatabaseManager()
             
             if is_historical:
@@ -1340,9 +1341,15 @@ def main():
                     need_api_fetch = True
                     fetch_reason = "No upcoming games found in database"
                 elif not db_manager.is_data_fresh('props', max_age_hours=2):
-                    # Data exists but is stale - refresh from API
-                    need_api_fetch = True
-                    fetch_reason = "Database props are stale (> 2 hours old)"
+                    # Data exists but is stale - but only refresh if there are upcoming games
+                    if len(upcoming_props_df) > 0:
+                        need_api_fetch = True
+                        fetch_reason = "Database props are stale (> 2 hours old) for upcoming games"
+                    else:
+                        # No upcoming games, just use existing data (completed games)
+                        props_df = all_props_df  # Use all props including completed games
+                        progress_bar.progress(20, text=f"Using database props (no upcoming games to refresh)...")
+                        info_messages.append(('info', f"ℹ️ Loaded {len(props_df)} props from database (no upcoming games)"))
                 else:
                     # Fresh upcoming games found in database - use them!
                     props_df = upcoming_props_df
@@ -1382,38 +1389,86 @@ def main():
                                     progress_bar.progress(55, text="Updating team assignments...")
                                     props_df = odds_api.update_team_assignments(props_df, data_processor)
                                     
-                                    # Calculate defensive rankings for each prop
-                                    # Need to temporarily create a data processor with calculations enabled
-                                    progress_bar.progress(60, text="Calculating defensive rankings...")
-                                    # Note: EnhancedFootballDataProcessor is already imported at top of file
-                                    temp_processor = EnhancedFootballDataProcessor(
-                                        max_week=latest_week, 
-                                        use_database=True, 
-                                        skip_calculations=False  # Enable calculations to get rankings
-                                    )
+                                    # Look up defensive rankings from database (don't recalculate)
+                                    progress_bar.progress(60, text="Looking up defensive rankings from database...")
+                                    
+                                    # Get all unique opponent/stat combinations
+                                    unique_combos = props_df[['Opp. Team Full', 'Stat Type']].drop_duplicates()
+                                    rank_cache = {}
+                                    
+                                    with db_manager.get_session() as session:
+                                        for _, row in unique_combos.iterrows():
+                                            opp_team = row['Opp. Team Full']
+                                            stat_type = row['Stat Type']
+                                            
+                                            if pd.isna(opp_team) or opp_team == 'Unknown' or not opp_team:
+                                                continue
+                                            
+                                            # Look up rank from existing props, preferring:
+                                            # 1. Most recent calculated rank from any week
+                                            # 2. NULL if no rank found
+                                            
+                                            # Look for most recent calculated rank from any week
+                                            existing_prop = session.query(Prop).filter(
+                                                Prop.opp_team_full == opp_team,
+                                                Prop.stat_type == stat_type,
+                                                Prop.team_pos_rank_stat_type.isnot(None)
+                                            ).order_by(Prop.week.desc()).first()
+                                            
+                                            if existing_prop:
+                                                rank_cache[(opp_team, stat_type)] = existing_prop.team_pos_rank_stat_type
+                                            else:
+                                                # No rank found in database - calculate it now
+                                                try:
+                                                    from position_defensive_ranks import PositionDefensiveRankings
+                                                    import tempfile
+                                                    import os
+                                                    
+                                                    # Create temporary directory for ranking calculation
+                                                    with tempfile.TemporaryDirectory() as temp_dir:
+                                                        # Export box score data for ranking calculation
+                                                        box_score_exporter = data_processor.box_score_loader
+                                                        weeks_to_export = list(range(1, latest_week))  # Export weeks 1 through latest_week-1
+                                                        
+                                                        for week in weeks_to_export:
+                                                            week_data = box_score_exporter.load_week_data_from_db(week)
+                                                            if not week_data.empty:
+                                                                week_dir = os.path.join(temp_dir, f'WEEK{week}')
+                                                                os.makedirs(week_dir, exist_ok=True)
+                                                                week_data.to_csv(os.path.join(week_dir, 'box_scores.csv'), index=False)
+                                                        
+                                                        # Initialize ranking calculator
+                                                        rankings_calc = PositionDefensiveRankings(data_dir=temp_dir)
+                                                        
+                                                        # Calculate rank for this opponent/stat combination
+                                                        calculated_rank = rankings_calc.get_position_defensive_rank(
+                                                            opp_team, stat_type, latest_week
+                                                        )
+                                                        
+                                                        rank_cache[(opp_team, stat_type)] = calculated_rank
+                                                        print(f"📊 Calculated rank for {opp_team} {stat_type}: {calculated_rank}")
+                                                
+                                                except Exception as e:
+                                                    print(f"⚠️ Error calculating defensive rank for {opp_team} {stat_type}: {e}")
+                                                    rank_cache[(opp_team, stat_type)] = None
+                                    
+                                    # Apply ranks to props
                                     for idx in props_df.index:
-                                        player = props_df.at[idx, 'Player']
                                         opp_team = props_df.at[idx, 'Opp. Team Full']
                                         stat_type = props_df.at[idx, 'Stat Type']
                                         
                                         if pd.isna(opp_team) or opp_team == 'Unknown' or not opp_team:
                                             props_df.at[idx, 'team_pos_rank_stat_type'] = None
-                                            continue
-                                        
-                                        try:
-                                            # Use temp_processor to get defensive rank (it has position rankings loaded)
-                                            rank = temp_processor.get_position_defensive_rank(opp_team, player, stat_type)
+                                        else:
+                                            rank = rank_cache.get((opp_team, stat_type))
                                             props_df.at[idx, 'team_pos_rank_stat_type'] = rank
-                                        except Exception as e:
-                                            print(f"⚠️ Error calculating rank for {player} vs {opp_team}: {e}")
-                                            props_df.at[idx, 'team_pos_rank_stat_type'] = None
                                     
                                     # Add week number
                                     props_df['week'] = latest_week
                                     
                                     # Filter to only complete props (with all required fields)
+                                    # Note: team_pos_rank_stat_type can be None (not yet calculated)
                                     complete_props = props_df[
-                                        props_df['team_pos_rank_stat_type'].notna() & 
                                         props_df['week'].notna() &
                                         (props_df['Team'] != 'Unknown') &
                                         props_df['Team'].notna()
@@ -1452,12 +1507,16 @@ def main():
                                         
                                         # After storing new games, check if any need historical merge
                                         # (e.g., games starting soon that just got added)
+                                        # Check if there are games that need historical merge
                                         def update_merge_progress(prog, msg):
                                             # Map 0-10 progress to 66-69 range
                                             actual_progress = 66 + int((prog / 10) * 3)
                                             progress_bar.progress(actual_progress, text=msg)
                                         
-                                        db_manager.check_and_merge_historical_props(latest_week, odds_api=odds_api, progress_callback=update_merge_progress)
+                                        merge_result = db_manager.check_and_merge_historical_props(latest_week, odds_api=odds_api, progress_callback=update_merge_progress)
+                                        if merge_result.get('games_merged', 0) == 0:
+                                            progress_bar.progress(66, text="No games need historical merge...")
+                                            info_messages.append(('info', f"ℹ️ No games need historical merge"))
                                         
                                         # Use complete_props for display
                                         props_df = complete_props
@@ -1569,7 +1628,7 @@ def main():
                 progress_bar.progress(90, text="Loading actual results from database...")
                 
                 # Load box score data from database instead of CSV files
-                from database_enhanced_data_processor import DatabaseBoxScoreLoader
+                from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
                 box_score_loader = DatabaseBoxScoreLoader()
                 box_score_df = box_score_loader.load_week_data_from_db(selected_week)
                 
@@ -1646,6 +1705,44 @@ def main():
         
         # Prepare results dataframe
         results_df = pd.DataFrame(all_props)
+        
+        # Format 'Opp. Team' column to show abbreviations (e.g., "@ NYJ" or "vs LV")
+        # instead of full team names for cleaner display
+        team_abbrev_mapping = {
+            'Philadelphia Eagles': 'PHI', 'New York Giants': 'NYG', 'Dallas Cowboys': 'DAL',
+            'Washington Commanders': 'WAS', 'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA',
+            'Los Angeles Rams': 'LAR', 'Arizona Cardinals': 'ARI', 'Green Bay Packers': 'GB',
+            'Minnesota Vikings': 'MIN', 'Detroit Lions': 'DET', 'Chicago Bears': 'CHI',
+            'Tampa Bay Buccaneers': 'TB', 'New Orleans Saints': 'NO', 'Atlanta Falcons': 'ATL',
+            'Carolina Panthers': 'CAR', 'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV',
+            'Los Angeles Chargers': 'LAC', 'Denver Broncos': 'DEN', 'Buffalo Bills': 'BUF',
+            'Miami Dolphins': 'MIA', 'New England Patriots': 'NE', 'New York Jets': 'NYJ',
+            'Baltimore Ravens': 'BAL', 'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE',
+            'Pittsburgh Steelers': 'PIT', 'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND',
+            'Jacksonville Jaguars': 'JAX', 'Tennessee Titans': 'TEN'
+        }
+        
+        def format_opp_team_display(row):
+            """Format opponent team as '@ NYJ' or 'vs LV'"""
+            opp_team = row.get('Opp. Team', '')
+            player_team = row.get('Team', '')
+            home_team = row.get('Home Team', '')
+            
+            # If already formatted (starts with @ or vs), return as is
+            if isinstance(opp_team, str) and (opp_team.startswith('@') or opp_team.startswith('vs')):
+                return opp_team
+            
+            # Get abbreviation
+            opp_abbrev = team_abbrev_mapping.get(opp_team, opp_team)
+            
+            # Determine if home or away
+            if player_team == home_team:
+                return f"vs {opp_abbrev}"
+            else:
+                return f"@ {opp_abbrev}"
+        
+        if 'Opp. Team' in results_df.columns:
+            results_df['Opp. Team'] = results_df.apply(format_opp_team_display, axis=1)
         
         # Get available stat types
         available_stat_types = sorted(results_df['Stat Type'].unique())

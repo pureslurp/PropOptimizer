@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from database_config import Base
+from .database_config import Base
 from datetime import datetime
 
 class Game(Base):
@@ -56,6 +56,17 @@ class BoxScore(Base):
     week = Column(Integer, nullable=False)
     team = Column(String, nullable=True)  # Player's team
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class PlayerPosition(Base):
+    __tablename__ = "player_positions"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    player = Column(String, nullable=False, unique=True)
+    cleaned_name = Column(String, nullable=False, index=True)
+    position = Column(String, nullable=False)
+    team = Column(String, nullable=True)  # Current team
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class CacheMetadata(Base):
     __tablename__ = "cache_metadata"
