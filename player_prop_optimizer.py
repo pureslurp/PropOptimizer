@@ -583,7 +583,7 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
             all_props.append(scored_prop)
     
     # Load box score for actual results from database
-    from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
+    from database_enhanced_data_processor import DatabaseBoxScoreLoader
     box_score_loader = DatabaseBoxScoreLoader()
     box_score_df = box_score_loader.load_week_data_from_db(week_num)
     
@@ -925,7 +925,7 @@ def calculate_high_score_straight_bets_roi():
                     all_props.append(scored_prop)
             
             # Load box score for actual results from database
-            from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
+            from database_enhanced_data_processor import DatabaseBoxScoreLoader
             box_score_loader = DatabaseBoxScoreLoader()
             box_score_df = box_score_loader.load_week_data_from_db(week)
             
@@ -1628,7 +1628,7 @@ def main():
                 progress_bar.progress(90, text="Loading actual results from database...")
                 
                 # Load box score data from database instead of CSV files
-                from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
+                from database_enhanced_data_processor import DatabaseBoxScoreLoader
                 box_score_loader = DatabaseBoxScoreLoader()
                 box_score_df = box_score_loader.load_week_data_from_db(selected_week)
                 
