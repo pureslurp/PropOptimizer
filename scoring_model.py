@@ -12,6 +12,8 @@ class AdvancedPropScorer:
     
     def __init__(self, data_processor: EnhancedFootballDataProcessor):
         self.data_processor = data_processor
+        # Cache player statistics to avoid recalculating for every prop
+        self._player_stats_cache = {}
         
     def calculate_comprehensive_score(self, 
                                     player: str, 
@@ -20,7 +22,9 @@ class AdvancedPropScorer:
                                     line: float,
                                     odds: float = 0,
                                     home_team: str = None,
-                                    away_team: str = None) -> Dict:
+                                    away_team: str = None,
+                                    player_team: str = None,
+                                    team_rank: float = None) -> Dict:
         """
         Calculate a comprehensive score for a player prop
         
@@ -36,15 +40,18 @@ class AdvancedPropScorer:
         Returns:
             Dictionary with score breakdown and analysis
         """
-        # Get position-specific defensive ranking
-        # Try position-specific ranking first, fallback to general defensive ranking
-        team_rank = self.data_processor.get_position_defensive_rank(opposing_team, player, stat_type)
+        # Use pre-calculated values if provided (from database), otherwise calculate
         if team_rank is None:
-            # Fallback to general defensive ranking
-            team_rank = self.data_processor.get_team_defensive_rank(opposing_team, stat_type)
+            # Get position-specific defensive ranking
+            # Try position-specific ranking first, fallback to general defensive ranking
+            team_rank = self.data_processor.get_position_defensive_rank(opposing_team, player, stat_type)
+            if team_rank is None:
+                # Fallback to general defensive ranking
+                team_rank = self.data_processor.get_team_defensive_rank(opposing_team, stat_type)
         
-        # Get player's team and determine home/away status
-        player_team = self.data_processor.get_player_team(player)
+        # Get player's team (use provided value if available, otherwise lookup)
+        if player_team is None:
+            player_team = self.data_processor.get_player_team(player)
         week = None  # Initialize week variable
         
         # Determine if home game - use API data if available
@@ -56,14 +63,37 @@ class AdvancedPropScorer:
             week = self.data_processor.get_week_from_matchup(player_team, opposing_team)
             is_home = self.data_processor.is_home_game(player_team, week) if week else None
         
-        # Get player statistics (raw values, may be None)
-        season_over_rate_raw = self.data_processor.get_player_over_rate(player, stat_type, line)
-        l5_over_rate_raw = self.data_processor.get_player_last_n_over_rate(player, stat_type, line, n=5)
-        home_over_rate = self.data_processor.get_player_home_over_rate(player, stat_type, line)
-        away_over_rate = self.data_processor.get_player_away_over_rate(player, stat_type, line)
-        player_avg_raw = self.data_processor.get_player_average(player, stat_type)
-        player_consistency = self.data_processor.get_player_consistency(player, stat_type)
-        player_streak = self.data_processor.get_player_streak(player, stat_type, line)
+        # Get player statistics with caching to avoid recalculating for every prop
+        cache_key = (player, stat_type, line)
+        if cache_key in self._player_stats_cache:
+            cached_stats = self._player_stats_cache[cache_key]
+            season_over_rate_raw = cached_stats['season_over_rate']
+            l5_over_rate_raw = cached_stats['l5_over_rate']
+            home_over_rate = cached_stats['home_over_rate']
+            away_over_rate = cached_stats['away_over_rate']
+            player_avg_raw = cached_stats['player_avg']
+            player_consistency = cached_stats['player_consistency']
+            player_streak = cached_stats['player_streak']
+        else:
+            # Calculate and cache (raw values, may be None)
+            season_over_rate_raw = self.data_processor.get_player_over_rate(player, stat_type, line)
+            l5_over_rate_raw = self.data_processor.get_player_last_n_over_rate(player, stat_type, line, n=5)
+            home_over_rate = self.data_processor.get_player_home_over_rate(player, stat_type, line)
+            away_over_rate = self.data_processor.get_player_away_over_rate(player, stat_type, line)
+            player_avg_raw = self.data_processor.get_player_average(player, stat_type)
+            player_consistency = self.data_processor.get_player_consistency(player, stat_type)
+            player_streak = self.data_processor.get_player_streak(player, stat_type, line)
+            
+            # Cache the results
+            self._player_stats_cache[cache_key] = {
+                'season_over_rate': season_over_rate_raw,
+                'l5_over_rate': l5_over_rate_raw,
+                'home_over_rate': home_over_rate,
+                'away_over_rate': away_over_rate,
+                'player_avg': player_avg_raw,
+                'player_consistency': player_consistency,
+                'player_streak': player_streak
+            }
         
         # Create fallback values for calculations (use defaults if None)
         season_over_rate = season_over_rate_raw if season_over_rate_raw is not None else 0.5

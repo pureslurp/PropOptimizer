@@ -11,16 +11,24 @@ import json
 from datetime import datetime, timedelta
 import pickle
 # from dfs_box_scores import FootballDBScraper  # Not needed for production
-from simple_box_score_processor import process_box_score_simple, create_simplified_defensive_rankings, convert_to_defensive_yards
 from defensive_scraper import DefensiveScraper
 from position_defensive_ranks import PositionDefensiveRankings
 import warnings
 warnings.filterwarnings('ignore')
 
 class EnhancedFootballDataProcessor:
-    """Enhanced data processor that uses real FootballDB data"""
+    """Enhanced data processor that uses real FootballDB data with database support"""
     
-    def __init__(self, data_dir: str = "data", max_week: int = None):
+    def __init__(self, data_dir: str = "data", max_week: int = None, use_database: bool = True, skip_calculations: bool = False):
+        """
+        Initialize the data processor
+        
+        Args:
+            data_dir: Directory for cache files
+            max_week: Maximum week to include in calculations (None = all weeks)
+            use_database: If True, use database for box score data. If False, use CSV files.
+            skip_calculations: If True, skip expensive calculations like position defensive rankings
+        """
         self.data_dir = data_dir
         self.team_defensive_stats = {}
         self.historical_defensive_stats = {}  # Store historical defensive rankings
@@ -28,6 +36,18 @@ class EnhancedFootballDataProcessor:
         self.player_name_index = {}  # Index: cleaned_name -> actual_player_key
         self.current_week = self._get_current_week()
         self.max_week = max_week  # Used for filtering historical data (None = use all weeks)
+        self.use_database = use_database
+        self.skip_calculations = skip_calculations
+        
+        # Initialize database loader if using database
+        if use_database:
+            from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
+            self.db_loader = DatabaseBoxScoreLoader()
+            print("🗄️ Using database for box score data loading")
+        else:
+            self.db_loader = None
+            print("📁 Using CSV files for box score data loading (fallback mode)")
+        
         self.schedule_data = self._load_schedule()
         self.opponent_mapping = self._build_opponent_mapping_from_game_data()  # Build from game data
         
@@ -41,9 +61,14 @@ class EnhancedFootballDataProcessor:
         if self.max_week is not None:
             self._load_historical_defensive_rankings()
         
-        # Initialize position-specific defensive rankings
-        self.position_defensive_rankings = PositionDefensiveRankings(data_dir="2025")
-        self.position_defensive_rankings.calculate_position_defensive_stats(max_week=self.max_week)
+        # Initialize position-specific defensive rankings (skip if requested)
+        # Note: In production, defensive ranks come from database, not calculated here
+        if skip_calculations:
+            self.position_defensive_rankings = None
+        else:
+            # This is only used for initial database population or testing
+            # In normal app usage, ranks are retrieved from database
+            self.position_defensive_rankings = None
         
     def _get_current_week(self) -> int:
         """Get current NFL week"""
@@ -502,8 +527,34 @@ class EnhancedFootballDataProcessor:
         return opponent_map
     
     def scrape_week_data(self, week: int, force_refresh: bool = False) -> Dict[str, pd.DataFrame]:
-        """Load data for a specific week from existing files (no re-scraping)"""
-        print(f"📁 Loading Week {week} data from existing files...")
+        """Load data for a specific week from database or CSV files"""
+        
+        if self.use_database and self.db_loader:
+            print(f"🗄️ Loading Week {week} data from database...")
+            
+            try:
+                # Load from database
+                df = self.db_loader.load_week_data_from_db(week)
+                
+                if df.empty:
+                    print(f"⚠️ No data found for Week {week} in database, falling back to CSV")
+                    return self._load_from_csv_fallback(week)
+                
+                print(f"✅ Loaded {len(df)} players from database")
+                # Process the data into our format (same as original)
+                return self._process_scraped_data(df, week)
+                
+            except Exception as e:
+                print(f"❌ Error loading Week {week} from database: {e}")
+                print("📁 Falling back to CSV files...")
+                return self._load_from_csv_fallback(week)
+        else:
+            # Use original CSV-based loading
+            return self._load_from_csv_fallback(week)
+    
+    def _load_from_csv_fallback(self, week: int) -> Dict[str, pd.DataFrame]:
+        """Fallback method to load data from CSV files (original behavior)"""
+        print(f"📁 Loading Week {week} data from CSV files...")
         
         try:
             week_path = f"2025/WEEK{week}"
@@ -518,7 +569,7 @@ class EnhancedFootballDataProcessor:
                     print(f"⚠️ No data found in {box_score_file}")
                     return {}
                 
-                print(f"✅ Loaded {len(master_df)} players from existing data")
+                print(f"✅ Loaded {len(master_df)} players from CSV")
                 # Process the data into our format
                 return self._process_scraped_data(master_df, week)
             else:
@@ -527,7 +578,7 @@ class EnhancedFootballDataProcessor:
                 return {}
                     
         except Exception as e:
-            print(f"❌ Error loading Week {week} data: {e}")
+            print(f"❌ Error loading Week {week} from CSV: {e}")
             return {}
     
     def _process_scraped_data(self, master_df: pd.DataFrame, week: int) -> Dict[str, pd.DataFrame]:
@@ -931,7 +982,29 @@ class EnhancedFootballDataProcessor:
         Returns:
             Defensive ranking (1 = worst defense, higher = better defense) or None
         """
-        if hasattr(self, 'position_defensive_rankings'):
+        if self.skip_calculations:
+            # Load from database instead of calculating
+            try:
+                from database.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
+                
+                with db_manager.get_session() as session:
+                    from database.database_models import Prop
+                    # Get the most recent prop for this team/stat combination
+                    prop = session.query(Prop).filter(
+                        Prop.opp_team == team,
+                        Prop.stat_type == stat_type,
+                        Prop.team_pos_rank_stat_type.isnot(None)
+                    ).first()
+                    
+                    if prop and prop.team_pos_rank_stat_type:
+                        return prop.team_pos_rank_stat_type
+                    
+                return None
+            except Exception as e:
+                print(f"⚠️ Error getting defensive rank from database: {e}")
+                return None
+        elif hasattr(self, 'position_defensive_rankings') and self.position_defensive_rankings:
             return self.position_defensive_rankings.get_position_defensive_rank(team, player_name, stat_type)
         return None
     
@@ -1135,6 +1208,30 @@ class EnhancedFootballDataProcessor:
         
         if player_key and 'team' in self.player_season_stats[player_key]:
             return self.player_season_stats[player_key]['team']
+        
+        # Fallback: Check player_positions table for players without box score history
+        # (rookies, injured reserve, new signings, etc.)
+        try:
+            from database.database_manager import DatabaseManager
+            from database.database_models import PlayerPosition
+            
+            db_manager = DatabaseManager()
+            with db_manager.get_session() as session:
+                # Try exact match first
+                player_pos = session.query(PlayerPosition).filter(
+                    PlayerPosition.player == player
+                ).first()
+                
+                # Try cleaned name match if exact fails
+                if not player_pos:
+                    player_pos = session.query(PlayerPosition).filter(
+                        PlayerPosition.cleaned_name == cleaned_input
+                    ).first()
+                
+                if player_pos and player_pos.team:
+                    return player_pos.team
+        except Exception as e:
+            print(f"⚠️ Error looking up player team from database: {e}")
         
         return "Unknown"
     
@@ -1520,3 +1617,25 @@ class EnhancedFootballDataProcessor:
                 'player_season': os.path.exists(self._get_cache_file("player_season"))
             }
         }
+    
+    def get_available_weeks_from_db(self) -> List[int]:
+        """Get list of weeks available in the database"""
+        if self.use_database and self.db_loader:
+            try:
+                return self.db_loader.get_available_weeks()
+            except Exception as e:
+                print(f"❌ Error getting available weeks from database: {e}")
+                return []
+        else:
+            # Fallback to file system check
+            available_weeks = []
+            for week in range(1, 19):  # Check weeks 1-18
+                box_score_file = f"2025/WEEK{week}/box_score_debug.csv"
+                if os.path.exists(box_score_file):
+                    available_weeks.append(week)
+            return available_weeks
+    
+    def close(self):
+        """Close database connections"""
+        if hasattr(self, 'db_loader') and self.db_loader:
+            self.db_loader.close()

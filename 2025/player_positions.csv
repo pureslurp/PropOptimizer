@@ -140,6 +140,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Ayers, Michael",Michael Ayers,michael ayers,LB,Winnipeg Blue Bombers,Ashland,/players/michael-ayers-ayersmi01
 "Ayomanor, Elic",Elic Ayomanor,elic ayomanor,WR,Tennessee Titans,Stanford,
 "Baccellia, Andre",Andre Baccellia,andre baccellia,WR,Arizona Cardinals,Washington,/players/andre-baccellia-baccean01
+"Bachie, Joe",Joe Bachie,joe bachie,LB,Tennessee Titans,Michigan State,/players/joe-bachie-bachijo01
 "Bachman, Alex",Alex Bachman,alex bachman,WR,Las Vegas Raiders,Wake Forest,/players/alex-bachman-bachmal01
 "Badgley, Michael",Michael Badgley,michael badgley,K,Indianapolis Colts,Miami,/players/michael-badgley-badglmi01
 "Badie, Tyler",Tyler Badie,tyler badie,RB,Denver Broncos,Missouri,/players/tyler-badie-badiety01
@@ -376,7 +377,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Brissett, Dejon",Dejon Brissett,dejon brissett,WR,Toronto Argonauts,Virginia,/players/dejon-brissett-brissde01
 "Brissett, Jacoby",Jacoby Brissett,jacoby brissett,QB,Arizona Cardinals,North Carolina State,/players/jacoby-brissett-brissja01
 "Britt, K.J.",K.J. Britt,kj britt,LB,Miami Dolphins,Auburn,/players/kj-britt-brittkj01
-"Broden, Tyrone",Tyrone Broden,tyrone broden,WR,Seattle Seahawks,Arkansas,/players/tyrone-broden-brodety01
 "Brodrique, Michael",Michael Brodrique,michael brodrique,LB,Edmonton Elks,Montreal,/players/michael-brodrique-brodrmi01
 "Broeker, Nick",Nick Broeker,nick broeker,OG,Buffalo Bills,Mississippi,/players/nick-broeker-broekni01
 "Brooks, Antoine",Antoine Brooks,antoine brooks,LB,Saskatchewan Roughriders,Maryland,/players/antoine-brooks-brookan01
@@ -462,6 +462,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Burke, Patrick",Patrick Burke,patrick burke,DB,Hamilton Tiger-Cats,Wilfrid Laurier,/players/patrick-burke-burkepa03
 "Burke, Thomas",Thomas Burke,thomas burke,TE,Memphis Showboats,College of New Jersey,/players/thomas-burke-burketh01
 "Burks, Oren",Oren Burks,oren burks,LB,Cincinnati Bengals,Vanderbilt,/players/oren-burks-burksor01
+"Burks, Treylon",Treylon Burks,treylon burks,WR,Washington Commanders,Arkansas,/players/treylon-burks-burkstr01
 "Burnett, Deontay",Deontay Burnett,deontay burnett,WR,Arlington Renegades,Southern California,/players/deontay-burnett-burnede01
 "Burns, Artie",Artie Burns,artie burns,DB,Miami Dolphins,Miami,/players/artie-burns-burnsar01
 "Burns, Brian",Brian Burns,brian burns,LB,New York Giants,Florida State,/players/brian-burns-burnsbr01
@@ -588,6 +589,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Chubb, Bradley",Bradley Chubb,bradley chubb,LB,Miami Dolphins,North Carolina State,/players/bradley-chubb-chubbbr02
 "Chubb, Nick",Nick Chubb,nick chubb,RB,Houston Texans,Georgia,/players/nick-chubb-chubbni01
 "Chukwuma, Ben",Ben Chukwuma,ben chukwuma,OT,Tampa Bay Buccaneers,Georgia State,/players/ben-chukwuma-chukwbe01
+"Ciarlo, Jimmy",Jimmy Ciarlo,jimmy ciarlo,LB,Buffalo Bills,Army,/players/jimmy-ciarlo-ciarlji01
 "Cibasu, Régis",Régis Cibasu,régis cibasu,WR,Montreal Alouettes,Montreal,/players/regis-cibasu-cibasre01
 "Ciraco, Darius",Darius Ciraco,darius ciraco,OL,Toronto Argonauts,Calgary,/players/darius-ciraco-ciracda01
 "Cisco, Andre",Andre Cisco,andre cisco,DB,New York Jets,Syracuse,/players/andre-cisco-ciscoan01
@@ -665,7 +667,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Cooper, Darius",Darius Cooper,darius cooper,WR,Philadelphia Eagles,Tarleton State,/players/darius-cooper-coopeda01
 "Cooper, Edgerrin",Edgerrin Cooper,edgerrin cooper,LB,Green Bay Packers,Texas A&M,/players/edgerrin-cooper-coopeed01
 "Cooper, Jonathon",Jonathon Cooper,jonathon cooper,LB,Denver Broncos,Ohio State,/players/jonathon-cooper-coopejo08
-"Cooper, Keith",Keith Cooper,keith cooper,DT,Detroit Lions,Houston,/players/keith-cooper-coopeke02
 "Copeland, Marquise",Marquise Copeland,marquise copeland,DT,Hamilton Tiger-Cats,Cincinnati,/players/marquise-copeland-copelma01
 "Corbett, Austin",Austin Corbett,austin corbett,C,Carolina Panthers,Nevada,/players/austin-corbett-corbeau01
 "Corbin, Jashaun",Jashaun Corbin,jashaun corbin,RB,New England Patriots,Florida State,/players/jashaun-corbin-corbija01
@@ -700,6 +701,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Crawford, Kitan",Kitan Crawford,kitan crawford,DB,Arizona Cardinals,Nevada,
 "Crawshaw, Jeremy",Jeremy Crawshaw,jeremy crawshaw,P,Denver Broncos,Florida,
 "Crenshaw-Dickson, Brandon",Brandon Crenshaw-Dickson,brandon crenshaw-dickson,OT,Tennessee Titans,Florida,/players/brandon-crenshawdickson-crensbr01
+"Cropper, Jalen",Jalen Cropper,jalen cropper,WR,Dallas Cowboys,Fresno State,/players/jalen-cropper-croppja01
 "Crosby, Maxx",Maxx Crosby,maxx crosby,DE,Las Vegas Raiders,Eastern Michigan,/players/maxx-crosby-crosbma02
 "Croskey-Merritt, Jacory",Jacory Croskey-Merritt,jacory croskey-merritt,RB,Washington Commanders,Arizona,/players/jacory-croskeymerritt-merrija01
 "Cross, Charles",Charles Cross,charles cross,OT,Seattle Seahawks,Mississippi State,/players/charles-cross-crossch02
@@ -1080,7 +1082,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Garber, Keenan",Keenan Garber,keenan garber,DB,Indianapolis Colts,Kansas State,/players/keenan-garber-garbeke01
 "Garbutt, TyJuan",TyJuan Garbutt,tyjuan garbutt,DL,Hamilton Tiger-Cats,Virginia Tech,/players/tyjuan-garbutt-garbuty01
 "Garcia, Antonio",Antonio Garcia,antonio garcia,OT,Winnipeg Blue Bombers,Troy State,/players/antonio-garcia-garcian01
-"Garcia, Elijah",Elijah Garcia,elijah garcia,DT,New York Giants,Rice,/players/elijah-garcia-garciel01
 "Gardeck, Dennis",Dennis Gardeck,dennis gardeck,LB,Jacksonville Jaguars,Sioux Falls,/players/dennis-gardeck-gardede01
 "Gardner, Ahmad",Ahmad Gardner,ahmad gardner,DB,New York Jets,Cincinnati,/players/ahmad-gardner-gardnah01
 "Gardner, Ferrod",Ferrod Gardner,ferrod gardner,DB,DC Defenders,Louisiana-Lafayette,/players/ferrod-gardner-gardnfe01
@@ -1393,7 +1394,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Holm, Evan",Evan Holm,evan holm,DB,Winnipeg Blue Bombers,North Dakota,/players/evan-holm-holmev01
 "Holmes, Darnay",Darnay Holmes,darnay holmes,DB,Las Vegas Raiders,UCLA,/players/darnay-holmes-holmeda07
 "Holmes, Des",Des Holmes,des holmes,OL,Montreal Alouettes,Arizona State,/players/des-holmes-holmede01
-"Holmes, Jalyn",Jalyn Holmes,jalyn holmes,DE,Washington Commanders,Ohio State,/players/jalyn-holmes-holmeja03
 "Holskey, Reid",Reid Holskey,reid holskey,OG,New York Giants,Miami (OH),/players/reid-holskey-holskre01
 "Homer, Travis",Travis Homer,travis homer,RB,Chicago Bears,Miami,/players/travis-homer-homertr01
 "Hood, Delonte",Delonte Hood,delonte hood,DB,Toronto Argonauts,Peru State,/players/delonte-hood-hoodde01
@@ -1815,7 +1815,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Landry, Harold",Harold Landry,harold landry,LB,New England Patriots,Boston College,/players/harold-landry-landrha01
 "Lane, Jaylin",Jaylin Lane,jaylin lane,WR,Washington Commanders,Virginia Tech,
 "Lane, Rayuan",Rayuan Lane,rayuan lane,DB,Jacksonville Jaguars,Navy,
-"Lang, Marshall",Marshall Lang,marshall lang,TE,New England Patriots,Northwestern,/players/marshall-lang-langma02
 "Langan, Ryan",Ryan Langan,ryan langan,LS,Birmingham Stallions,Georgia Southern,/players/ryan-langan-langary01
 "Langlais, William",William Langlais,william langlais,RB,Calgary Stampeders,Sherbrooke,/players/william-langlais-langlwi02
 "Lanier, Anthony",Anthony Lanier,anthony lanier,DE,Toronto Argonauts,Alabama A&M,/players/anthony-lanier-laniean01
@@ -1990,7 +1989,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Martin, Keyon",Keyon Martin,keyon martin,DB,Baltimore Ravens,Louisiana-Lafayette,/players/keyon-martin-martike04
 "Martin, Nickolas",Nickolas Martin,nickolas martin,LB,San Francisco 49ers,Oklahoma State,
 "Martin, Sam",Sam Martin,sam martin,P,Carolina Panthers,Appalachian State,/players/sam-martin-martisa03
-"Martin, Tay",Tay Martin,tay martin,WR,Washington Commanders,Oklahoma State,/players/tay-martin-martita01
 "Martin-Robinson, David",David Martin-Robinson,david martin-robinson,TE,Tennessee Titans,Temple,/players/david-martinrobinson-martida05
 "Martin-Scott, Bam",Bam Martin-Scott,bam martin-scott,LB,Carolina Panthers,South Carolina,/players/bam-martinscott-martiba01
 "Martinez, Adrian",Adrian Martinez,adrian martinez,QB,San Francisco 49ers,Kansas State,/players/adrian-martinez-martiad02
@@ -2254,7 +2252,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Murchison, Larrell",Larrell Murchison,larrell murchison,DE,Los Angeles Rams,North Carolina State,/players/larrell-murchison-murchla01
 "Murphy, Byron",Byron Murphy,byron murphy,DB,Minnesota Vikings,Washington,/players/byron-murphy-murphby01
 "Murphy, Byron",Byron Murphy,byron murphy,DT,Seattle Seahawks,Texas,/players/byron-murphy-murphby02
-"Murphy, Caleb",Caleb Murphy,caleb murphy,LB,Los Angeles Chargers,Ferris State,/players/caleb-murphy-murphca01
 "Murphy, Gabriel",Gabriel Murphy,gabriel murphy,LB,Minnesota Vikings,UCLA,/players/gabriel-murphy-murphga01
 "Murphy, Myles",Myles Murphy,myles murphy,DE,Cincinnati Bengals,Clemson,/players/myles-murphy-murphmy01
 "Murphy-Bunting, Sean",Sean Murphy-Bunting,sean murphy-bunting,DB,Arizona Cardinals,Central Michigan,/players/sean-murphybunting-buntise01
@@ -2356,6 +2353,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Odeyingbo, Dayo",Dayo Odeyingbo,dayo odeyingbo,DE,Chicago Bears,Vanderbilt,/players/dayo-odeyingbo-odeyida02
 "Odighizuwa, Osa",Osa Odighizuwa,osa odighizuwa,DT,Dallas Cowboys,UCLA,/players/osa-odighizuwa-odighos01
 "Odom, Chris",Chris Odom,chris odom,DE,Arlington Renegades,Arkansas State,/players/chris-odom-odomch01
+"Odukoya, Thomas",Thomas Odukoya,thomas odukoya,TE,New England Patriots,Eastern Michigan,/players/thomas-odukoya-odukoth01
 "Odunze, Rome",Rome Odunze,rome odunze,WR,Chicago Bears,Washington,/players/rome-odunze-odunzro01
 "Ogbah, Emmanuel",Emmanuel Ogbah,emmanuel ogbah,LB,Jacksonville Jaguars,Oklahoma State,/players/emmanuel-ogbah-ogbahem01
 "Ogbongbemiga, Amen",Amen Ogbongbemiga,amen ogbongbemiga,LB,Chicago Bears,Oklahoma State,/players/amen-ogbongbemiga-ogbonam01
@@ -2386,7 +2384,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Oladejo, Femi",Femi Oladejo,femi oladejo,LB,Tennessee Titans,UCLA,
 "Oladokun, Chris",Chris Oladokun,chris oladokun,QB,Kansas City Chiefs,South Dakota State,/players/chris-oladokun-oladoch01
 "Oladokun, Jordan",Jordan Oladokun,jordan oladokun,DB,Los Angeles Chargers,Bowling Green,/players/jordan-oladokun-oladojo01
-"Olajiga, David",David Olajiga,david olajiga,DT,New England Patriots,Central Missouri State,/players/david-olajiga-olajida01
 "Olave, Chris",Chris Olave,chris olave,WR,New Orleans Saints,Ohio State,/players/chris-olave-olavech01
 "Oliveira, Brady",Brady Oliveira,brady oliveira,RB,Winnipeg Blue Bombers,North Dakota,/players/brady-oliveira-olivebr02
 "Oliver, Bryce",Bryce Oliver,bryce oliver,WR,Tennessee Titans,Youngstown State,/players/bryce-oliver-olivebr03
@@ -2450,7 +2447,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Parsons, Micah",Micah Parsons,micah parsons,DE,Green Bay Packers,Penn State,/players/micah-parsons-parsomi01
 "Paschal, Joshua",Joshua Paschal,joshua paschal,DE,Detroit Lions,Kentucky,/players/joshua-paschal-paschjo01
 "Patrick, Aaron",Aaron Patrick,aaron patrick,LB,Saskatchewan Roughriders,Eastern Kentucky,/players/aaron-patrick-patriaa01
-"Patrick, Lucas",Lucas Patrick,lucas patrick,C,Cincinnati Bengals,Duke,/players/lucas-patrick-patrilu01
+"Patrick, Lucas",Lucas Patrick,lucas patrick,OG,Cincinnati Bengals,Duke,/players/lucas-patrick-patrilu01
 "Patrick, Tim",Tim Patrick,tim patrick,WR,Jacksonville Jaguars,Utah,/players/tim-patrick-patriti01
 "Patterson, Jaret",Jaret Patterson,jaret patterson,RB,Los Angeles Chargers,Buffalo,/players/jaret-patterson-patteja03
 "Patterson, Jarrett",Jarrett Patterson,jarrett patterson,C,Houston Texans,Notre Dame,/players/jarrett-patterson-patteja04
@@ -2608,7 +2605,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Ray, Shane",Shane Ray,shane ray,DL,Saskatchewan Roughriders,Missouri,/players/shane-ray-raysh01
 "Raymond, Kalif",Kalif Raymond,kalif raymond,WR,Detroit Lions,Holy Cross,/players/kalif-raymond-raymokh01
 "Reader, D.J.",D.J. Reader,dj reader,DT,Detroit Lions,Clemson,/players/dj-reader-readedj01
-"Reagor, Jalen",Jalen Reagor,jalen reagor,WR,Los Angeles Chargers,Texas Christian,/players/jalen-reagor-reagoja01
 "Reaves, Greg",Greg Reaves,greg reaves,LB,Toronto Argonauts,South Florida,/players/greg-reaves-reavegr01
 "Reaves, Jeremy",Jeremy Reaves,jeremy reaves,DB,Washington Commanders,South Alabama,/players/jeremy-reaves-reaveje01
 "Reavis, C.J.",C.J. Reavis,cj reavis,LB,Saskatchewan Roughriders,Marshall,/players/cj-reavis-reavicj01
@@ -2695,13 +2691,12 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Robinson, Dominique",Dominique Robinson,dominique robinson,LB,Chicago Bears,Miami (OH),/players/dominique-robinson-robindo05
 "Robinson, Jaden",Jaden Robinson,jaden robinson,DB,Denver Broncos,Oregon State,/players/jaden-robinson-robinja13
 "Robinson, Jakob",Jakob Robinson,jakob robinson,DB,San Francisco 49ers,Brigham Young,/players/jakob-robinson-robinja14
-"Robinson, Jammie",Jammie Robinson,jammie robinson,DB,Kansas City Chiefs,Florida State,/players/jammie-robinson-robinja11
+"Robinson, Jammie",Jammie Robinson,jammie robinson,DB,Detroit Lions,Florida State,/players/jammie-robinson-robinja11
 "Robinson, Janarius",Janarius Robinson,janarius robinson,DE,Kansas City Chiefs,Florida State,/players/janarius-robinson-robinja10
 "Robinson, Jevoni",Jevoni Robinson,jevoni robinson,TE,Hamilton Tiger-Cats,Barry,/players/jevoni-robinson-robinje06
 "Robinson, Keilan",Keilan Robinson,keilan robinson,RB,New York Jets,Texas,/players/keilan-robinson-robinke06
 "Robinson, Kenny",Kenny Robinson,kenny robinson,DB,Birmingham Stallions,West Virginia,/players/kenny-robinson-robinke05
 "Robinson, Lance",Lance Robinson,lance robinson,DB,Calgary Stampeders,Tulane,/players/lance-robinson-robinla05
-"Robinson, Mark",Mark Robinson,mark robinson,LB,New York Jets,Mississippi,/players/mark-robinson-robinma09
 "Robinson, Marquise",Marquise Robinson,marquise robinson,DB,Baltimore Ravens,Arkansas,/players/marquise-robinson-robinma10
 "Robinson, Micah",Micah Robinson,micah robinson,DB,Green Bay Packers,Tulane,
 "Robinson, Quandarrius",Quandarrius Robinson,quandarrius robinson,LB,Denver Broncos,Alabama,
@@ -2760,6 +2755,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Russell, Keith",Keith Russell,keith russell,OL,Michigan Panthers,Missouri Western State,/players/keith-russell-russeke04
 "Ryan, Sean",Sean Ryan,sean ryan,WR,Montreal Alouettes,Rutgers,/players/sean-ryan-ryanse02
 "Ryland, Chad",Chad Ryland,chad ryland,K,Arizona Cardinals,Maryland,/players/chad-ryland-rylanch01
+"Rypien, Brett",Brett Rypien,brett rypien,QB,Indianapolis Colts,Boise State,/players/brett-rypien-rypiebr01
 "Saad, Ali",Ali Saad,ali saad,DL,Saskatchewan Roughriders,Bowling Green,/players/ali-saad-saadal01
 "Sagapolu, Olive",Olive Sagapolu,olive sagapolu,DT,Houston Roughnecks,Wisconsin,/players/olive-sagapolu-sagapol01
 "Sainristil, Mike",Mike Sainristil,mike sainristil,DB,Washington Commanders,Michigan,/players/mike-sainristil-sainrmi01
@@ -2831,6 +2827,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Scott, Niles",Niles Scott,niles scott,DT,DC Defenders,Frostburg State,/players/niles-scott-scottni01
 "Scott, Stevie",Stevie Scott,stevie scott,RB,Montreal Alouettes,Indiana,/players/stevie-scott-scottst02
 "Scott, Trenton",Trenton Scott,trenton scott,OT,Washington Commanders,Grambling,/players/trenton-scott-scotttr03
+"Scott, Tyler",Tyler Scott,tyler scott,WR,Seattle Seahawks,Cincinnati,/players/tyler-scott-scottty03
 "Scott, Tyrone",Tyrone Scott,tyrone scott,WR,DC Defenders,Missouri State,/players/tyrone-scott-scottty04
 "Scott, Zavier",Zavier Scott,zavier scott,RB,Minnesota Vikings,Maine,/players/zavier-scott-scottza01
 "Scourton, Nic",Nic Scourton,nic scourton,LB,Carolina Panthers,Texas A&M,
@@ -3027,6 +3024,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Strange, Cole",Cole Strange,cole strange,OG,Miami Dolphins,Tennessee-Chattanooga,/players/cole-strange-stranco01
 "Street, Kentavius",Kentavius Street,kentavius street,DT,Atlanta Falcons,North Carolina State,/players/kentavius-street-streeke01
 "Streveler, Chris",Chris Streveler,chris streveler,QB,Winnipeg Blue Bombers,South Dakota,/players/chris-streveler-strevch01
+"Strickland, Loren",Loren Strickland,loren strickland,DB,Detroit Lions,Ball State,/players/loren-strickland-striclo01
 "Striggow, Danny",Danny Striggow,danny striggow,DE,Jacksonville Jaguars,Minnesota,/players/danny-striggow-strigda01
 "Strnad, Justin",Justin Strnad,justin strnad,LB,Denver Broncos,Wake Forest,/players/justin-strnad-strnaju01
 "Stromberg, Ricky",Ricky Stromberg,ricky stromberg,C,Chicago Bears,Arkansas,/players/ricky-stromberg-stromri02
@@ -3085,6 +3083,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Taylor, Jawaan",Jawaan Taylor,jawaan taylor,OT,Kansas City Chiefs,Florida,/players/jawaan-taylor-tayloja08
 "Taylor, Jonathan",Jonathan Taylor,jonathan taylor,RB,Indianapolis Colts,Wisconsin,/players/jonathan-taylor-taylojo07
 "Taylor, Keith",Keith Taylor,keith taylor,DB,Atlanta Falcons,Washington,/players/keith-taylor-tayloke07
+"Taylor, Leonard",Leonard Taylor,leonard taylor,DT,New England Patriots,Miami,/players/leonard-taylor-taylole05
 "Taylor, Levonta",Levonta Taylor,levonta taylor,DB,Michigan Panthers,Florida State,/players/levonta-taylor-taylole03
 "Taylor, Mason",Mason Taylor,mason taylor,TE,New York Jets,Louisiana State,
 "Taylor, Noah",Noah Taylor,noah taylor,DL,Edmonton Elks,North Carolina,/players/noah-taylor-taylono01
@@ -3130,7 +3129,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Thomas, Solomon",Solomon Thomas,solomon thomas,DT,Dallas Cowboys,Stanford,/players/solomon-thomas-thomaso01
 "Thomas, Starling",Starling Thomas,starling thomas,DB,Arizona Cardinals,Alabama-Birmingham,/players/starling-thomas-thomast04
 "Thomas, Tavierre",Tavierre Thomas,tavierre thomas,DB,Minnesota Vikings,Ferris State,/players/tavierre-thomas-thomata01
-"Thomas, Thayer",Thayer Thomas,thayer thomas,WR,Denver Broncos,North Carolina State,/players/thayer-thomas-thomath02
+"Thomas, Trevian",Trevian Thomas,trevian thomas,DB,Carolina Panthers,Arkansas State,/players/trevian-thomas-thomatr08
 "Thomas, Xavier",Xavier Thomas,xavier thomas,LB,Arizona Cardinals,Clemson,/players/xavier-thomas-thomaxa01
 "Thomas-Erlington, Sean",Sean Thomas-Erlington,sean thomas-erlington,RB,Montreal Alouettes,Montreal,/players/sean-thomaserlington-thomase03
 "Thompkins, Deven",Deven Thompkins,deven thompkins,WR,Atlanta Falcons,Utah State,/players/deven-thompkins-thompde06
@@ -3147,6 +3146,7 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Throckmorton, Calvin",Calvin Throckmorton,calvin throckmorton,OG,Denver Broncos,Oregon,/players/calvin-throckmorton-throcca01
 "Thuney, Joe",Joe Thuney,joe thuney,OG,Chicago Bears,North Carolina State,/players/joe-thuney-thunejo01
 "Thurman, Jameer",Jameer Thurman,jameer thurman,LB,Saskatchewan Roughriders,Indiana State,/players/jameer-thurman-thurmja01
+"Tieide, Ezechiel",Ezechiel Tieide,ezechiel tieide,WR,Toronto Argonauts,Concordia (Quebec),/players/ezechiel-tieide-tieidez01
 "Tillery, Jerry",Jerry Tillery,jerry tillery,DT,Kansas City Chiefs,Notre Dame,/players/jerry-tillery-tilleje01
 "Tillery, JoJo",JoJo Tillery,jojo tillery,DB,Birmingham Stallions,Wofford,/players/jojo-tillery-tillejo02
 "Tillman, Cedric",Cedric Tillman,cedric tillman,WR,Cleveland Browns,Tennessee,/players/cedric-tillman-tillmce02
@@ -3231,7 +3231,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Uwazurike, Eyioma",Eyioma Uwazurike,eyioma uwazurike,DT,Denver Broncos,Iowa State,/players/eyioma-uwazurike-uwazuey01
 "Vaki, Sione",Sione Vaki,sione vaki,RB,Detroit Lions,Utah,/players/sione-vaki-vakisi01
 "Valcarcel, Nate",Nate Valcarcel,nate valcarcel,DB,Los Angeles Rams,Northern Illinois,/players/nate-valcarcel-valcana01
-"Valdes-Scantling, Marquez",Marquez Valdes-Scantling,marquez valdes-scantling,WR,San Francisco 49ers,South Florida,/players/marquez-valdesscantling-valdema01
 "Valdez, Sebastian",Sebastian Valdez,sebastian valdez,DE,San Francisco 49ers,Washington,/players/sebastian-valdez-valdese01
 "Valentine, Carrington",Carrington Valentine,carrington valentine,DB,Green Bay Packers,Kentucky,/players/carrington-valentine-valenca01
 "Van Demark, Ryan",Ryan Van Demark,ryan van demark,OT,Buffalo Bills,Connecticut,/players/ryan-van-demark-vandery01
@@ -3465,7 +3464,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Williams, Tyleik",Tyleik Williams,tyleik williams,DT,Detroit Lions,Ohio State,
 "Williams, Zack",Zack Williams,zack williams,OL,Calgary Stampeders,Manitoba,/players/zack-williams-williza02
 "Williamson, Kendall",Kendall Williamson,kendall williamson,DB,Los Angeles Chargers,Stanford,/players/kendall-williamson-willike21
-"Willis, Brayden",Brayden Willis,brayden willis,TE,San Francisco 49ers,Oklahoma,/players/brayden-willis-willibr23
 "Willis, Malik",Malik Willis,malik willis,QB,Green Bay Packers,Liberty,/players/malik-willis-willima31
 "Wilson, Cedrick",Cedrick Wilson,cedrick wilson,WR,Miami Dolphins,Boise State,/players/cedrick-wilson-wilsoce02
 "Wilson, Donovan",Donovan Wilson,donovan wilson,DB,Dallas Cowboys,Texas A&M,/players/donovan-wilson-wilsodo03
@@ -3522,7 +3520,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Wooden, Isaiah",Isaiah Wooden,isaiah wooden,WR,Hamilton Tiger-Cats,Southern Utah,/players/isaiah-wooden-woodeis01
 "Woodmansey, Coulter",Coulter Woodmansey,coulter woodmansey,OL,Hamilton Tiger-Cats,Guelph (Canada),/players/coulter-woodmansey-woodmco01
 "Woodruff, Kory",Kory Woodruff,kory woodruff,OL,British Columbia Lions,Pittsburg State,/players/kory-woodruff-woodrko01
-"Woods, A.J.",A.J. Woods,aj woods,DB,Denver Broncos,Pittsburgh,/players/aj-woods-woodsaj01
 "Woods, Charles",Charles Woods,charles woods,DB,New England Patriots,Southern Methodist,/players/charles-woods-woodsch03
 "Woods, Jamal",Jamal Woods,jamal woods,DT,Winnipeg Blue Bombers,Illinois,/players/jamal-woods-woodsja01
 "Woods, Jelani",Jelani Woods,jelani woods,TE,New York Jets,Virginia,/players/jelani-woods-woodsje03
@@ -3543,7 +3540,6 @@ raw_name,formatted_name,cleaned_name,position,team,college,url
 "Wright, Darnell",Darnell Wright,darnell wright,OT,Chicago Bears,Tennessee,/players/darnell-wright-wrighda06
 "Wright, Jacardia",Jacardia Wright,jacardia wright,RB,Seattle Seahawks,Missouri State,/players/jacardia-wright-wrighja09
 "Wright, Jaylen",Jaylen Wright,jaylen wright,RB,Miami Dolphins,Tennessee,/players/jaylen-wright-wrighja08
-"Wright, Matthew",Matthew Wright,matthew wright,K,Tennessee Titans,Central Florida,/players/matthew-wright-wrighma04
 "Wright, Nahshon",Nahshon Wright,nahshon wright,DB,Chicago Bears,Oregon State,/players/nahshon-wright-wrighna02
 "Wright, Owen",Owen Wright,owen wright,RB,Tampa Bay Buccaneers,Monmouth,/players/owen-wright-wrighow01
 "Wright, Rejzohn",Rejzohn Wright,rejzohn wright,DB,New Orleans Saints,Oregon State,/players/rejzohn-wright-wrighre01
