@@ -14,6 +14,7 @@ class Game(Base):
     season = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     historical_merged = Column(Boolean, default=False)  # Track if historical props have been merged
+    last_historical_check = Column(DateTime, nullable=True)  # Track when historical props were last checked
     
     # Relationship
     props = relationship("Prop", back_populates="game")

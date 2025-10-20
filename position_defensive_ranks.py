@@ -196,10 +196,13 @@ class PositionDefensiveRankings:
             except:
                 continue
             
-            box_score_path = os.path.join(self.data_dir, week_folder, "box_score_debug.csv")
+            # Try both possible filenames
+            box_score_path = os.path.join(self.data_dir, week_folder, "box_scores.csv")
             if not os.path.exists(box_score_path):
-                print(f"No box score data for {week_folder}")
-                continue
+                box_score_path = os.path.join(self.data_dir, week_folder, "box_score_debug.csv")
+                if not os.path.exists(box_score_path):
+                    print(f"No box score data for {week_folder}")
+                    continue
             
             print(f"Processing {week_folder}...")
             self._process_week_box_score(box_score_path)
@@ -464,6 +467,10 @@ class PositionDefensiveRankings:
         Returns:
             Defensive ranking (1 = best defense, higher = worse defense) or None
         """
+        # Calculate defensive stats if they haven't been calculated yet
+        if not self.position_defensive_rankings:
+            self.calculate_position_defensive_stats()
+        
         # Get player position
         position = self.get_player_position(player_name)
         if position is None:

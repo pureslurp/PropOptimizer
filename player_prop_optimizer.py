@@ -292,6 +292,8 @@ def get_available_historical_weeks():
     """
     from database.database_manager import DatabaseManager
     db_manager = DatabaseManager()
+    # Ensure database schema is up to date
+    db_manager.migrate_database()
     return db_manager.get_available_weeks_from_db()
 
 
@@ -1358,7 +1360,6 @@ def main():
                 
                 # Fetch from API if needed
                 if need_api_fetch:
-                    st.info(f"📡 {fetch_reason}. Fetching fresh odds from API...")
                     progress_bar.progress(30, text="Fetching fresh odds from API...")
                     
                     try:
@@ -1517,6 +1518,9 @@ def main():
                                         if merge_result.get('games_merged', 0) == 0:
                                             progress_bar.progress(66, text="No games need historical merge...")
                                             info_messages.append(('info', f"ℹ️ No games need historical merge"))
+                                        else:
+                                            # Add transparency note about historical odds timing
+                                            info_messages.append(('info', f"ℹ️ Historical odds are based on 2 hours before game time for consistency"))
                                         
                                         # Use complete_props for display
                                         props_df = complete_props
@@ -1529,25 +1533,27 @@ def main():
                                         st.error("❌ No complete props to store after processing")
                                         st.stop()
                                 else:
+                                    # API returned data but no props could be processed - use database
                                     if not all_props_df.empty:
-                                        st.warning("⚠️ No props found in API response. Using database data as fallback.")
                                         props_df = all_props_df.copy()
+                                        info_messages.append(('info', f"ℹ️ API returned no processable props, using database data ({len(props_df)} props)"))
                                     else:
                                         st.error("❌ No props found in API response and no data in database.")
                                         st.stop()
                             else:
+                                # API call failed - use database
                                 if not all_props_df.empty:
-                                    st.warning("⚠️ Failed to fetch odds from API. Using database data as fallback.")
                                     props_df = all_props_df.copy()
+                                    info_messages.append(('info', f"ℹ️ API fetch failed, using database data ({len(props_df)} props)"))
                                 else:
                                     st.error("❌ Failed to fetch odds from API and no data in database.")
                                     st.stop()
                                 
                     except Exception as e:
+                        # API error - use database
                         if not all_props_df.empty:
-                            st.warning(f"⚠️ Error fetching fresh odds from API: {e}")
-                            st.info("ℹ️ Falling back to database data...")
                             props_df = all_props_df.copy()
+                            info_messages.append(('info', f"ℹ️ API error: {str(e)[:50]}..., using database data ({len(props_df)} props)"))
                         else:
                             st.error(f"❌ Error fetching fresh odds from API: {e}")
                             st.error("No data in database to fall back to.")
@@ -2289,30 +2295,33 @@ def main():
         st.caption("Props organized by when games are played (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night)")
         
         with st.spinner("Loading props by game time..."):
-            # Load and process historical data for time windows to show past games (TNF, etc.)
-            historical_time_window_data = None
+            # Load ALL props for the current week from database (past and future games)
+            all_week_props_df = None
             if not is_historical:
                 try:
                     current_week = get_current_week_from_schedule()
                     
-                    # Load historical props from game_data folder
-                    historical_props_df = load_historical_props_from_game_data(current_week)
+                    # Load ALL props for the current week from database
+                    from database.database_manager import DatabaseManager
+                    db_manager = DatabaseManager()
+                    all_week_props_df = db_manager.get_props_as_dataframe(week=current_week, upcoming_only=False)
                     
-                    if not historical_props_df.empty:
+                    if not all_week_props_df.empty:
                         # Update team assignments
-                        historical_props_df = odds_api.update_team_assignments(historical_props_df, data_processor)
+                        all_week_props_df = odds_api.update_team_assignments(all_week_props_df, data_processor)
                         
-                        # Process and score historical props through the same pipeline
-                        historical_stat_types = historical_props_df['Stat Type'].unique()
-                        historical_all_props = process_props_and_score(
-                            historical_props_df, historical_stat_types, scorer, data_processor, 
+                        # Process and score ALL week props through the same pipeline
+                        all_week_stat_types = all_week_props_df['Stat Type'].unique()
+                        
+                        all_week_all_props = process_props_and_score(
+                            all_week_props_df, all_week_stat_types, scorer, data_processor, 
                             alt_line_manager, True, None  # fallback_used=True, no progress bar
                         )
                         
-                        if historical_all_props:
+                        if all_week_all_props:
                             # Convert to DataFrame and add time window classification
-                            historical_time_window_data = pd.DataFrame(historical_all_props)
-                            historical_time_window_data['time_window'] = historical_time_window_data['Commence Time'].apply(classify_game_time_window)
+                            all_week_props_df = pd.DataFrame(all_week_all_props)
+                            all_week_props_df['time_window'] = all_week_props_df['Commence Time'].apply(classify_game_time_window)
                             
                 except Exception as e:
                     # Silently fail - historical data is optional
@@ -2335,12 +2344,15 @@ def main():
                 # Filter props for this time window from current data
                 window_df = results_df[results_df['time_window'] == window_key]
                 
-                # If we have historical data, merge it for this time window
-                if historical_time_window_data is not None and not historical_time_window_data.empty:
-                    historical_window_df = historical_time_window_data[historical_time_window_data['time_window'] == window_key]
-                    if not historical_window_df.empty:
-                        # Combine current and historical data for this time window
-                        window_df = pd.concat([window_df, historical_window_df], ignore_index=True)
+                # If we have all week data, merge it for this time window to show past games
+                if all_week_props_df is not None and not all_week_props_df.empty:
+                    all_week_window_df = all_week_props_df[all_week_props_df['time_window'] == window_key]
+                    
+                    if not all_week_window_df.empty:
+                        # Combine current and all week data for this time window
+                        window_df = pd.concat([window_df, all_week_window_df], ignore_index=True)
+                        # Remove duplicates based on player, stat type, and line
+                        window_df = window_df.drop_duplicates(subset=['Player', 'Stat Type', 'Line'], keep='first')
                 
                 if not window_df.empty:
                     with st.expander(f"{window_emoji} {window_name} ({len(window_df)} props)", expanded=False):

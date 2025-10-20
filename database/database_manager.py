@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from contextlib import contextmanager
 from .database_config import SessionLocal, engine
 from .database_models import Base, Game, Prop, BoxScore, CacheMetadata
 from datetime import datetime, timedelta
@@ -10,8 +11,13 @@ class DatabaseManager:
         self.engine = engine
         self.SessionLocal = SessionLocal
     
+    @contextmanager
     def get_session(self):
-        return self.SessionLocal()
+        session = self.SessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
     
     def init_database(self):
         """Create all tables"""
@@ -23,8 +29,37 @@ class DatabaseManager:
             print(f"❌ Error creating database tables: {e}")
             return False
     
+    def migrate_database(self):
+        """Run database migrations to ensure schema is up to date"""
+        try:
+            from sqlalchemy import text
+            
+            with self.get_session() as session:
+                # Check if last_historical_check column exists in games table
+                result = session.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'games' 
+                    AND column_name = 'last_historical_check'
+                """))
+                
+                if not result.fetchone():
+                    print("🔄 Adding missing last_historical_check column...")
+                    session.execute(text("""
+                        ALTER TABLE games 
+                        ADD COLUMN last_historical_check TIMESTAMP
+                    """))
+                    session.commit()
+                    print("✅ Added last_historical_check column")
+                else:
+                    print("✅ last_historical_check column already exists")
+                    
+        except Exception as e:
+            print(f"⚠️ Migration warning: {e}")
+            # Continue anyway - this might be expected for some database types
+    
     def is_data_fresh(self, data_type: str, max_age_hours: int = 2) -> bool:
-        """Check if cached data is still fresh"""
+        """Check if cached data is still fresh with automatic corruption detection"""
         try:
             with self.get_session() as session:
                 cache_entry = session.query(CacheMetadata).filter(
@@ -33,6 +68,18 @@ class DatabaseManager:
                 
                 if not cache_entry:
                     return False
+                
+                # Check for corruption: expires_at should be after last_updated
+                if cache_entry.expires_at <= cache_entry.last_updated:
+                    print(f"⚠️ Detected corrupted cache metadata for {data_type}")
+                    print(f"   last_updated: {cache_entry.last_updated}")
+                    print(f"   expires_at: {cache_entry.expires_at}")
+                    print(f"   Auto-fixing corruption...")
+                    
+                    # Auto-fix the corruption
+                    cache_entry.expires_at = cache_entry.last_updated + timedelta(hours=max_age_hours)
+                    session.commit()
+                    print(f"✅ Auto-fixed corrupted cache metadata for {data_type}")
                 
                 return datetime.utcnow() < cache_entry.expires_at
         except Exception as e:
@@ -132,11 +179,15 @@ class DatabaseManager:
             return []
     
     def update_cache_metadata(self, data_type: str, record_count: int, max_age_hours: int = 2):
-        """Update cache metadata"""
+        """Update cache metadata with validation to prevent corruption"""
         try:
             with self.get_session() as session:
                 now = datetime.utcnow()
                 expires_at = now + timedelta(hours=max_age_hours)
+                
+                # Validate that expires_at is actually in the future
+                if expires_at <= now:
+                    raise ValueError(f"Invalid expiration time: expires_at ({expires_at}) must be after now ({now})")
                 
                 cache_entry = CacheMetadata(
                     data_type=data_type,
@@ -146,9 +197,54 @@ class DatabaseManager:
                 )
                 session.merge(cache_entry)
                 session.commit()
-                print(f"✅ Updated cache metadata for {data_type}")
+                
+                # Verify the data was stored correctly
+                stored_entry = session.query(CacheMetadata).filter(
+                    CacheMetadata.data_type == data_type
+                ).first()
+                
+                if stored_entry and stored_entry.expires_at <= stored_entry.last_updated:
+                    raise ValueError(f"Cache metadata corruption detected: expires_at ({stored_entry.expires_at}) <= last_updated ({stored_entry.last_updated})")
+                
+                print(f"✅ Updated cache metadata for {data_type} (expires in {max_age_hours} hours)")
         except Exception as e:
             print(f"❌ Error updating cache metadata: {e}")
+            raise
+    
+    def fix_corrupted_cache_metadata(self):
+        """Detect and fix corrupted cache metadata entries"""
+        try:
+            with self.get_session() as session:
+                corrupted_entries = []
+                
+                # Find all cache entries where expires_at <= last_updated
+                all_entries = session.query(CacheMetadata).all()
+                for entry in all_entries:
+                    if entry.expires_at <= entry.last_updated:
+                        corrupted_entries.append(entry)
+                        print(f"🔧 Found corrupted cache entry: {entry.data_type}")
+                        print(f"   last_updated: {entry.last_updated}")
+                        print(f"   expires_at: {entry.expires_at}")
+                
+                if corrupted_entries:
+                    print(f"🔧 Fixing {len(corrupted_entries)} corrupted cache entries...")
+                    
+                    for entry in corrupted_entries:
+                        # Set expires_at to 2 hours after last_updated
+                        fixed_expires_at = entry.last_updated + timedelta(hours=2)
+                        entry.expires_at = fixed_expires_at
+                        print(f"   Fixed {entry.data_type}: expires_at = {fixed_expires_at}")
+                    
+                    session.commit()
+                    print(f"✅ Fixed {len(corrupted_entries)} corrupted cache entries")
+                    return len(corrupted_entries)
+                else:
+                    print("✅ No corrupted cache entries found")
+                    return 0
+                    
+        except Exception as e:
+            print(f"❌ Error fixing corrupted cache metadata: {e}")
+            return -1
     
     def get_fresh_props(self, week: int = None):
         """Get fresh props data, checking cache first"""
@@ -296,9 +392,52 @@ class DatabaseManager:
             
             if not existing_props:
                 print(f"  ⚠️ No existing props to merge for game {game_id}")
-                # Just add all historical props as new
+                # Add all historical props as new, but calculate defensive ranks properly
                 for hist_prop in historical_props:
                     hist_prop['prop_source'] = 'historical_api'
+                    
+                    # Calculate defensive rank for new historical props
+                    if not hist_prop.get('team_pos_rank_stat_type'):
+                        try:
+                            from position_defensive_ranks import PositionDefensiveRankings
+                            import tempfile
+                            import os
+                            
+                            # Get week from the prop
+                            prop_week = hist_prop.get('week', 7)  # Default to 7 if not specified
+                            player = hist_prop.get('player', '')
+                            stat_type = hist_prop.get('stat_type', '')
+                            
+                            # Create temporary directory for ranking calculation
+                            with tempfile.TemporaryDirectory() as temp_dir:
+                                # Export box score data for ranking calculation
+                                from .database_enhanced_data_processor import DatabaseBoxScoreLoader
+                                box_score_loader = DatabaseBoxScoreLoader()
+                                weeks_to_export = list(range(1, prop_week))  # Export weeks 1 through prop_week-1
+                                
+                                for week in weeks_to_export:
+                                    week_data = box_score_loader.load_week_data_from_db(week)
+                                    if not week_data.empty:
+                                        week_dir = os.path.join(temp_dir, f'WEEK{week}')
+                                        os.makedirs(week_dir, exist_ok=True)
+                                        week_data.to_csv(os.path.join(week_dir, 'box_scores.csv'), index=False)
+                                
+                                # Initialize ranking calculator
+                                rankings_calc = PositionDefensiveRankings(data_dir=temp_dir)
+                                
+                                # Calculate rank for this opponent/stat combination
+                                opp_team = hist_prop.get('opp_team_full', hist_prop.get('opp_team'))
+                                calculated_rank = rankings_calc.get_position_defensive_rank(
+                                    opp_team, stat_type, prop_week
+                                )
+                                
+                                hist_prop['team_pos_rank_stat_type'] = calculated_rank
+                                print(f"📊 Calculated rank {calculated_rank} for new historical prop: {player} vs {opp_team} {stat_type}")
+                        
+                        except Exception as e:
+                            print(f"⚠️ Error calculating defensive rank for new historical prop {player} {stat_type}: {e}")
+                            hist_prop['team_pos_rank_stat_type'] = None
+                    
                     new_prop = Prop(**hist_prop)
                     session.add(new_prop)
                 # Don't commit here - let the outer function handle it
@@ -355,12 +494,12 @@ class DatabaseManager:
                 for hist_prop in hist_props_list:
                     hist_prop['prop_source'] = 'historical_api'
                     
-                    # PRESERVE defensive rank from existing prop if available
-                    if existing_defensive_rank and (hist_prop.get('team_pos_rank_stat_type') is None or 'team_pos_rank_stat_type' not in hist_prop):
+                    # PRIORITY 1: Use existing defensive rank from live_capture props (if available)
+                    if existing_defensive_rank is not None:
                         hist_prop['team_pos_rank_stat_type'] = existing_defensive_rank
-                        print(f"✅ Preserved rank {existing_defensive_rank} for {player} {stat_type}")
-                    elif not hist_prop.get('team_pos_rank_stat_type'):
-                        # No existing rank and no rank in historical prop - calculate it
+                        print(f"✅ Preserved existing rank {existing_defensive_rank} for {player} {stat_type}")
+                    else:
+                        # PRIORITY 2: Calculate defensive rank if no existing rank
                         try:
                             from position_defensive_ranks import PositionDefensiveRankings
                             import tempfile
@@ -458,19 +597,18 @@ class DatabaseManager:
         try:
             with self.get_session() as session:
                 current_time = datetime.utcnow()
-                two_hours_before_cutoff = current_time + timedelta(hours=2)
                 
                 # Find games that:
                 # 1. Are in the specified week
-                # 2. Are within 2 hours of starting OR have already started (commence_time <= current_time + 2 hours)
-                #    This ensures we fetch historical props as soon as they're available (at the 2-hour mark)
+                # 2. Have already started (commence_time <= current_time) - only completed games
+                #    This ensures we only fetch historical props for games that are finished
                 # 3. Haven't been merged yet (historical_merged = False)
                 # 4. Haven't been checked recently (last_historical_check is None or > 8 hours ago)
                 
                 eight_hours_ago = current_time - timedelta(hours=8)
                 games_needing_merge = session.query(Game).filter(
                     Game.week == week,
-                    Game.commence_time <= two_hours_before_cutoff,
+                    Game.commence_time <= current_time,  # Only completed games
                     Game.historical_merged == False,
                     or_(
                         Game.last_historical_check.is_(None),

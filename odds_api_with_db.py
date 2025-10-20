@@ -271,13 +271,13 @@ class OddsAPIWithDB:
         except Exception as e:
             print(f"❌ Error storing props to database: {e}")
     
-    def get_player_props_with_cache(self, sport: str = "americanfootball_nfl", num_events: int = 5, week: int = None) -> List[Dict]:
+    def get_player_props_with_cache(self, sport: str = "americanfootball_nfl", num_events: int = None, week: int = None) -> List[Dict]:
         """
         Fetch NFL events for player props with database caching
         
         Args:
             sport: Sport key (default: americanfootball_nfl)
-            num_events: Optional limit on number of events to return
+            num_events: Optional limit on number of events to return (None = all events)
             week: Week number for caching
             
         Returns:
@@ -300,14 +300,14 @@ class OddsAPIWithDB:
                 return self._convert_df_to_api_format(props_df)
             return []
     
-    def get_player_props(self, sport: str = "americanfootball_nfl", num_events: int = 5) -> List[Dict]:
+    def get_player_props(self, sport: str = "americanfootball_nfl", num_events: int = None) -> List[Dict]:
         """
         Fetch NFL events for player props (OPTIMIZED: only gets event IDs, not main props)
         Main props are fetched via alternate lines endpoint to save API calls
         
         Args:
             sport: Sport key (default: americanfootball_nfl)
-            num_events: Optional limit on number of events to return (default: None = all events)
+            num_events: Optional limit on number of events to return (None = all events)
         
         Returns:
             List of event dictionaries
@@ -402,7 +402,7 @@ class OddsAPIWithDB:
         OPTIMIZED: Fetch ALL alternate lines for ALL stat types in one pass
         
         This makes 1 API call per game instead of 1 call per stat type per game
-        Reduces API calls from ~35 to ~5 per refresh!
+        Reduces API calls significantly by fetching all stat types at once!
         
         Args:
             bookmaker: The bookmaker to use (default: 'fanduel')
@@ -954,12 +954,8 @@ class OddsAPIWithDB:
                                 event_data.get('away_team', '')
                             )
                             
-                            # Get defensive rank
+                            # Get defensive rank - let the merge logic handle rank preservation/calculation
                             team_rank = None
-                            try:
-                                team_rank = data_processor.get_position_defensive_rank(opp_team_full, player, stat_type)
-                            except:
-                                pass
                             
                             prop_dict = {
                                 'game_id': game_id,

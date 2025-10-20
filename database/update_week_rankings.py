@@ -4,18 +4,22 @@ Update defensive rankings for a specific week
 """
 
 import sys
-from .database_manager import DatabaseManager
-from .database_models import Prop
-import tempfile
 import os
+import tempfile
 import shutil
 import json
+
+# Add the parent directory to the path to allow imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from database.database_manager import DatabaseManager
+from database.database_models import Prop
 
 def export_database_to_csv(weeks, temp_dir):
     """Export database box scores to CSV format for position rankings calculation"""
     print(f"📥 Exporting weeks {weeks} from database...")
     
-    from .database_enhanced_data_processor import DatabaseBoxScoreLoader
+    from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
     db_loader = DatabaseBoxScoreLoader()
     
     for week in weeks:
