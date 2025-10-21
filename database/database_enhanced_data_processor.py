@@ -175,10 +175,10 @@ class DatabaseEnhancedFootballDataProcessor(EnhancedFootballDataProcessor):
     Inherits all functionality from the original processor but overrides data loading methods
     """
     
-    def __init__(self, data_dir: str = "data", max_week: int = None, use_database: bool = True, skip_calculations: bool = False):
-        self.use_database = use_database
+    def __init__(self, data_dir: str = "data", max_week: int = None, skip_calculations: bool = False):
+        self.use_database = True  # Always use database now
         self.skip_calculations = skip_calculations
-        self.db_loader = DatabaseBoxScoreLoader() if use_database else None
+        self.db_loader = DatabaseBoxScoreLoader()  # Always use database loader
         
         if skip_calculations:
             # Custom initialization that skips expensive calculations
@@ -205,10 +205,7 @@ class DatabaseEnhancedFootballDataProcessor(EnhancedFootballDataProcessor):
             # Initialize parent class normally (this will load cached data and other initialization)
             super().__init__(data_dir, max_week)
         
-        if use_database:
-            print("🗄️ Using database for box score data loading")
-        else:
-            print("📁 Using CSV files for box score data loading (fallback mode)")
+        print("🗄️ Using database for box score data loading")
     
     def get_position_defensive_rank(self, team: str, player_name: str, stat_type: str) -> int:
         """Get position-specific defensive ranking from existing database data"""

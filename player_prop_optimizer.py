@@ -29,7 +29,7 @@ from prop_strategies import (
     display_all_strategies,
     display_time_window_strategies
 )
-from database.database_models import Prop
+from database.database_models import Prop, Game
 import warnings
 
 # Set page config
@@ -45,176 +45,10 @@ st.set_page_config(
 # Removed - now using get_available_weeks_with_data() from week_utils
 
 
-def load_props_from_csv(week_num):
-    """
-    DEPRECATED: Load props data from CSV file for a specific week
-    This function is deprecated. Use database_manager.get_props_as_dataframe() instead.
-    Returns DataFrame in the same format as API props_df
-    """
-    import warnings
-    warnings.warn("load_props_from_csv is deprecated. Use database_manager.get_props_as_dataframe() instead.", DeprecationWarning, stacklevel=2)
-    props_file = f"2025/WEEK{week_num}/props.csv"
-    
-    if not os.path.exists(props_file):
-        return pd.DataFrame()
-    
-    try:
-        df = pd.read_csv(props_file)
-        
-        # Convert CSV format to match API props format
-        # CSV has: week,saved_date,Player,Team,Opp. Team,Stat Type,Line,Odds,Bookmaker,Commence Time,is_alternate,Market,Home Team,Away Team
-        # We need the same structure as parse_player_props returns
-        
-        # Rename/select columns to match expected format
-        if not df.empty:
-            # Handle is_alternate column - CSV may have empty strings
-            if 'is_alternate' in df.columns:
-                df['is_alternate'] = df['is_alternate'].fillna(False)
-                df['is_alternate'] = df['is_alternate'].apply(lambda x: x == 'True' or x == True)
-            else:
-                df['is_alternate'] = False
-            
-            # Ensure all required columns exist
-            required_cols = ['Player', 'Team', 'Opp. Team', 'Stat Type', 'Line', 'Odds', 
-                           'Bookmaker', 'Home Team', 'Away Team', 'Commence Time']
-            for col in required_cols:
-                if col not in df.columns:
-                    df[col] = ''
-            
-            # Add Opp. Team Full if not present (for lookups)
-            if 'Opp. Team Full' not in df.columns:
-                # Extract full team name from "vs TEAM" or "@ TEAM" format
-                def extract_full_team(opposing_str, home_team, away_team, player_team):
-                    if pd.isna(opposing_str) or opposing_str == '':
-                        return ''
-                    # If format is "vs X" player is home, opponent is away
-                    # If format is "@ X" player is away, opponent is home  
-                    if 'vs' in str(opposing_str):
-                        return away_team if pd.notna(away_team) else ''
-                    elif '@' in str(opposing_str):
-                        return home_team if pd.notna(home_team) else ''
-                    return ''
-                
-                df['Opp. Team Full'] = df.apply(
-                    lambda row: extract_full_team(
-                        row.get('Opp. Team', ''),
-                        row.get('Home Team', ''),
-                        row.get('Away Team', ''),
-                        row.get('Team', '')
-                    ), axis=1
-                )
-        
-        return df
-        
-    except Exception as e:
-        print(f"Error loading props from CSV: {e}")
-        return pd.DataFrame()
+# Removed deprecated CSV functions - now using database-only approach
 
 
-def load_historical_props_for_week(week_num):
-    """
-    DEPRECATED: Load historical props data for a specific week (legacy function)
-    This function is deprecated. Use database_manager.get_props_as_dataframe() instead.
-    """
-    import warnings
-    warnings.warn("load_historical_props_for_week is deprecated. Use database_manager.get_props_as_dataframe() instead.", DeprecationWarning, stacklevel=2)
-    return load_props_from_csv(week_num)
-
-
-def load_historical_props_from_game_data(week_num):
-    """
-    DEPRECATED: Load historical props from game_data folder JSON files
-    This function is deprecated. Use database_manager.get_props_as_dataframe() instead.
-    Returns DataFrame in the same format as API props_df
-    """
-    import warnings
-    warnings.warn("load_historical_props_from_game_data is deprecated. Use database_manager.get_props_as_dataframe() instead.", DeprecationWarning, stacklevel=2)
-    game_data_folder = f"2025/WEEK{week_num}/game_data"
-    
-    if not os.path.exists(game_data_folder):
-        return pd.DataFrame()
-    
-    # Market key mapping to stat types
-    market_to_stat_type = {
-        'player_pass_yds_alternate': 'Passing Yards',
-        'player_rush_yds_alternate': 'Rushing Yards',
-        'player_reception_yds_alternate': 'Receiving Yards',
-        'player_receptions_alternate': 'Receptions',
-        'player_pass_tds_alternate': 'Passing TDs',
-        'player_rush_tds_alternate': 'Rushing TDs',
-        'player_reception_tds_alternate': 'Receiving TDs'
-    }
-    
-    all_props = []
-    
-    # Load all JSON files from the game_data folder
-    json_files = glob.glob(os.path.join(game_data_folder, "*_historical_odds.json"))
-    
-    for json_file in json_files:
-        try:
-            with open(json_file, 'r') as f:
-                data = json.load(f)
-            
-            event_data = data.get('data', {})
-            home_team = event_data.get('home_team', '')
-            away_team = event_data.get('away_team', '')
-            commence_time = event_data.get('commence_time', '')
-            
-            # Process each bookmaker
-            for bookmaker in event_data.get('bookmakers', []):
-                bookmaker_key = bookmaker.get('key', '')
-                
-                # Process each market
-                for market in bookmaker.get('markets', []):
-                    market_key = market.get('key', '')
-                    stat_type = market_to_stat_type.get(market_key)
-                    
-                    if not stat_type:
-                        continue
-                    
-                    # Process each outcome (player prop)
-                    for outcome in market.get('outcomes', []):
-                        if outcome.get('name') != 'Over':
-                            continue
-                        
-                        player_name = outcome.get('description', '')
-                        line = outcome.get('point', 0)
-                        odds = outcome.get('price', 0)
-                        
-                        # Determine player's team and opposing team
-                        # We don't have this info directly, so we'll need to look it up
-                        # For now, we'll leave it blank and let the team assignment logic handle it
-                        
-                        prop_row = {
-                            'Player': player_name,
-                            'Team': '',  # Will be filled in later
-                            'Opp. Team': '',
-                            'Opp. Team Full': '',
-                            'Stat Type': stat_type,
-                            'Line': line,
-                            'Odds': odds,
-                            'Bookmaker': bookmaker_key,
-                            'Home Team': home_team,
-                            'Away Team': away_team,
-                            'Commence Time': commence_time,
-                            'is_alternate': True
-                        }
-                        
-                        all_props.append(prop_row)
-        
-        except Exception as e:
-            print(f"Error loading {json_file}: {e}")
-            continue
-    
-    if not all_props:
-        return pd.DataFrame()
-    
-    df = pd.DataFrame(all_props)
-    
-    # Filter odds between -450 and +200 (same as API mode)
-    df = df[(df['Odds'] >= -450) & (df['Odds'] <= 200)]
-    
-    return df
+# Removed deprecated CSV/JSON functions - now using database-only approach
 
 
 def classify_game_time_window(commence_time_str):
@@ -397,26 +231,7 @@ def process_props_and_score(props_df, stat_types_in_data, scorer, data_processor
     return all_props
 
 
-def load_box_score_for_week(week_num):
-    """
-    DEPRECATED: Load box score data for a specific week
-    This function is deprecated. Use DatabaseBoxScoreLoader.load_week_data_from_db() instead.
-    """
-    import warnings
-    warnings.warn("load_box_score_for_week is deprecated. Use DatabaseBoxScoreLoader.load_week_data_from_db() instead.", DeprecationWarning, stacklevel=2)
-    box_score_path = f"2025/WEEK{week_num}/box_score_debug.csv"
-    
-    if not os.path.exists(box_score_path):
-        return pd.DataFrame()
-    
-    try:
-        df = pd.read_csv(box_score_path)
-        # Clean player names to match the format used in props
-        df['Name_clean'] = df['Name'].apply(clean_player_name)
-        return df
-    except Exception as e:
-        print(f"Error loading box score: {e}")
-        return pd.DataFrame()
+# Removed deprecated CSV box score function - now using database-only approach
 
 
 def get_stat_column_mapping():
@@ -538,8 +353,10 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     Returns:
         dict: ROI data by time window, e.g., {'TNF': {'roi': 0.0, 'results': []}, ...}
     """
-    # Load historical data and box scores for the week
-    props_df = load_historical_props_from_game_data(week_num)
+    # Load historical data from database
+    from database.database_manager import DatabaseManager
+    db_manager = DatabaseManager()
+    props_df = db_manager.get_props_as_dataframe(week=week_num, upcoming_only=False)
     
     if props_df.empty:
         return None
@@ -548,7 +365,8 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
     
     # Create a data processor limited to data before this week
-    data_processor_historical = EnhancedFootballDataProcessor(max_week=week_num)
+    from database.database_enhanced_data_processor import DatabaseEnhancedFootballDataProcessor
+    data_processor_historical = DatabaseEnhancedFootballDataProcessor(max_week=week_num)
     scorer_historical = AdvancedPropScorer(data_processor_historical)
     
     # Update team assignments
@@ -880,8 +698,10 @@ def calculate_high_score_straight_bets_roi():
     
     for week in historical_weeks:
         try:
-            # Load historical data and box scores for the week
-            props_df = load_historical_props_from_game_data(week)
+            # Load historical data from database
+            from database.database_manager import DatabaseManager
+            db_manager = DatabaseManager()
+            props_df = db_manager.get_props_as_dataframe(week=week, upcoming_only=False)
             
             if props_df.empty:
                 continue
@@ -890,7 +710,8 @@ def calculate_high_score_straight_bets_roi():
             props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
             
             # Create a data processor limited to data before this week
-            data_processor_historical = EnhancedFootballDataProcessor(max_week=week)
+            from database.database_enhanced_data_processor import DatabaseEnhancedFootballDataProcessor
+            data_processor_historical = DatabaseEnhancedFootballDataProcessor(max_week=week)
             scorer_historical = AdvancedPropScorer(data_processor_historical)
             
             # Update team assignments
@@ -1163,8 +984,9 @@ def main():
     
     # OPTIMIZATION: Cache data processor with Streamlit caching
     @st.cache_resource
-    def get_cached_data_processor(max_week):
-        return EnhancedFootballDataProcessor(max_week=max_week, skip_calculations=True)
+    def get_cached_data_processor(max_week, cache_version="v1.0"):
+        from database.database_enhanced_data_processor import DatabaseEnhancedFootballDataProcessor
+        return DatabaseEnhancedFootballDataProcessor(data_dir="data", max_week=max_week, skip_calculations=True)
     
     # Initialize components with max_week for historical filtering (cache in session state)
     # Only create once per week selection to avoid repeated expensive initialization
@@ -1172,7 +994,7 @@ def main():
         'data_processor_week' not in st.session_state or 
         st.session_state.data_processor_week != selected_week):
         
-        data_processor = get_cached_data_processor(selected_week)
+        data_processor = get_cached_data_processor(selected_week, "v2.0")  # Updated for defensive rankings fix
         st.session_state.data_processor = data_processor
         st.session_state.data_processor_week = selected_week
     else:
@@ -1201,7 +1023,35 @@ def main():
         def update_progress(progress, message):
             hist_progress_bar.progress(progress, text=message)
         
-        db_manager.check_and_merge_historical_props(current_week_temp, odds_api=odds_api, progress_callback=update_progress)
+        # Check historical merge for current week and previous weeks within 48-hour window
+        from datetime import datetime, timedelta
+        current_time = datetime.utcnow()
+        forty_eight_hours_ago = current_time - timedelta(hours=48)
+        
+        # Find all weeks that have games within the 48-hour window
+        with db_manager.get_session() as session:
+            recent_games = session.query(Game).filter(
+                Game.commence_time >= forty_eight_hours_ago,
+                Game.commence_time <= current_time,
+                Game.historical_merged == False
+            ).all()
+            
+            weeks_to_check = set()
+            for game in recent_games:
+                weeks_to_check.add(game.week)
+        
+        # Check each week that needs historical merge
+        total_weeks = len(weeks_to_check)
+        if total_weeks > 0:
+            for i, week in enumerate(sorted(weeks_to_check)):
+                progress = int((i / total_weeks) * 100)
+                update_progress(progress, f"Checking Week {week} for historical merge...")
+                db_manager.check_and_merge_historical_props(week, odds_api=odds_api, progress_callback=update_progress)
+            
+            update_progress(100, "Historical merge check complete!")
+        else:
+            update_progress(100, "No weeks need historical merge")
+        
         hist_progress_bar.empty()  # Clear the progress bar
     
     # Initialize per-week cache dictionary if not exists
@@ -1319,16 +1169,13 @@ def main():
                 
                 # Continue to table display (don't return early)
             elif not is_historical:
-                # For current week, get the latest week with data
-                latest_week = db_manager.get_latest_week_with_props()
-                if not latest_week:
-                    st.warning("⚠️ No props data found in database. Please run the data population script first.")
-                    st.stop()
+                # For current week, use the actual current week (not just the latest in database)
+                current_week = get_current_week_from_dates()
                 
                 # First, check database for upcoming games with fresh data
-                progress_bar.progress(10, text=f"Checking database for Week {latest_week} upcoming games...")
+                progress_bar.progress(10, text=f"Checking database for Week {current_week} upcoming games...")
                 from datetime import datetime
-                all_props_df = db_manager.get_props_as_dataframe(week=latest_week, upcoming_only=False)
+                all_props_df = db_manager.get_props_as_dataframe(week=current_week, upcoming_only=False)
                 
                 # Filter to upcoming games only
                 if not all_props_df.empty:
@@ -1443,13 +1290,14 @@ def main():
                                                     with tempfile.TemporaryDirectory() as temp_dir:
                                                         # Export box score data for ranking calculation
                                                         box_score_exporter = data_processor.box_score_loader
-                                                        weeks_to_export = list(range(1, latest_week))  # Export weeks 1 through latest_week-1
+                                                        weeks_to_export = list(range(1, current_week))  # Export weeks 1 through current_week-1
                                                         
                                                         for week in weeks_to_export:
                                                             week_data = box_score_exporter.load_week_data_from_db(week)
                                                             if not week_data.empty:
                                                                 week_dir = os.path.join(temp_dir, f'WEEK{week}')
                                                                 os.makedirs(week_dir, exist_ok=True)
+                                                                # Export as CSV for the ranking calculator
                                                                 week_data.to_csv(os.path.join(week_dir, 'box_scores.csv'), index=False)
                                                         
                                                         # Initialize ranking calculator
@@ -1457,7 +1305,7 @@ def main():
                                                         
                                                         # Calculate rank for this opponent/stat combination
                                                         calculated_rank = rankings_calc.get_position_defensive_rank(
-                                                            opp_team, stat_type, latest_week
+                                                            opp_team, stat_type, current_week
                                                         )
                                                         
                                                         rank_cache[(opp_team, stat_type)] = calculated_rank
@@ -1479,7 +1327,7 @@ def main():
                                             props_df.at[idx, 'team_pos_rank_stat_type'] = rank
                                     
                                     # Add week number
-                                    props_df['week'] = latest_week
+                                    props_df['week'] = current_week
                                     
                                     # Filter to only complete props (with all required fields)
                                     # Note: team_pos_rank_stat_type can be None (not yet calculated)
@@ -1528,7 +1376,7 @@ def main():
                                             actual_progress = 66 + int((prog / 10) * 3)
                                             progress_bar.progress(actual_progress, text=msg)
                                         
-                                        merge_result = db_manager.check_and_merge_historical_props(latest_week, odds_api=odds_api, progress_callback=update_merge_progress)
+                                        merge_result = db_manager.check_and_merge_historical_props(current_week, odds_api=odds_api, progress_callback=update_merge_progress)
                                         if merge_result.get('games_merged', 0) == 0:
                                             progress_bar.progress(66, text="No games need historical merge...")
                                             info_messages.append(('info', f"ℹ️ No games need historical merge"))
@@ -1704,17 +1552,18 @@ def main():
                     }
                     all_export_data.append(export_row)
                 
-                # Create DataFrame and CSV
+                # Create DataFrame and export
                 export_df = pd.DataFrame(all_export_data)
                 export_df = export_df.sort_values(['Stat Type', 'Player', 'Is Alternate'])
                 
-                csv = export_df.to_csv(index=False)
+                # Export as CSV for download
+                csv_data = export_df.to_csv(index=False)
                 
                 # Show download button
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 st.download_button(
-                    label="⬇️ Download CSV",
-                    data=csv,
+                    label="⬇️ Download Data",
+                    data=csv_data,
                     file_name=f"nfl_props_export_{timestamp}.csv",
                     mime="text/csv",
                     type="primary"

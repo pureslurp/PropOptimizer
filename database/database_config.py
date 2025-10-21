@@ -34,8 +34,8 @@ DATABASE_URL = optimize_database_url_for_supabase(DATABASE_URL)
 engine = create_engine(
     DATABASE_URL, 
     echo=False,  # Disable SQL debugging for production
-    pool_size=1,  # Minimal pool size for serverless deployment
-    max_overflow=0,  # No overflow connections
+    pool_size=3,  # Increased pool size for concurrent operations
+    max_overflow=2,  # Allow some overflow connections
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=300,  # Recycle connections after 5 minutes
     pool_timeout=30,  # Wait up to 30 seconds for a connection

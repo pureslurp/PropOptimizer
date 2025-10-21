@@ -1,4 +1,4 @@
-"""NFL Box Score Scraper for Raw Statistics"""
+"""NFL Box Score Scraper for Raw Statistics - Database Version"""
 
 import argparse
 import sys
@@ -18,6 +18,11 @@ from selenium.common.exceptions import (
     NoSuchElementException
 )
 
+# Database imports
+from database.database_manager import DatabaseManager
+from database.database_models import BoxScore, Game
+from datetime import datetime
+
 class FootballDBScraper:
     """Scraper for FootballDB box scores"""
     
@@ -25,6 +30,7 @@ class FootballDBScraper:
         self.week = week
         self.base_url = "https://www.footballdb.com"
         self.driver = None
+        self.db_manager = DatabaseManager()
         
         # Define expected columns for each stat type
         self.stat_columns = {
@@ -643,13 +649,104 @@ class FootballDBScraper:
         print("\nFinal columns:", df.columns.tolist())
         return df
 
+    def save_box_scores_to_database(self, df: pd.DataFrame) -> bool:
+        """Save box score data to the database instead of CSV"""
+        try:
+            if df.empty:
+                print("⚠️ No box score data to save")
+                return False
+            
+            print(f"💾 Saving {len(df)} box score records to database...")
+            
+            with self.db_manager.get_session() as session:
+                # Get all games for this week to map team names to game IDs
+                games = session.query(Game).filter(Game.week == self.week).all()
+                game_lookup = {}
+                
+                for game in games:
+                    # Create lookup by team names (both home and away)
+                    game_lookup[game.home_team] = game.id
+                    game_lookup[game.away_team] = game.id
+                
+                print(f"📊 Found {len(games)} games for Week {self.week}")
+                
+                # Clear existing box scores for this week to avoid duplicates
+                deleted_count = session.query(BoxScore).filter(BoxScore.week == self.week).delete()
+                if deleted_count > 0:
+                    print(f"🔄 Cleared {deleted_count} existing box score records for Week {self.week}")
+                
+                saved_count = 0
+                for _, row in df.iterrows():
+                    player_name = row.get('Name', '')
+                    team = row.get('team', '')
+                    
+                    if not player_name or player_name == 'Unknown':
+                        continue
+                    
+                    # Find game_id for this player's team
+                    game_id = game_lookup.get(team)
+                    if not game_id:
+                        print(f"⚠️ No game found for team '{team}' - skipping player {player_name}")
+                        continue
+                    
+                    # Save each stat type as a separate box score record
+                    # Map to the standard stat types used in the system
+                    stat_mappings = {
+                        'pass_Yds': 'Passing Yards',
+                        'pass_TD': 'Passing TDs', 
+                        'pass_INT': 'Passing Interceptions',
+                        'rush_Yds': 'Rushing Yards',
+                        'rush_TD': 'Rushing TDs',
+                        'rec_Rec': 'Receptions',
+                        'rec_Yds': 'Receiving Yards',
+                        'rec_TD': 'Receiving TDs'
+                    }
+                    
+                    for stat_col, stat_type in stat_mappings.items():
+                        if stat_col in row and pd.notna(row[stat_col]) and row[stat_col] != 0:
+                            try:
+                                actual_result = float(row[stat_col])
+                                
+                                box_score = BoxScore(
+                                    game_id=game_id,
+                                    player=player_name,
+                                    stat_type=stat_type,
+                                    actual_result=actual_result,
+                                    week=self.week,
+                                    team=team
+                                )
+                                session.add(box_score)
+                                saved_count += 1
+                                
+                            except (ValueError, TypeError) as e:
+                                print(f"⚠️ Error converting {stat_col} value '{row[stat_col]}' for {player_name}: {e}")
+                                continue
+                
+                session.commit()
+                print(f"✅ Successfully saved {saved_count} box score records to database")
+                return True
+                
+        except Exception as e:
+            print(f"❌ Error saving box scores to database: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
 def main(argv):
-    """Main function for NFL box score scraping and raw statistics extraction"""
-    parser = argparse.ArgumentParser(description='Scrape NFL box scores and extract raw statistics')
+    """Main function for NFL box score scraping and database storage"""
+    parser = argparse.ArgumentParser(description='Scrape NFL box scores and save to database')
     parser.add_argument("weeks", type=int, nargs='+', help="NFL Week(s) - can specify multiple weeks")
     args = parser.parse_args()
     
     try:
+        # Test database connection first
+        print("🔍 Testing database connection...")
+        db_manager = DatabaseManager()
+        if not db_manager.test_connection():
+            print("❌ Database connection failed. Please check your database configuration.")
+            sys.exit(1)
+        print("✅ Database connection successful")
+        
         # Process each week
         for week in args.weeks:
             print(f"\n{'='*50}")
@@ -662,10 +759,15 @@ def main(argv):
             try:
                 master_df = scraper.process_all_games()
                 
-                # Save results
-                output_path = f"2025/WEEK{week}/box_score_debug.csv"
-                master_df.to_csv(output_path, index=False)
-                print(f"\nSuccessfully wrote box scores to {output_path}")
+                if not master_df.empty:
+                    # Save to database instead of CSV
+                    success = scraper.save_box_scores_to_database(master_df)
+                    if success:
+                        print(f"\n✅ Successfully saved Week {week} box scores to database")
+                    else:
+                        print(f"\n❌ Failed to save Week {week} box scores to database")
+                else:
+                    print(f"\n⚠️ No box score data found for Week {week}")
                 
             except Exception as e:
                 print(f"\nError processing week {week}: {e}")
@@ -677,6 +779,7 @@ def main(argv):
         
         print(f"\n{'='*50}")
         print(f"Completed processing {len(args.weeks)} week(s): {args.weeks}")
+        print(f"Box score data saved to database")
         print(f"{'='*50}")
         
     except Exception as e:

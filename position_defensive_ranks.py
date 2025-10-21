@@ -9,11 +9,14 @@ import os
 import json
 from typing import Dict, Optional, Tuple, List
 from utils import clean_player_name, get_team_abbreviation
+from database.database_manager import DatabaseManager
+from database.database_models import BoxScore, Game
 
 class PositionDefensiveRankings:
     def __init__(self, data_dir: str = "2025"):
         self.data_dir = data_dir
         self.player_positions = {}
+        self.db_manager = DatabaseManager()
         self.position_stat_mapping = {
             # Quarterback stats
             'QB': {
@@ -173,43 +176,157 @@ class PositionDefensiveRankings:
     
     def calculate_position_defensive_stats(self, max_week: int = None):
         """
-        Calculate position-specific defensive stats from box score data
+        Calculate position-specific defensive stats from database box score data
         
         Args:
             max_week: Maximum week to include in calculations (None = all weeks)
         """
-        print("Calculating position-specific defensive stats from box score data...")
+        print("Calculating position-specific defensive stats from database box score data...")
         
         # Reset stats
         self.position_defensive_stats = {}
         
-        # Process each week's box score data
-        for week_folder in os.listdir(self.data_dir):
-            if not week_folder.startswith("WEEK"):
-                continue
-            
-            # Extract week number
-            try:
-                week_num = int(week_folder.replace("WEEK", ""))
-                if max_week is not None and week_num >= max_week:
-                    continue
-            except:
-                continue
-            
-            # Try both possible filenames
-            box_score_path = os.path.join(self.data_dir, week_folder, "box_scores.csv")
-            if not os.path.exists(box_score_path):
-                box_score_path = os.path.join(self.data_dir, week_folder, "box_score_debug.csv")
-                if not os.path.exists(box_score_path):
-                    print(f"No box score data for {week_folder}")
-                    continue
-            
-            print(f"Processing {week_folder}...")
-            self._process_week_box_score(box_score_path)
+        # Load box score data from database
+        self._load_box_scores_from_database(max_week)
         
         # Calculate rankings from the accumulated stats
         self._calculate_position_rankings()
         print(f"✅ Calculated position-specific defensive stats for {len(self.position_defensive_stats)} teams")
+    
+    def _load_box_scores_from_database(self, max_week: int = None):
+        """Load box score data from database instead of CSV files"""
+        try:
+            with self.db_manager.get_session() as session:
+                # Get all box score data
+                query = session.query(BoxScore)
+                if max_week is not None:
+                    query = query.filter(BoxScore.week <= max_week)
+                
+                box_scores = query.all()
+                
+                if not box_scores:
+                    print("No box score data found in database")
+                    return
+                
+                print(f"Loading {len(box_scores)} box score records from database...")
+                
+                # Group by week for processing
+                weekly_data = {}
+                for box_score in box_scores:
+                    week = box_score.week
+                    if week not in weekly_data:
+                        weekly_data[week] = []
+                    weekly_data[week].append(box_score)
+                
+                # Process each week
+                for week, week_box_scores in weekly_data.items():
+                    print(f"Processing Week {week}...")
+                    self._process_week_database_box_scores(week, week_box_scores, session)
+                    
+        except Exception as e:
+            print(f"Error loading box scores from database: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _process_week_database_box_scores(self, week: int, week_box_scores: List[BoxScore], session):
+        """Process box score data from database for a specific week"""
+        try:
+            # Get team matchups for this week from games table
+            games = session.query(Game).filter(Game.week == week).all()
+            team_matchups = {}
+            for game in games:
+                team_matchups[game.home_team] = game.away_team
+            
+            if not team_matchups:
+                print(f"  No games found for Week {week}")
+                return
+            
+            print(f"  Found {len(team_matchups)} game matchups for Week {week}")
+            
+            # Initialize games played counter for this week
+            teams_in_this_week = set()
+            for home_team, away_team in team_matchups.items():
+                teams_in_this_week.add(home_team)
+                teams_in_this_week.add(away_team)
+            
+            # Increment games played for each team in this week
+            for team in teams_in_this_week:
+                if team not in self.position_defensive_stats:
+                    self.position_defensive_stats[team] = {'Games_Played': 0}
+                self.position_defensive_stats[team]['Games_Played'] += 1
+            
+            print(f"  Processing {len(week_box_scores)} box score records")
+            
+            players_processed = 0
+            players_with_position = 0
+            
+            for box_score in week_box_scores:
+                player_name = box_score.player
+                player_team = box_score.team
+                stat_type = box_score.stat_type
+                actual_result = box_score.actual_result
+                
+                if not player_name or not player_team or not stat_type:
+                    continue
+                
+                players_processed += 1
+                
+                # Get player position
+                position = self.get_player_position(player_name)
+                if position is None:
+                    continue
+                
+                players_with_position += 1
+                
+                # Get opponent team
+                opponent_team = self._get_opponent_team(player_team, team_matchups)
+                if not opponent_team:
+                    continue
+                
+                # Update defensive stats for the opponent team
+                self._update_defensive_stats(opponent_team, position, stat_type, actual_result)
+            
+            print(f"  Processed {players_processed} players, {players_with_position} with positions")
+            
+        except Exception as e:
+            print(f"Error processing Week {week} box scores: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _get_opponent_team(self, player_team: str, team_matchups: Dict[str, str]) -> str:
+        """Get the opponent team for a given player team"""
+        for home_team, away_team in team_matchups.items():
+            if player_team == home_team:
+                return away_team
+            elif player_team == away_team:
+                return home_team
+        return None
+    
+    def _update_defensive_stats(self, team: str, position: str, stat_type: str, actual_result: float):
+        """Update defensive stats for a team based on opponent's performance"""
+        if not actual_result or actual_result <= 0:
+            return
+        
+        # Initialize team stats if not exists
+        if team not in self.position_defensive_stats:
+            self.position_defensive_stats[team] = {'Games_Played': 0}
+        
+        # Get the defensive stat name for this position and stat type
+        if position in self.position_stat_mapping:
+            defensive_stat = self.position_stat_mapping[position].get(stat_type)
+        else:
+            # Fallback to default mapping
+            defensive_stat = self.position_stat_mapping['DEFAULT'].get(stat_type, f"{stat_type} Allowed")
+        
+        if not defensive_stat:
+            return
+        
+        # Initialize the defensive stat if not exists
+        if defensive_stat not in self.position_defensive_stats[team]:
+            self.position_defensive_stats[team][defensive_stat] = []
+        
+        # Add the actual result to the defensive stat
+        self.position_defensive_stats[team][defensive_stat].append(actual_result)
     
     def _process_week_box_score(self, box_score_path: str):
         """Process a single week's box score data"""
@@ -435,9 +552,16 @@ class PositionDefensiveRankings:
             
             for team, stats in self.position_defensive_stats.items():
                 if position_stat in stats:
-                    total_yards = stats[position_stat]
+                    yards_list = stats[position_stat]
                     games_played = stats.get('Games_Played', 1)  # Default to 1 to avoid division by zero
-                    per_game_yards = total_yards / games_played
+                    
+                    # Calculate average per game (sum of all yards / games played)
+                    if isinstance(yards_list, list) and yards_list:
+                        total_yards = sum(yards_list)
+                        per_game_yards = total_yards / games_played
+                    else:
+                        per_game_yards = 0
+                    
                     team_values[team] = per_game_yards
             
             if not team_values:
@@ -476,15 +600,19 @@ class PositionDefensiveRankings:
         if position is None:
             return None
         
-        # Create position-specific stat key
-        position_stat = f"{position}_{stat_type.replace(' ', '_')}_Allowed"
+        # Create position-specific stat key using the mapping
+        if position in self.position_stat_mapping and stat_type in self.position_stat_mapping[position]:
+            position_stat = self.position_stat_mapping[position][stat_type]
+        else:
+            # Fallback to default mapping
+            if stat_type in self.position_stat_mapping.get('DEFAULT', {}):
+                position_stat = self.position_stat_mapping['DEFAULT'][stat_type]
+            else:
+                return None
         
-        # Normalize team name (rankings use underscores, inputs may have spaces)
-        team_normalized = team.replace(' ', '_')
-        
-        # Get ranking
+        # Get ranking (team names in rankings use spaces, not underscores)
         if position_stat in self.position_defensive_rankings:
-            return self.position_defensive_rankings[position_stat].get(team_normalized)
+            return self.position_defensive_rankings[position_stat].get(team)
         
         return None
     
