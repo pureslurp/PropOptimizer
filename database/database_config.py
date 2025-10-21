@@ -22,17 +22,10 @@ if not DATABASE_URL:
 def optimize_database_url_for_supabase(url):
     """Optimize database URL for Supabase cloud deployment"""
     if 'supabase.co' in url:
-        # For Supabase, use connection pooling URL if available
-        # Check if it's already a pooling URL
-        if 'pooler.supabase.co' in url:
-            return url
-        
-        # Convert direct connection to pooling connection
-        if 'db.' in url and 'supabase.co' in url:
-            # Replace db. with pooler. for connection pooling
-            pooled_url = url.replace('db.', 'pooler.')
-            print(f"🔄 Using Supabase connection pooling: {pooled_url[:30]}...")
-            return pooled_url
+        # For Supabase, ensure we're using the direct connection URL
+        # Connection pooling is handled by SQLAlchemy's pool settings
+        print(f"🔄 Using Supabase direct connection: {url[:30]}...")
+        return url
     
     return url
 
@@ -40,17 +33,19 @@ def optimize_database_url_for_supabase(url):
 DATABASE_URL = optimize_database_url_for_supabase(DATABASE_URL)
 
 # Create engine with connection pooling for Supabase
-# Add connection pooling settings for better cloud performance
+# Add connection pooling settings optimized for Streamlit Cloud
 engine = create_engine(
     DATABASE_URL, 
     echo=False,  # Set to True for SQL debugging
-    pool_size=5,  # Number of connections to maintain in pool
-    max_overflow=10,  # Additional connections that can be created
+    pool_size=1,  # Minimal pool size for cloud deployment
+    max_overflow=2,  # Few additional connections
     pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=300,  # Recycle connections after 5 minutes
+    pool_recycle=180,  # Recycle connections after 3 minutes
+    pool_timeout=30,  # Wait up to 30 seconds for a connection
     connect_args={
-        "connect_timeout": 10,  # Connection timeout in seconds
-        "application_name": "prop_optimizer"  # Identify this app in Supabase logs
+        "connect_timeout": 30,  # Longer connection timeout for cloud
+        "application_name": "prop_optimizer",  # Identify this app in Supabase logs
+        "options": "-c default_transaction_isolation=read_committed"
     }
 )
 
