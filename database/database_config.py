@@ -65,9 +65,6 @@ engine = create_engine(
     connect_args={
         "connect_timeout": 30,  # Connection timeout for cloud
         "application_name": "prop_optimizer_streamlit",  # Identify this app in Supabase logs
-        # Disable prepared statements for Supavisor transaction mode
-        "prepared_statement_cache_size": 0,
-        "prepared_statement_name_func": None,
     }
 )
 
