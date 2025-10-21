@@ -35,7 +35,7 @@ def optimize_database_url_for_supabase(url):
                     
                     # Convert to Supavisor transaction mode URL for serverless apps
                     # This is the recommended format for Streamlit Cloud
-                    pooled_url = f"postgres://postgres.{project_id}:{password}@aws-0-us-east-1.pooler.supabase.com:6543/{database}"
+                    pooled_url = f"postgresql://postgres.{project_id}:{password}@aws-0-us-east-1.pooler.supabase.com:6543/{database}"
                     print(f"🔄 Using Supavisor transaction mode for serverless: {pooled_url[:40]}...")
                     return pooled_url
             except Exception as e:
