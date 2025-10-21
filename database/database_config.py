@@ -17,7 +17,7 @@ if not DATABASE_URL:
         pass
 
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is required. Please set it in your .streamlit/secrets.toml file.")
+    raise ValueError("DATABASE_URL environment variable is required. Please set it in your Streamlit Cloud app settings under Environment Variables.")
 
 # Create engine
 engine = create_engine(DATABASE_URL, echo=False)  # Set to True for SQL debugging
