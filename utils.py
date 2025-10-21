@@ -523,7 +523,10 @@ def get_current_week_from_dates(year: str = "2025") -> int:
         # Fallback to folder-based detection
         return get_current_week_from_folders()
     
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    # Get current time in Eastern Time to avoid timezone issues
+    import pytz
+    eastern = pytz.timezone('US/Eastern')
+    today_et = datetime.now(eastern).replace(hour=0, minute=0, second=0, microsecond=0)
     
     # Find which week we're in based on start dates
     weeks = sorted(NFL_2025_WEEK_DATES.keys())
@@ -531,18 +534,22 @@ def get_current_week_from_dates(year: str = "2025") -> int:
     for i, week in enumerate(weeks):
         week_start_str = NFL_2025_WEEK_DATES[week]
         week_start = datetime.strptime(week_start_str, '%Y-%m-%d')
+        # Convert to Eastern Time
+        week_start_et = eastern.localize(week_start)
         
         # Get next week's start date (or add 7 days if it's the last week)
         if i + 1 < len(weeks):
             next_week_start_str = NFL_2025_WEEK_DATES[weeks[i + 1]]
             next_week_start = datetime.strptime(next_week_start_str, '%Y-%m-%d')
+            # Convert to Eastern Time
+            next_week_start_et = eastern.localize(next_week_start)
         else:
             # Last week - use 7 days as the range
             from datetime import timedelta
-            next_week_start = week_start + timedelta(days=7)
+            next_week_start_et = week_start_et + timedelta(days=7)
         
-        # If today is between this week's start and next week's start, it's this week
-        if week_start <= today < next_week_start:
+        # If today (ET) is between this week's start and next week's start, it's this week
+        if week_start_et <= today_et < next_week_start_et:
             return week
     
     # If we're past all weeks, return the last week + 1
