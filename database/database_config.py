@@ -20,8 +20,13 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is required. Please set it in your Streamlit Cloud app settings under Environment Variables.")
 
 def optimize_database_url_for_supabase(url):
-    """Use the provided DATABASE_URL as-is for Supabase deployment"""
-    print(f"🔄 Using provided DATABASE_URL: {url[:30]}...")
+    """Use the provided DATABASE_URL as-is for Supabase deployment, removing invalid parameters"""
+    # Remove pgbouncer=true parameter as it's not valid for SQLAlchemy
+    if '?pgbouncer=true' in url:
+        url = url.replace('?pgbouncer=true', '')
+        print(f"🔄 Removed pgbouncer parameter from URL: {url[:30]}...")
+    else:
+        print(f"🔄 Using provided DATABASE_URL: {url[:30]}...")
     return url
 
 # Optimize URL for Supabase
