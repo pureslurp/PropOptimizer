@@ -1154,6 +1154,29 @@ def main():
     historical_weeks = db_manager.get_available_weeks_from_db()
     st.write(f"🔍 Debug: Found {len(historical_weeks)} weeks in database: {historical_weeks}")
     
+    # Additional debugging - check what tables and data exist
+    try:
+        with db_manager.get_session() as session:
+            # Check Games table
+            from database.database_models import Game, Prop
+            game_count = session.query(Game).count()
+            st.write(f"🔍 Debug: Games table has {game_count} records")
+            
+            if game_count > 0:
+                sample_games = session.query(Game.week, Game.home_team, Game.away_team).limit(5).all()
+                st.write(f"🔍 Debug: Sample games: {sample_games}")
+            
+            # Check Props table
+            prop_count = session.query(Prop).count()
+            st.write(f"🔍 Debug: Props table has {prop_count} records")
+            
+            if prop_count > 0:
+                sample_props = session.query(Prop.week, Prop.player, Prop.stat_type).limit(5).all()
+                st.write(f"🔍 Debug: Sample props: {sample_props}")
+                
+    except Exception as e:
+        st.write(f"🔍 Debug: Error checking database contents: {e}")
+    
     # Create week selector options
     week_options = [f"Week {current_week_temp} (Current)"]
     for week in sorted(historical_weeks, reverse=True):
