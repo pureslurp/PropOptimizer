@@ -1161,13 +1161,18 @@ def main():
     selected_week = int(selected_week_display.split()[1])
     is_historical = selected_week != current_week_temp
     
+    # OPTIMIZATION: Cache data processor with Streamlit caching
+    @st.cache_resource
+    def get_cached_data_processor(max_week):
+        return EnhancedFootballDataProcessor(max_week=max_week, skip_calculations=True)
+    
     # Initialize components with max_week for historical filtering (cache in session state)
     # Only create once per week selection to avoid repeated expensive initialization
     if ('data_processor' not in st.session_state or 
         'data_processor_week' not in st.session_state or 
         st.session_state.data_processor_week != selected_week):
         
-        data_processor = EnhancedFootballDataProcessor(max_week=selected_week, skip_calculations=True)
+        data_processor = get_cached_data_processor(selected_week)
         st.session_state.data_processor = data_processor
         st.session_state.data_processor_week = selected_week
     else:
@@ -2208,7 +2213,12 @@ def main():
             stat_type = selected_row['Stat Type']
             line = selected_row['Line']
             
-            game_details = data_processor.get_player_last_n_games_detailed(player_name, stat_type, n=5)
+            # OPTIMIZATION: Cache the player history lookup
+            @st.cache_data(ttl=300)  # Cache for 5 minutes
+            def get_cached_player_history(player_name, stat_type, _data_processor):
+                return _data_processor.get_player_last_n_games_detailed(player_name, stat_type, n=5)
+            
+            game_details = get_cached_player_history(player_name, stat_type, data_processor)
             
             if game_details and len(game_details) > 0:
                 # Extract values and create labels with opponents and defensive ranks

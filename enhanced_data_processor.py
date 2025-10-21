@@ -1345,6 +1345,57 @@ class EnhancedFootballDataProcessor:
         
         return all_week_data
     
+    def _load_player_specific_data(self, cleaned_name: str, stat_type: str) -> pd.DataFrame:
+        """
+        OPTIMIZATION: Load only the specific player's data from database instead of all weeks
+        This is much faster than loading all weeks and filtering
+        """
+        if not self.db_loader:
+            return pd.DataFrame()
+        
+        try:
+            from database.database_models import BoxScore
+            from database.database_manager import DatabaseManager
+            
+            db_manager = DatabaseManager()
+            with db_manager.get_session() as session:
+                # Query only the specific player's records
+                player_records = session.query(BoxScore).filter(
+                    BoxScore.player == cleaned_name,
+                    BoxScore.stat_type == stat_type
+                ).order_by(BoxScore.week.desc()).all()
+                
+                if not player_records:
+                    return pd.DataFrame()
+                
+                # Convert to DataFrame
+                data = []
+                for record in player_records:
+                    row = {
+                        'player': record.player,
+                        'team': record.team,
+                        'week': record.week,
+                        stat_type: record.actual_result
+                    }
+                    data.append(row)
+                
+                df = pd.DataFrame(data)
+                print(f"✅ Loaded {len(df)} games for {cleaned_name} - {stat_type}")
+                return df
+                
+        except Exception as e:
+            print(f"❌ Error loading player data for {cleaned_name}: {e}")
+            return pd.DataFrame()
+    
+    def _get_cached_opponent_mapping(self):
+        """
+        OPTIMIZATION: Cache opponent mapping to avoid repeated database queries
+        """
+        if not hasattr(self, '_cached_opponent_mapping'):
+            print("🔄 Building opponent mapping from database (first time)...")
+            self._cached_opponent_mapping = self._build_opponent_mapping_from_game_data()
+            print("✅ Opponent mapping cached for future use")
+        return self._cached_opponent_mapping
     
     def get_player_last_n_games_detailed(self, player: str, stat_type: str, n: int = 5) -> list:
         """
@@ -1361,26 +1412,8 @@ class EnhancedFootballDataProcessor:
         from utils import clean_player_name, get_team_abbreviation
         cleaned_name = clean_player_name(player)
         
-        # Load all week data to get game context
-        all_week_data = self._load_all_week_data()
-        if not all_week_data:
-            print(f"⚠️ No week data loaded for player {player}")
-            return []
-        
-        combined_df = pd.concat(all_week_data.values(), ignore_index=True)
-        print(f"🔍 Debug: Combined DataFrame columns: {list(combined_df.columns)}")
-        print(f"🔍 Debug: Looking for player '{cleaned_name}' in {len(combined_df)} total records")
-        
-        # Find player's games - handle both 'player' and 'Name' columns
-        if 'player' in combined_df.columns:
-            player_games = combined_df[combined_df['player'].apply(lambda x: clean_player_name(x) == cleaned_name)].copy()
-        elif 'Name' in combined_df.columns:
-            player_games = combined_df[combined_df['Name'].apply(lambda x: clean_player_name(x) == cleaned_name)].copy()
-        else:
-            print(f"❌ Neither 'player' nor 'Name' column found in DataFrame")
-            return []
-        
-        print(f"🔍 Debug: Found {len(player_games)} games for player {player}")
+        # OPTIMIZATION: Load only the specific player's data instead of all weeks
+        player_games = self._load_player_specific_data(cleaned_name, stat_type)
         
         if player_games.empty:
             print(f"⚠️ No games found for player {player}")
@@ -1401,17 +1434,20 @@ class EnhancedFootballDataProcessor:
         # Get last N games
         last_n_games = player_games.tail(n)
         
+        # OPTIMIZATION: Use cached opponent mapping
+        opponent_mapping = self._get_cached_opponent_mapping()
+        
         game_details = []
         for _, game in last_n_games.iterrows():
             team = game.get('team', 'Unknown')
             week = game.get('week', 0)
             value = game[stat_type]
             
-            # Determine if home or away
-            is_home = self.is_home_game(team, week)
-            
-            # Get opponent (returns full name from schedule)
-            opponent_full = self.get_opposing_team(team, week)
+            # Get opponent info from cached mapping
+            opponent_info = opponent_mapping.get(week, {}).get(team, {})
+            opponent_full = opponent_info.get('opponent', 'Unknown')
+            is_home = opponent_info.get('is_home', None)
+            game_time = opponent_info.get('game_time')
             
             # Convert full name to abbreviation for display
             opponent_abbrev = get_team_abbreviation(opponent_full)
