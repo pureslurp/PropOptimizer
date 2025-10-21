@@ -1129,10 +1129,30 @@ def main():
     from utils import get_current_week_from_dates
     current_week_temp = get_current_week_from_dates()
     
+    # Debug: Show environment info
+    import os
+    st.write(f"🔍 Debug: Current week calculated: {current_week_temp}")
+    st.write(f"🔍 Debug: DATABASE_URL exists: {'DATABASE_URL' in os.environ}")
+    if 'DATABASE_URL' in os.environ:
+        db_url = os.environ['DATABASE_URL']
+        # Only show first part for security
+        st.write(f"🔍 Debug: DATABASE_URL starts with: {db_url[:20]}...")
+    
     # Get available weeks from database instead of CSV
     from database.database_manager import DatabaseManager
     db_manager = DatabaseManager()
+    
+    # Debug: Check database connection
+    st.write("🔍 Debug: Testing database connection...")
+    try:
+        with db_manager.get_session() as session:
+            st.write("✅ Database connection successful")
+    except Exception as e:
+        st.write(f"❌ Database connection failed: {e}")
+        st.stop()
+    
     historical_weeks = db_manager.get_available_weeks_from_db()
+    st.write(f"🔍 Debug: Found {len(historical_weeks)} weeks in database: {historical_weeks}")
     
     # Create week selector options
     week_options = [f"Week {current_week_temp} (Current)"]
@@ -1306,7 +1326,9 @@ def main():
                 # Continue to table display (don't return early)
             elif not is_historical:
                 # For current week, get the latest week with data
+                st.write(f"🔍 Debug: Getting latest week with props...")
                 latest_week = db_manager.get_latest_week_with_props()
+                st.write(f"🔍 Debug: Latest week with props: {latest_week}")
                 if not latest_week:
                     st.warning("⚠️ No props data found in database. Please run the data population script first.")
                     st.stop()
@@ -1314,7 +1336,9 @@ def main():
                 # First, check database for upcoming games with fresh data
                 progress_bar.progress(10, text=f"Checking database for Week {latest_week} upcoming games...")
                 from datetime import datetime
+                st.write(f"🔍 Debug: Loading props for week {latest_week}...")
                 all_props_df = db_manager.get_props_as_dataframe(week=latest_week, upcoming_only=False)
+                st.write(f"🔍 Debug: Loaded {len(all_props_df)} total props from database")
                 
                 # Filter to upcoming games only
                 if not all_props_df.empty:
