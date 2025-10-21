@@ -2305,46 +2305,62 @@ def main():
             with st.expander("🔍 View All Row Data"):
                 st.json(selected_row.to_dict())
         
+        # OPTIMIZATION: Cache strategies to avoid recalculating on every interaction
+        @st.cache_data(ttl=300)  # Cache for 5 minutes
+        def get_cached_strategies(_results_df, _filter_props_by_strategy, _data_processor, _is_historical):
+            # This will be handled by the display_all_strategies function
+            return _results_df, _is_historical
+        
         # Display all v1 and v2 strategies using centralized configurations
-        display_all_strategies(results_df, filter_props_by_strategy, data_processor, is_historical)
+        cached_results_df, cached_is_historical = get_cached_strategies(results_df, filter_props_by_strategy, data_processor, is_historical)
+        display_all_strategies(cached_results_df, filter_props_by_strategy, data_processor, cached_is_historical)
 
         # Time Window Sections
         st.markdown("---")
         st.subheader("Plum Props by Game Time")
         st.caption("Props organized by when games are played (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night)")
         
+        # OPTIMIZATION: Cache the time window data to avoid recalculating on every interaction
+        @st.cache_data(ttl=600)  # Cache for 10 minutes
+        def get_cached_time_window_data(_data_processor, _scorer, _odds_api, _alt_line_manager, _is_historical):
+            if _is_historical:
+                return None
+            
+            try:
+                current_week = get_current_week_from_schedule()
+                
+                # Load ALL props for the current week from database
+                from database.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
+                all_week_props_df = db_manager.get_props_as_dataframe(week=current_week, upcoming_only=False)
+                
+                if not all_week_props_df.empty:
+                    # Update team assignments
+                    all_week_props_df = _odds_api.update_team_assignments(all_week_props_df, _data_processor)
+                    
+                    # Process and score ALL week props through the same pipeline
+                    all_week_stat_types = all_week_props_df['Stat Type'].unique()
+                    
+                    all_week_all_props = process_props_and_score(
+                        all_week_props_df, all_week_stat_types, _scorer, _data_processor, 
+                        _alt_line_manager, True, None  # fallback_used=True, no progress bar
+                    )
+                    
+                    if all_week_all_props:
+                        # Convert to DataFrame and add time window classification
+                        all_week_props_df = pd.DataFrame(all_week_all_props)
+                        all_week_props_df['time_window'] = all_week_props_df['Commence Time'].apply(classify_game_time_window)
+                        return all_week_props_df
+                        
+            except Exception as e:
+                # Silently fail - historical data is optional
+                pass
+            
+            return None
+        
         with st.spinner("Loading props by game time..."):
-            # Load ALL props for the current week from database (past and future games)
-            all_week_props_df = None
-            if not is_historical:
-                try:
-                    current_week = get_current_week_from_schedule()
-                    
-                    # Load ALL props for the current week from database
-                    from database.database_manager import DatabaseManager
-                    db_manager = DatabaseManager()
-                    all_week_props_df = db_manager.get_props_as_dataframe(week=current_week, upcoming_only=False)
-                    
-                    if not all_week_props_df.empty:
-                        # Update team assignments
-                        all_week_props_df = odds_api.update_team_assignments(all_week_props_df, data_processor)
-                        
-                        # Process and score ALL week props through the same pipeline
-                        all_week_stat_types = all_week_props_df['Stat Type'].unique()
-                        
-                        all_week_all_props = process_props_and_score(
-                            all_week_props_df, all_week_stat_types, scorer, data_processor, 
-                            alt_line_manager, True, None  # fallback_used=True, no progress bar
-                        )
-                        
-                        if all_week_all_props:
-                            # Convert to DataFrame and add time window classification
-                            all_week_props_df = pd.DataFrame(all_week_all_props)
-                            all_week_props_df['time_window'] = all_week_props_df['Commence Time'].apply(classify_game_time_window)
-                            
-                except Exception as e:
-                    # Silently fail - historical data is optional
-                    pass
+            # Get cached time window data
+            all_week_props_df = get_cached_time_window_data(data_processor, scorer, odds_api, alt_line_manager, is_historical)
             
             # Add time window classification to results_df if not already present
             if 'time_window' not in results_df.columns:
