@@ -691,12 +691,16 @@ class DatabaseManager:
                     
                     if not fetched_data:
                         print(f"  ⚠️ No data fetched for game {game.id}")
+                        # Update last_historical_check even when no data to prevent repeated attempts
+                        game.last_historical_check = current_time
                         continue
                     
                     # Check if there was an error during fetch
                     if isinstance(fetched_data, dict) and 'error' in fetched_data:
                         print(f"  ❌ Error during fetch: {fetched_data['error']}")
                         total_stats['errors'].append(f"Game {game.id}: {fetched_data['error']}")
+                        # Update last_historical_check even on error to prevent repeated attempts
+                        game.last_historical_check = current_time
                         continue
                     
                     try:
