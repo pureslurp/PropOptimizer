@@ -19,14 +19,13 @@ warnings.filterwarnings('ignore')
 class EnhancedFootballDataProcessor:
     """Enhanced data processor that uses real FootballDB data with database support"""
     
-    def __init__(self, data_dir: str = "data", max_week: int = None, use_database: bool = True, skip_calculations: bool = False):
+    def __init__(self, data_dir: str = "data", max_week: int = None, skip_calculations: bool = False):
         """
         Initialize the data processor
         
         Args:
             data_dir: Directory for cache files
             max_week: Maximum week to include in calculations (None = all weeks)
-            use_database: If True, use database for box score data. If False, use CSV files.
             skip_calculations: If True, skip expensive calculations like position defensive rankings
         """
         self.data_dir = data_dir
@@ -36,17 +35,16 @@ class EnhancedFootballDataProcessor:
         self.player_name_index = {}  # Index: cleaned_name -> actual_player_key
         self.current_week = self._get_current_week()
         self.max_week = max_week  # Used for filtering historical data (None = use all weeks)
-        self.use_database = use_database
         self.skip_calculations = skip_calculations
         
-        # Initialize database loader if using database
-        if use_database:
+        # Initialize database loader
+        try:
             from database.database_enhanced_data_processor import DatabaseBoxScoreLoader
             self.db_loader = DatabaseBoxScoreLoader()
             print("🗄️ Using database for box score data loading")
-        else:
+        except Exception as e:
+            print(f"⚠️ Could not initialize database loader: {e}")
             self.db_loader = None
-            print("📁 Using CSV files for box score data loading (fallback mode)")
         
         self.schedule_data = self._load_schedule()
         self.opponent_mapping = self._build_opponent_mapping_from_game_data()  # Build from game data
@@ -94,64 +92,47 @@ class EnhancedFootballDataProcessor:
             return pd.DataFrame()
     
     def _build_opponent_mapping_from_game_data(self):
-        """Build a mapping of week -> team -> opponent from game_data JSON files"""
+        """Build a mapping of week -> team -> opponent from database games table"""
         opponent_map = {}  # {week: {team: opponent}}
         
-        # Scan for week directories
-        year_dir = "2025"
-        if not os.path.exists(year_dir):
+        if not self.db_loader:
             return opponent_map
         
-        for week_folder in os.listdir(year_dir):
-            if not week_folder.startswith("WEEK"):
-                continue
+        try:
+            from database.database_models import Game
+            from database.database_manager import DatabaseManager
             
-            # Extract week number
-            try:
-                week_num = int(week_folder.replace("WEEK", ""))
-            except:
-                continue
-            
-            game_data_dir = os.path.join(year_dir, week_folder, "game_data")
-            if not os.path.exists(game_data_dir):
-                continue
-            
-            week_opponents = {}
-            
-            # Load all JSON files in the game_data directory
-            for json_file in os.listdir(game_data_dir):
-                if not json_file.endswith("_historical_odds.json"):
-                    continue
+            db_manager = DatabaseManager()
+            with db_manager.get_session() as session:
+                # Get all games from database
+                games = session.query(Game).all()
                 
-                json_path = os.path.join(game_data_dir, json_file)
-                try:
-                    with open(json_path, 'r') as f:
-                        game_data = json.load(f)
+                for game in games:
+                    week_num = game.week
+                    home_team = game.home_team
+                    away_team = game.away_team
+                    commence_time = game.commence_time
                     
-                    # Extract home and away teams
-                    if 'data' in game_data:
-                        data = game_data['data']
-                        home_team = data.get('home_team', '')
-                        away_team = data.get('away_team', '')
-                        commence_time = data.get('commence_time', '')
-                        
-                        if home_team and away_team:
-                            week_opponents[home_team] = {
-                                'opponent': away_team,
-                                'is_home': True,
-                                'game_time': commence_time
-                            }
-                            week_opponents[away_team] = {
-                                'opponent': home_team,
-                                'is_home': False,
-                                'game_time': commence_time
-                            }
-                except Exception as e:
-                    print(f"Error loading {json_file}: {e}")
-                    continue
-            
-            if week_opponents:
-                opponent_map[week_num] = week_opponents
+                    if not week_num in opponent_map:
+                        opponent_map[week_num] = {}
+                    
+                    # Add mapping for both teams
+                    opponent_map[week_num][home_team] = {
+                        'opponent': away_team,
+                        'is_home': True,
+                        'game_time': commence_time
+                    }
+                    opponent_map[week_num][away_team] = {
+                        'opponent': home_team,
+                        'is_home': False,
+                        'game_time': commence_time
+                    }
+                
+                print(f"✅ Built opponent mapping for {len(opponent_map)} weeks from database")
+                
+        except Exception as e:
+            print(f"❌ Error building opponent mapping from database: {e}")
+            return {}
         
         return opponent_map
     
@@ -527,9 +508,9 @@ class EnhancedFootballDataProcessor:
         return opponent_map
     
     def scrape_week_data(self, week: int, force_refresh: bool = False) -> Dict[str, pd.DataFrame]:
-        """Load data for a specific week from database or CSV files"""
+        """Load data for a specific week from database"""
         
-        if self.use_database and self.db_loader:
+        if self.db_loader:
             print(f"🗄️ Loading Week {week} data from database...")
             
             try:
@@ -537,8 +518,8 @@ class EnhancedFootballDataProcessor:
                 df = self.db_loader.load_week_data_from_db(week)
                 
                 if df.empty:
-                    print(f"⚠️ No data found for Week {week} in database, falling back to CSV")
-                    return self._load_from_csv_fallback(week)
+                    print(f"⚠️ No data found for Week {week} in database")
+                    return {}
                 
                 print(f"✅ Loaded {len(df)} players from database")
                 # Process the data into our format (same as original)
@@ -546,40 +527,11 @@ class EnhancedFootballDataProcessor:
                 
             except Exception as e:
                 print(f"❌ Error loading Week {week} from database: {e}")
-                print("📁 Falling back to CSV files...")
-                return self._load_from_csv_fallback(week)
-        else:
-            # Use original CSV-based loading
-            return self._load_from_csv_fallback(week)
-    
-    def _load_from_csv_fallback(self, week: int) -> Dict[str, pd.DataFrame]:
-        """Fallback method to load data from CSV files (original behavior)"""
-        print(f"📁 Loading Week {week} data from CSV files...")
-        
-        try:
-            week_path = f"2025/WEEK{week}"
-            box_score_file = f"{week_path}/box_score_debug.csv"
-            
-            if os.path.exists(box_score_file):
-                print(f"📊 Loading existing box score data from {box_score_file}")
-                # Load the existing CSV data
-                master_df = pd.read_csv(box_score_file)
-                
-                if master_df.empty:
-                    print(f"⚠️ No data found in {box_score_file}")
-                    return {}
-                
-                print(f"✅ Loaded {len(master_df)} players from CSV")
-                # Process the data into our format
-                return self._process_scraped_data(master_df, week)
-            else:
-                print(f"❌ No box score file found at {box_score_file}")
-                print(f"💡 Run the box score scraper first: python3 dfs_box_scores.py {week}")
                 return {}
-                    
-        except Exception as e:
-            print(f"❌ Error loading Week {week} from CSV: {e}")
+        else:
+            print("❌ No database loader available")
             return {}
+    
     
     def _process_scraped_data(self, master_df: pd.DataFrame, week: int) -> Dict[str, pd.DataFrame]:
         """Process scraped data into our internal format"""
@@ -1364,28 +1316,35 @@ class EnhancedFootballDataProcessor:
         return last_n_games
     
     def _load_all_week_data(self) -> Dict[str, pd.DataFrame]:
-        """Load all available week data from files"""
+        """Load all available week data from database"""
         all_week_data = {}
         
-        # Look for all WEEK folders
-        base_path = "2025"
-        if not os.path.exists(base_path):
+        if self.db_loader:
+            # Use database to load all available weeks
+            try:
+                available_weeks = self.db_loader.get_available_weeks()
+                
+                for week in available_weeks:
+                    if self.max_week and week > self.max_week:
+                        continue  # Skip weeks beyond max_week
+                    
+                    try:
+                        week_data = self.scrape_week_data(week, force_refresh=False)
+                        if week_data:
+                            all_week_data.update(week_data)
+                    except Exception as e:
+                        # Skip weeks that can't be loaded
+                        continue
+                        
+            except Exception as e:
+                print(f"❌ Error loading data from database: {e}")
+                return {}
+        else:
+            print("❌ No database loader available")
             return {}
         
-        for week in range(1, 19):  # Check weeks 1-18
-            week_path = f"{base_path}/WEEK{week}"
-            box_score_file = f"{week_path}/box_score_debug.csv"
-            
-            if os.path.exists(box_score_file):
-                try:
-                    week_data = self.scrape_week_data(week, force_refresh=False)
-                    if week_data:
-                        all_week_data.update(week_data)
-                except Exception as e:
-                    # Skip weeks that can't be loaded
-                    continue
-        
         return all_week_data
+    
     
     def get_player_last_n_games_detailed(self, player: str, stat_type: str, n: int = 5) -> list:
         """
@@ -1405,14 +1364,26 @@ class EnhancedFootballDataProcessor:
         # Load all week data to get game context
         all_week_data = self._load_all_week_data()
         if not all_week_data:
+            print(f"⚠️ No week data loaded for player {player}")
             return []
         
         combined_df = pd.concat(all_week_data.values(), ignore_index=True)
+        print(f"🔍 Debug: Combined DataFrame columns: {list(combined_df.columns)}")
+        print(f"🔍 Debug: Looking for player '{cleaned_name}' in {len(combined_df)} total records")
         
-        # Find player's games
-        player_games = combined_df[combined_df['player'].apply(lambda x: clean_player_name(x) == cleaned_name)].copy()
+        # Find player's games - handle both 'player' and 'Name' columns
+        if 'player' in combined_df.columns:
+            player_games = combined_df[combined_df['player'].apply(lambda x: clean_player_name(x) == cleaned_name)].copy()
+        elif 'Name' in combined_df.columns:
+            player_games = combined_df[combined_df['Name'].apply(lambda x: clean_player_name(x) == cleaned_name)].copy()
+        else:
+            print(f"❌ Neither 'player' nor 'Name' column found in DataFrame")
+            return []
+        
+        print(f"🔍 Debug: Found {len(player_games)} games for player {player}")
         
         if player_games.empty:
+            print(f"⚠️ No games found for player {player}")
             return []
         
         # Get games with the specific stat

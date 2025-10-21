@@ -548,7 +548,7 @@ def calculate_strategy_roi_for_week(week_num, score_min, score_max, odds_min=-40
     props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
     
     # Create a data processor limited to data before this week
-    data_processor_historical = EnhancedFootballDataProcessor(max_week=week_num, use_database=True)
+    data_processor_historical = EnhancedFootballDataProcessor(max_week=week_num)
     scorer_historical = AdvancedPropScorer(data_processor_historical)
     
     # Update team assignments
@@ -890,7 +890,7 @@ def calculate_high_score_straight_bets_roi():
             props_df['time_window'] = props_df['Commence Time'].apply(classify_game_time_window)
             
             # Create a data processor limited to data before this week
-            data_processor_historical = EnhancedFootballDataProcessor(max_week=week, use_database=True)
+            data_processor_historical = EnhancedFootballDataProcessor(max_week=week)
             scorer_historical = AdvancedPropScorer(data_processor_historical)
             
             # Update team assignments
@@ -1167,7 +1167,7 @@ def main():
         'data_processor_week' not in st.session_state or 
         st.session_state.data_processor_week != selected_week):
         
-        data_processor = EnhancedFootballDataProcessor(max_week=selected_week, use_database=True, skip_calculations=True)
+        data_processor = EnhancedFootballDataProcessor(max_week=selected_week, skip_calculations=True)
         st.session_state.data_processor = data_processor
         st.session_state.data_processor_week = selected_week
     else:
