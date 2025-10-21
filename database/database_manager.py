@@ -392,51 +392,78 @@ class DatabaseManager:
             
             if not existing_props:
                 print(f"  ⚠️ No existing props to merge for game {game_id}")
-                # Add all historical props as new, but calculate defensive ranks properly
+                
+                # Get week from first prop
+                prop_week = historical_props[0].get('week', 7) if historical_props else 7
+                
+                # Calculate defensive rankings efficiently (like update_week_rankings.py)
+                rankings_cache = {}
+                if prop_week > 1:  # Skip Week 1 (no historical data)
+                    print(f"  📊 Calculating defensive rankings for Week {prop_week}...")
+                    try:
+                        from position_defensive_ranks import PositionDefensiveRankings
+                        import tempfile
+                        import os
+                        import shutil
+                        
+                        # Create temporary directory for ranking calculation
+                        temp_dir = tempfile.mkdtemp()
+                        
+                        try:
+                            # Export weeks 1 through prop_week-1 to temp directory
+                            from .database_enhanced_data_processor import DatabaseBoxScoreLoader
+                            box_score_loader = DatabaseBoxScoreLoader()
+                            weeks_to_export = list(range(1, prop_week))
+                            
+                            for week in weeks_to_export:
+                                week_data = box_score_loader.load_week_data_from_db(week)
+                                if not week_data.empty:
+                                    week_dir = os.path.join(temp_dir, f'WEEK{week}')
+                                    os.makedirs(week_dir, exist_ok=True)
+                                    week_data.to_csv(os.path.join(week_dir, 'box_scores.csv'), index=False)
+                            
+                            # Initialize ranking calculator once
+                            rankings_calc = PositionDefensiveRankings(data_dir=temp_dir)
+                            rankings_calc.calculate_position_defensive_stats(max_week=prop_week)
+                            
+                            # Get unique combinations from historical props
+                            unique_combinations = set()
+                            for hist_prop in historical_props:
+                                player = hist_prop.get('player')
+                                opp_team = hist_prop.get('opp_team_full', hist_prop.get('opp_team'))
+                                stat_type = hist_prop.get('stat_type')
+                                if player and opp_team and stat_type:
+                                    unique_combinations.add((player, opp_team, stat_type))
+                            
+                            print(f"  📊 Calculating ranks for {len(unique_combinations)} unique combinations...")
+                            
+                            # Calculate rankings for each unique combination
+                            for player, opp_team, stat_type in unique_combinations:
+                                calculated_rank = rankings_calc.get_position_defensive_rank(opp_team, player, stat_type)
+                                rankings_cache[(player, opp_team, stat_type)] = calculated_rank
+                                print(f"  📊 {player} vs {opp_team} ({stat_type}) → rank {calculated_rank}")
+                        
+                        finally:
+                            # Clean up temporary directory
+                            shutil.rmtree(temp_dir)
+                    
+                    except Exception as e:
+                        print(f"  ⚠️ Error calculating defensive rankings: {e}")
+                        # Continue without rankings if calculation fails
+                
+                # Add all historical props with cached rankings
                 for hist_prop in historical_props:
                     hist_prop['prop_source'] = 'historical_api'
                     
-                    # Calculate defensive rank for new historical props
-                    if not hist_prop.get('team_pos_rank_stat_type'):
-                        try:
-                            from position_defensive_ranks import PositionDefensiveRankings
-                            import tempfile
-                            import os
-                            
-                            # Get week from the prop
-                            prop_week = hist_prop.get('week', 7)  # Default to 7 if not specified
-                            player = hist_prop.get('player', '')
-                            stat_type = hist_prop.get('stat_type', '')
-                            
-                            # Create temporary directory for ranking calculation
-                            with tempfile.TemporaryDirectory() as temp_dir:
-                                # Export box score data for ranking calculation
-                                from .database_enhanced_data_processor import DatabaseBoxScoreLoader
-                                box_score_loader = DatabaseBoxScoreLoader()
-                                weeks_to_export = list(range(1, prop_week))  # Export weeks 1 through prop_week-1
-                                
-                                for week in weeks_to_export:
-                                    week_data = box_score_loader.load_week_data_from_db(week)
-                                    if not week_data.empty:
-                                        week_dir = os.path.join(temp_dir, f'WEEK{week}')
-                                        os.makedirs(week_dir, exist_ok=True)
-                                        week_data.to_csv(os.path.join(week_dir, 'box_scores.csv'), index=False)
-                                
-                                # Initialize ranking calculator
-                                rankings_calc = PositionDefensiveRankings(data_dir=temp_dir)
-                                
-                                # Calculate rank for this opponent/stat combination
-                                opp_team = hist_prop.get('opp_team_full', hist_prop.get('opp_team'))
-                                calculated_rank = rankings_calc.get_position_defensive_rank(
-                                    opp_team, stat_type, prop_week
-                                )
-                                
-                                hist_prop['team_pos_rank_stat_type'] = calculated_rank
-                                print(f"📊 Calculated rank {calculated_rank} for new historical prop: {player} vs {opp_team} {stat_type}")
-                        
-                        except Exception as e:
-                            print(f"⚠️ Error calculating defensive rank for new historical prop {player} {stat_type}: {e}")
-                            hist_prop['team_pos_rank_stat_type'] = None
+                    # Use cached ranking if available
+                    player = hist_prop.get('player')
+                    opp_team = hist_prop.get('opp_team_full', hist_prop.get('opp_team'))
+                    stat_type = hist_prop.get('stat_type')
+                    
+                    if player and opp_team and stat_type and (player, opp_team, stat_type) in rankings_cache:
+                        hist_prop['team_pos_rank_stat_type'] = rankings_cache[(player, opp_team, stat_type)]
+                    else:
+                        hist_prop['team_pos_rank_stat_type'] = None
                     
                     new_prop = Prop(**hist_prop)
                     session.add(new_prop)
@@ -527,8 +554,9 @@ class DatabaseManager:
                                 
                                 # Calculate rank for this opponent/stat combination
                                 opp_team = hist_prop.get('opp_team_full', hist_prop.get('opp_team'))
+                                player = hist_prop.get('player')
                                 calculated_rank = rankings_calc.get_position_defensive_rank(
-                                    opp_team, stat_type, prop_week
+                                    opp_team, player, stat_type
                                 )
                                 
                                 hist_prop['team_pos_rank_stat_type'] = calculated_rank
@@ -641,7 +669,15 @@ class DatabaseManager:
                 def fetch_for_game(game):
                     """Helper function to fetch props for a single game"""
                     try:
-                        props = odds_api.fetch_historical_props_for_game(game.id)
+                        # Convert game object to dictionary to avoid database connection issues
+                        game_data = {
+                            'id': game.id,
+                            'commence_time': game.commence_time,
+                            'home_team': game.home_team,
+                            'away_team': game.away_team,
+                            'week': game.week
+                        }
+                        props = odds_api.fetch_historical_props_for_game(game_data)
                         return (game.id, props, None)
                     except Exception as e:
                         return (game.id, None, str(e))

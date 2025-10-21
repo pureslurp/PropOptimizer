@@ -438,7 +438,7 @@ class OddsAPIWithDB:
         
         # Initialize ONE data processor for team lookups (reuse for all props)
         from enhanced_data_processor import EnhancedFootballDataProcessor
-        shared_data_processor = EnhancedFootballDataProcessor(use_database=True, skip_calculations=True)
+        shared_data_processor = EnhancedFootballDataProcessor(data_dir="data", skip_calculations=True)
         print("✅ Initialized shared data processor for team lookups")
         
         # Store games data for database
@@ -667,8 +667,8 @@ class OddsAPIWithDB:
         """Get player's team from data processor"""
         try:
             # Use the data processor to get player team
-            from enhanced_data_processor import EnhancedFootballDataProcessor
-            data_processor = EnhancedFootballDataProcessor(use_database=True, skip_calculations=True)
+            from database.database_enhanced_data_processor import DatabaseEnhancedFootballDataProcessor
+            data_processor = DatabaseEnhancedFootballDataProcessor(skip_calculations=True)
             player_team = data_processor.get_player_team(player_name)
             return player_team if player_team else "Unknown"
         except Exception as e:
@@ -844,153 +844,154 @@ class OddsAPIWithDB:
         
         return games_data
     
-    def fetch_historical_props_for_game(self, game_id: str) -> List[Dict]:
+    def fetch_historical_props_for_game(self, game_data: Dict) -> List[Dict]:
         """
-        Fetch historical props for a specific game (2 hours before game time).
+        Fetch historical props for a specific game using provided game data.
         
         Args:
-            game_id: The game ID
+            game_data: Dictionary containing game information (id, commence_time, etc.)
             
         Returns:
             List of prop dictionaries in database format
         """
         try:
-            # Get game from database to find commence time
-            with self.db_manager.get_session() as session:
-                game = session.query(Game).filter(Game.id == game_id).first()
+            game_id = game_data['id']
+            commence_time = game_data['commence_time']
+            
+            if not commence_time:
+                print(f"  ❌ Game {game_id} has no commence_time")
+                return []
                 
-                if not game:
-                    print(f"  ❌ Game {game_id} not found in database")
-                    return []
+            # Calculate 2 hours before game time for consistent historical snapshot
+            from datetime import timedelta
+            game_time = commence_time
+            odds_time = game_time - timedelta(hours=2)
+            date_str = odds_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+            
+            print(f"  📅 Fetching historical odds at: {date_str} (2 hours before game time: {commence_time})")
+            
+            # Define markets to fetch (same as alternate lines)
+            markets = list(self.stat_market_mapping.values())
+            markets_str = ','.join(markets)
+            
+            # Call historical API
+            url = f"{self.base_url}/historical/sports/americanfootball_nfl/events/{game_id}/odds"
+            
+            params = {
+                'apiKey': self.api_key,
+                'date': date_str,
+                'regions': 'us',
+                'markets': markets_str,
+                'oddsFormat': 'american',
+                'bookmakers': 'fanduel'
+            }
+            
+            # Debug: Print the exact API call
+            print(f"  🔍 DEBUG API Call:")
+            print(f"    URL: {url}")
+            print(f"    Date: {date_str} (2h before {commence_time.strftime('%Y-%m-%dT%H:%M:%SZ')})")
+            print(f"    Markets: {markets_str}")
+            
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
                 
-                if not game.commence_time:
-                    print(f"  ❌ Game {game_id} has no commence_time")
-                    return []
+                # Update usage info
+                self._update_usage_from_headers(response.headers)
                 
-                # Calculate 2 hours before game time
-                two_hours_before = game.commence_time - timedelta(hours=2)
+                response_data = response.json()
+            except requests.exceptions.Timeout:
+                print(f"  ⚠️ API timeout for game {game_id} (10s limit)")
+                return []
+            except requests.exceptions.RequestException as e:
+                print(f"  ❌ API error for game {game_id}: {e}")
+                return []
+            except Exception as e:
+                print(f"  ❌ Unexpected error for game {game_id}: {e}")
+                return []
+            
+            if not response_data:
+                print(f"  ⚠️ No historical data returned for game {game_id}")
+                return []
+            
+            # Historical API wraps event data in a 'data' key
+            event_data = response_data.get('data', {})
+            
+            if not event_data:
+                print(f"  ⚠️ No event data in response for game {game_id}")
+                return []
+            
+            # Parse response into prop format
+            props_list = []
+            
+            # Initialize shared data processor for team lookups
+            from database.database_enhanced_data_processor import DatabaseEnhancedFootballDataProcessor
+            data_processor = DatabaseEnhancedFootballDataProcessor(skip_calculations=True)
+            
+            for bookmaker in event_data.get('bookmakers', []):
+                if bookmaker.get('key') != 'fanduel':
+                    continue
                 
-                # Format date for API (ISO 8601 format)
-                date_str = two_hours_before.strftime('%Y-%m-%dT%H:%M:%SZ')
-                
-                print(f"  📅 Fetching historical odds at: {date_str} (2 hours before {game.commence_time})")
-                
-                # Define markets to fetch (same as alternate lines)
-                markets = list(self.stat_market_mapping.values())
-                markets_str = ','.join(markets)
-                
-                # Call historical API
-                url = f"{self.base_url}/historical/sports/americanfootball_nfl/events/{game_id}/odds"
-                
-                params = {
-                    'apiKey': self.api_key,
-                    'date': date_str,
-                    'regions': 'us',
-                    'markets': markets_str,
-                    'oddsFormat': 'american',
-                    'bookmakers': 'fanduel'
-                }
-                
-                try:
-                    response = requests.get(url, params=params, timeout=10)
-                    response.raise_for_status()
+                for market in bookmaker.get('markets', []):
+                    market_key = market.get('key')
                     
-                    # Update usage info
-                    self._update_usage_from_headers(response.headers)
+                    # Find matching stat type
+                    stat_type = None
+                    for st, mk in self.stat_market_mapping.items():
+                        if mk == market_key:
+                            stat_type = st
+                            break
                     
-                    response_data = response.json()
-                except requests.exceptions.Timeout:
-                    print(f"  ⚠️ API timeout for game {game_id} (10s limit)")
-                    return []
-                except requests.exceptions.RequestException as e:
-                    print(f"  ❌ API error for game {game_id}: {e}")
-                    return []
-                except Exception as e:
-                    print(f"  ❌ Unexpected error for game {game_id}: {e}")
-                    return []
-                
-                if not response_data:
-                    print(f"  ⚠️ No historical data returned for game {game_id}")
-                    return []
-                
-                # Historical API wraps event data in a 'data' key
-                event_data = response_data.get('data', {})
-                
-                if not event_data:
-                    print(f"  ⚠️ No event data in response for game {game_id}")
-                    return []
-                
-                # Parse response into prop format
-                props_list = []
-                
-                # Initialize shared data processor for team lookups
-                from enhanced_data_processor import EnhancedFootballDataProcessor
-                data_processor = EnhancedFootballDataProcessor(use_database=True, skip_calculations=True)
-                
-                for bookmaker in event_data.get('bookmakers', []):
-                    if bookmaker.get('key') != 'fanduel':
+                    if not stat_type:
                         continue
                     
-                    for market in bookmaker.get('markets', []):
-                        market_key = market.get('key')
-                        
-                        # Find matching stat type
-                        stat_type = None
-                        for st, mk in self.stat_market_mapping.items():
-                            if mk == market_key:
-                                stat_type = st
-                                break
-                        
-                        if not stat_type:
+                    # Process outcomes
+                    for outcome in market.get('outcomes', []):
+                        if outcome.get('name') != 'Over':
                             continue
                         
-                        # Process outcomes
-                        for outcome in market.get('outcomes', []):
-                            if outcome.get('name') != 'Over':
-                                continue
-                            
-                            player = outcome.get('description', '')
-                            line = outcome.get('point', 0)
-                            odds = outcome.get('price', 0)
-                            
-                            if not player or line is None:
-                                continue
-                            
-                            # Get team information
-                            player_team = data_processor.get_player_team(player) or "Unknown"
-                            opp_team_full = self._get_opposing_team_from_game_context(
-                                player_team,
-                                event_data.get('home_team', ''),
-                                event_data.get('away_team', '')
-                            )
-                            
-                            # Get defensive rank - let the merge logic handle rank preservation/calculation
-                            team_rank = None
-                            
-                            prop_dict = {
-                                'game_id': game_id,
-                                'player': player,
-                                'stat_type': stat_type,
-                                'line': line,
-                                'odds': odds,
-                                'bookmaker': 'fanduel',
-                                'is_alternate': True,
-                                'timestamp': two_hours_before,
-                                'player_team': player_team,
-                                'opp_team': self._format_opp_team_display(opp_team_full, player_team, game.home_team),
-                                'opp_team_full': opp_team_full,
-                                'team_pos_rank_stat_type': team_rank,
-                                'week': game.week,
-                                'commence_time': game.commence_time,
-                                'home_team': game.home_team,
-                                'away_team': game.away_team,
-                                'prop_source': 'historical_api'  # Mark as historical
-                            }
-                            props_list.append(prop_dict)
-                
-                print(f"  ✅ Parsed {len(props_list)} historical props")
-                return props_list
-                
+                        player = outcome.get('description', '')
+                        line = outcome.get('point', 0)
+                        odds = outcome.get('price', 0)
+                        
+                        if not player or line is None:
+                            continue
+                        
+                        # Get team information
+                        player_team = data_processor.get_player_team(player) or "Unknown"
+                        opp_team_full = self._get_opposing_team_from_game_context(
+                            player_team,
+                            event_data.get('home_team', ''),
+                            event_data.get('away_team', '')
+                        )
+                        
+                        # Get defensive rank - let the merge logic handle rank preservation/calculation
+                        team_rank = None
+                        
+                        prop_dict = {
+                            'game_id': game_id,
+                            'player': player,
+                            'stat_type': stat_type,
+                            'line': line,
+                            'odds': odds,
+                            'bookmaker': 'fanduel',
+                            'is_alternate': True,
+                            'timestamp': commence_time,
+                            'player_team': player_team,
+                            'opp_team': self._format_opp_team_display(opp_team_full, player_team, game_data['home_team']),
+                            'opp_team_full': opp_team_full,
+                            'team_pos_rank_stat_type': team_rank,
+                            'week': game_data['week'],
+                            'commence_time': commence_time,
+                            'home_team': game_data['home_team'],
+                            'away_team': game_data['away_team'],
+                            'prop_source': 'historical_api'  # Mark as historical
+                        }
+                        props_list.append(prop_dict)
+            
+            print(f"  ✅ Parsed {len(props_list)} historical props")
+            return props_list
+            
         except requests.exceptions.RequestException as e:
             print(f"  ❌ API error fetching historical props for game {game_id}: {e}")
             if hasattr(e, 'response') and e.response is not None:
