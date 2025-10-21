@@ -22,8 +22,25 @@ if not DATABASE_URL:
 def optimize_database_url_for_supabase(url):
     """Optimize database URL for Supabase cloud deployment"""
     if 'supabase.co' in url:
-        # For Supabase, ensure we're using the direct connection URL
-        # Connection pooling is handled by SQLAlchemy's pool settings
+        # For Supabase, try connection pooling URL first, then fall back to direct
+        if 'db.' in url and 'supabase.co' in url:
+            # Extract credentials and region from the URL
+            # Format: postgresql://user:pass@db.project.supabase.co:5432/postgres
+            try:
+                import re
+                match = re.match(r'postgresql://([^:]+):([^@]+)@db\.([^.]+)\.supabase\.co:(\d+)/(.+)', url)
+                if match:
+                    user, password, project_id, port, database = match.groups()
+                    
+                    # Try connection pooling URL format
+                    # This is Supabase's recommended format for serverless/cloud apps
+                    pooled_url = f"postgresql://{user}:{password}@aws-0-us-east-1.pooler.supabase.com:6543/{database}"
+                    print(f"🔄 Trying Supabase connection pooling: {pooled_url[:30]}...")
+                    return pooled_url
+            except Exception as e:
+                print(f"⚠️ Could not parse URL for pooling: {e}")
+        
+        # Fall back to direct connection
         print(f"🔄 Using Supabase direct connection: {url[:30]}...")
         return url
     
@@ -36,15 +53,15 @@ DATABASE_URL = optimize_database_url_for_supabase(DATABASE_URL)
 # Add connection pooling settings optimized for Streamlit Cloud
 engine = create_engine(
     DATABASE_URL, 
-    echo=False,  # Set to True for SQL debugging
+    echo=True,  # Enable SQL debugging to see connection attempts
     pool_size=1,  # Minimal pool size for cloud deployment
-    max_overflow=2,  # Few additional connections
+    max_overflow=0,  # No overflow connections to avoid issues
     pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=180,  # Recycle connections after 3 minutes
-    pool_timeout=30,  # Wait up to 30 seconds for a connection
+    pool_recycle=120,  # Recycle connections after 2 minutes
+    pool_timeout=60,  # Wait up to 60 seconds for a connection
     connect_args={
-        "connect_timeout": 30,  # Longer connection timeout for cloud
-        "application_name": "prop_optimizer",  # Identify this app in Supabase logs
+        "connect_timeout": 60,  # Longer connection timeout for cloud
+        "application_name": "prop_optimizer_streamlit",  # Identify this app in Supabase logs
         "options": "-c default_transaction_isolation=read_committed"
     }
 )
