@@ -603,21 +603,26 @@ class DatabaseManager:
                 # 2. Have already started (commence_time <= current_time) - only completed games
                 #    This ensures we only fetch historical props for games that are finished
                 # 3. Haven't been merged yet (historical_merged = False)
-                # 4. Haven't been checked recently (last_historical_check is None or > 8 hours ago)
+                # 4. Haven't been checked recently (last_historical_check is None or > 1 hour ago)
                 
-                eight_hours_ago = current_time - timedelta(hours=8)
+                one_hour_ago = current_time - timedelta(hours=1)
                 games_needing_merge = session.query(Game).filter(
                     Game.week == week,
                     Game.commence_time <= current_time,  # Only completed games
                     Game.historical_merged == False,
                     or_(
                         Game.last_historical_check.is_(None),
-                        Game.last_historical_check <= eight_hours_ago
+                        Game.last_historical_check <= one_hour_ago
                     )
                 ).all()
                 
                 if not games_needing_merge:
-                    # Silent - no output needed
+                    # Update last check time for all games in this week to avoid repeated checks
+                    session.query(Game).filter(
+                        Game.week == week,
+                        Game.commence_time <= current_time
+                    ).update({'last_historical_check': current_time})
+                    session.commit()
                     return {'games_merged': 0, 'message': 'No games need merging'}
                 
                 if progress_callback:

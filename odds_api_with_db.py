@@ -891,13 +891,23 @@ class OddsAPIWithDB:
                     'bookmakers': 'fanduel'
                 }
                 
-                response = requests.get(url, params=params, timeout=30)
-                response.raise_for_status()
-                
-                # Update usage info
-                self._update_usage_from_headers(response.headers)
-                
-                response_data = response.json()
+                try:
+                    response = requests.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    
+                    # Update usage info
+                    self._update_usage_from_headers(response.headers)
+                    
+                    response_data = response.json()
+                except requests.exceptions.Timeout:
+                    print(f"  ⚠️ API timeout for game {game_id} (10s limit)")
+                    return []
+                except requests.exceptions.RequestException as e:
+                    print(f"  ❌ API error for game {game_id}: {e}")
+                    return []
+                except Exception as e:
+                    print(f"  ❌ Unexpected error for game {game_id}: {e}")
+                    return []
                 
                 if not response_data:
                     print(f"  ⚠️ No historical data returned for game {game_id}")
