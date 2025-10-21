@@ -22,25 +22,28 @@ if not DATABASE_URL:
 def optimize_database_url_for_supabase(url):
     """Optimize database URL for Supabase cloud deployment"""
     if 'supabase.co' in url:
-        # For Supabase, try connection pooling URL first, then fall back to direct
+        # For Supabase, use transaction mode pooling for serverless apps like Streamlit Cloud
+        # Format: postgres://postgres.[PROJECT_ID]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
         if 'db.' in url and 'supabase.co' in url:
-            # Extract credentials and region from the URL
-            # Format: postgresql://user:pass@db.project.supabase.co:5432/postgres
             try:
                 import re
+                # Parse the direct connection URL
+                # Format: postgresql://user:pass@db.project.supabase.co:5432/postgres
                 match = re.match(r'postgresql://([^:]+):([^@]+)@db\.([^.]+)\.supabase\.co:(\d+)/(.+)', url)
                 if match:
                     user, password, project_id, port, database = match.groups()
                     
-                    # Try connection pooling URL format
-                    # This is Supabase's recommended format for serverless/cloud apps
-                    pooled_url = f"postgresql://{user}:{password}@aws-0-us-east-1.pooler.supabase.com:6543/{database}"
-                    print(f"🔄 Trying Supabase connection pooling: {pooled_url[:30]}...")
+                    # Convert to Supavisor transaction mode URL for serverless apps
+                    # This is the recommended format for Streamlit Cloud
+                    pooled_url = f"postgres://postgres.{project_id}:{password}@aws-0-us-east-1.pooler.supabase.com:6543/{database}"
+                    print(f"🔄 Using Supavisor transaction mode for serverless: {pooled_url[:40]}...")
                     return pooled_url
             except Exception as e:
                 print(f"⚠️ Could not parse URL for pooling: {e}")
+                print(f"🔄 Falling back to direct connection: {url[:30]}...")
+                return url
         
-        # Fall back to direct connection
+        # Fall back to direct connection if parsing fails
         print(f"🔄 Using Supabase direct connection: {url[:30]}...")
         return url
     
@@ -50,19 +53,21 @@ def optimize_database_url_for_supabase(url):
 DATABASE_URL = optimize_database_url_for_supabase(DATABASE_URL)
 
 # Create engine with connection pooling for Supabase
-# Add connection pooling settings optimized for Streamlit Cloud
+# Add connection pooling settings optimized for Supavisor transaction mode
 engine = create_engine(
     DATABASE_URL, 
     echo=True,  # Enable SQL debugging to see connection attempts
-    pool_size=1,  # Minimal pool size for cloud deployment
-    max_overflow=0,  # No overflow connections to avoid issues
+    pool_size=1,  # Minimal pool size for serverless deployment
+    max_overflow=0,  # No overflow connections
     pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=120,  # Recycle connections after 2 minutes
-    pool_timeout=60,  # Wait up to 60 seconds for a connection
+    pool_recycle=300,  # Recycle connections after 5 minutes
+    pool_timeout=30,  # Wait up to 30 seconds for a connection
     connect_args={
-        "connect_timeout": 60,  # Longer connection timeout for cloud
+        "connect_timeout": 30,  # Connection timeout for cloud
         "application_name": "prop_optimizer_streamlit",  # Identify this app in Supabase logs
-        "options": "-c default_transaction_isolation=read_committed"
+        # Disable prepared statements for Supavisor transaction mode
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": None,
     }
 )
 
