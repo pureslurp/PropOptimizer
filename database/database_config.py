@@ -24,9 +24,6 @@ def optimize_database_url_for_supabase(url):
     # Remove pgbouncer=true parameter as it's not valid for SQLAlchemy
     if '?pgbouncer=true' in url:
         url = url.replace('?pgbouncer=true', '')
-        print(f"🔄 Removed pgbouncer parameter from URL: {url[:30]}...")
-    else:
-        print(f"🔄 Using provided DATABASE_URL: {url[:30]}...")
     return url
 
 # Optimize URL for Supabase
@@ -36,7 +33,7 @@ DATABASE_URL = optimize_database_url_for_supabase(DATABASE_URL)
 # Add connection pooling settings optimized for Supavisor transaction mode
 engine = create_engine(
     DATABASE_URL, 
-    echo=True,  # Enable SQL debugging to see connection attempts
+    echo=False,  # Disable SQL debugging for production
     pool_size=1,  # Minimal pool size for serverless deployment
     max_overflow=0,  # No overflow connections
     pool_pre_ping=True,  # Verify connections before use
