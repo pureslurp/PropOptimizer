@@ -20,33 +20,8 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is required. Please set it in your Streamlit Cloud app settings under Environment Variables.")
 
 def optimize_database_url_for_supabase(url):
-    """Optimize database URL for Supabase cloud deployment"""
-    if 'supabase.co' in url:
-        # For Supabase, use transaction mode pooling for serverless apps like Streamlit Cloud
-        # Format: postgres://postgres.[PROJECT_ID]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-        if 'db.' in url and 'supabase.co' in url:
-            try:
-                import re
-                # Parse the direct connection URL
-                # Format: postgresql://user:pass@db.project.supabase.co:5432/postgres
-                match = re.match(r'postgresql://([^:]+):([^@]+)@db\.([^.]+)\.supabase\.co:(\d+)/(.+)', url)
-                if match:
-                    user, password, project_id, port, database = match.groups()
-                    
-                    # Convert to Supavisor transaction mode URL for serverless apps
-                    # This is the recommended format for Streamlit Cloud
-                    pooled_url = f"postgresql://postgres.{project_id}:{password}@aws-0-us-east-1.pooler.supabase.com:6543/{database}"
-                    print(f"🔄 Using Supavisor transaction mode for serverless: {pooled_url[:40]}...")
-                    return pooled_url
-            except Exception as e:
-                print(f"⚠️ Could not parse URL for pooling: {e}")
-                print(f"🔄 Falling back to direct connection: {url[:30]}...")
-                return url
-        
-        # Fall back to direct connection if parsing fails
-        print(f"🔄 Using Supabase direct connection: {url[:30]}...")
-        return url
-    
+    """Use the provided DATABASE_URL as-is for Supabase deployment"""
+    print(f"🔄 Using provided DATABASE_URL: {url[:30]}...")
     return url
 
 # Optimize URL for Supabase
