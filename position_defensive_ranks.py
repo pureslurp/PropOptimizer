@@ -13,6 +13,10 @@ from database.database_manager import DatabaseManager
 from database.database_models import BoxScore, Game
 
 class PositionDefensiveRankings:
+    # Global cache to prevent recalculating defensive stats
+    _global_defensive_rankings = {}
+    _global_calculation_done = False
+    
     def __init__(self, data_dir: str = "2025"):
         self.data_dir = data_dir
         self.player_positions = {}
@@ -591,9 +595,15 @@ class PositionDefensiveRankings:
         Returns:
             Defensive ranking (1 = best defense, higher = worse defense) or None
         """
-        # Calculate defensive stats if they haven't been calculated yet
-        if not self.position_defensive_rankings:
+        # Use global cache if available
+        if PositionDefensiveRankings._global_calculation_done:
+            self.position_defensive_rankings = PositionDefensiveRankings._global_defensive_rankings.copy()
+        elif not self.position_defensive_rankings:
+            print(f"📊 Calculating defensive stats for {team} vs {player_name} ({stat_type})...")
             self.calculate_position_defensive_stats()
+            # Store in global cache
+            PositionDefensiveRankings._global_defensive_rankings = self.position_defensive_rankings.copy()
+            PositionDefensiveRankings._global_calculation_done = True
         
         # Get player position
         position = self.get_player_position(player_name)

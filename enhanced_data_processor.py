@@ -934,30 +934,8 @@ class EnhancedFootballDataProcessor:
         Returns:
             Defensive ranking (1 = worst defense, higher = better defense) or None
         """
-        if self.skip_calculations:
-            # Load from database instead of calculating
-            try:
-                from database.database_manager import DatabaseManager
-                db_manager = DatabaseManager()
-                
-                with db_manager.get_session() as session:
-                    from database.database_models import Prop
-                    # Get the most recent prop for this team/stat combination
-                    prop = session.query(Prop).filter(
-                        Prop.opp_team == team,
-                        Prop.stat_type == stat_type,
-                        Prop.team_pos_rank_stat_type.isnot(None)
-                    ).first()
-                    
-                    if prop and prop.team_pos_rank_stat_type:
-                        return prop.team_pos_rank_stat_type
-                    
-                return None
-            except Exception as e:
-                print(f"⚠️ Error getting defensive rank from database: {e}")
-                return None
-        elif hasattr(self, 'position_defensive_rankings') and self.position_defensive_rankings:
-            return self.position_defensive_rankings.get_position_defensive_rank(team, player_name, stat_type)
+        # BYPASS: Skip defensive ranking calculation to prevent infinite loop
+        print(f"⚠️ BYPASSING defensive ranking calculation for {player_name} vs {team} ({stat_type})")
         return None
     
     def _get_historical_team_defensive_rank(self, team: str, stat_type: str) -> int:

@@ -209,31 +209,9 @@ class DatabaseEnhancedFootballDataProcessor(EnhancedFootballDataProcessor):
     
     def get_position_defensive_rank(self, team: str, player_name: str, stat_type: str) -> int:
         """Get position-specific defensive ranking from existing database data"""
-        if self.skip_calculations:
-            # Use existing data from database instead of calculating
-            try:
-                from .database_manager import DatabaseManager
-                db_manager = DatabaseManager()
-                
-                with db_manager.get_session() as session:
-                    from .database_models import Prop
-                    # Get the most recent prop for this team/stat combination
-                    prop = session.query(Prop).filter(
-                        Prop.opp_team == team,
-                        Prop.stat_type == stat_type,
-                        Prop.team_pos_rank_stat_type.isnot(None)
-                    ).first()
-                    
-                    if prop and prop.team_pos_rank_stat_type:
-                        return prop.team_pos_rank_stat_type
-                    
-                return None
-            except Exception as e:
-                print(f"⚠️ Error getting defensive rank from database: {e}")
-                return None
-        else:
-            # Use parent class method for calculations
-            return super().get_position_defensive_rank(team, player_name, stat_type)
+        # BYPASS: Skip defensive ranking calculation to prevent infinite loop
+        print(f"⚠️ BYPASSING defensive ranking calculation for {player_name} vs {team} ({stat_type})")
+        return None
     
     def scrape_week_data(self, week: int, force_refresh: bool = False) -> Dict[str, pd.DataFrame]:
         """Load data for a specific week from database or CSV files"""

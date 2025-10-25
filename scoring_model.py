@@ -42,12 +42,9 @@ class AdvancedPropScorer:
         """
         # Use pre-calculated values if provided (from database), otherwise calculate
         if team_rank is None:
-            # Get position-specific defensive ranking
-            # Try position-specific ranking first, fallback to general defensive ranking
-            team_rank = self.data_processor.get_position_defensive_rank(opposing_team, player, stat_type)
-            if team_rank is None:
-                # Fallback to general defensive ranking
-                team_rank = self.data_processor.get_team_defensive_rank(opposing_team, stat_type)
+            # BYPASS: Skip defensive ranking calculation to prevent infinite loop
+            print(f"⚠️ BYPASSING defensive ranking calculation for {player} vs {opposing_team} ({stat_type})")
+            team_rank = None  # Set to None to prevent infinite loop
         
         # Get player's team (use provided value if available, otherwise lookup)
         if player_team is None:

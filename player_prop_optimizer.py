@@ -1447,11 +1447,46 @@ def main():
                                     # Look up defensive rankings from database (don't recalculate)
                                     progress_bar.progress(60, text="Looking up defensive rankings from database...")
                                     
+                                    # BYPASS: Skip defensive ranking calculation entirely to prevent infinite loop
+                                    print("⚠️ BYPASSING defensive ranking calculation to prevent infinite loop")
+                                    print("   All defensive ranks will be set to None (no ranking data)")
+                                    
+                                    # Set all ranks to None for all props
+                                    for idx in props_df.index:
+                                        props_df.at[idx, 'team_pos_rank_stat_type'] = None
+                                    
+                                    progress_bar.progress(70, text="Bypassed defensive ranking calculation...")
+                                    # Continue to the next section without any defensive ranking logic
+                                    
                                     # Get all unique opponent/stat combinations
                                     unique_combos = props_df[['Opp. Team Full', 'Stat Type']].drop_duplicates()
-                                    rank_cache = {}
                                     
+                                    # Check if we have cached rankings for this week
+                                    cache_key = f"defensive_ranks_week_{current_week}"
+                                    if cache_key in st.session_state:
+                                        rank_cache = st.session_state[cache_key]
+                                        print(f"📊 Using cached defensive rankings for Week {current_week}")
+                                    else:
+                                        # Initialize with empty cache to prevent infinite loop
+                                        rank_cache = {}
+                                        print(f"📊 Initializing empty defensive rankings cache for Week {current_week}")
+                                    
+                                    # First, try to get all existing ranks from database in one query
                                     with db_manager.get_session() as session:
+                                        # Get all existing ranks for these combinations
+                                        existing_ranks = session.query(Prop.opp_team_full, Prop.stat_type, Prop.team_pos_rank_stat_type).filter(
+                                            Prop.opp_team_full.in_(unique_combos['Opp. Team Full'].dropna().tolist()),
+                                            Prop.stat_type.in_(unique_combos['Stat Type'].dropna().tolist()),
+                                            Prop.team_pos_rank_stat_type.isnot(None)
+                                        ).distinct().all()
+                                        
+                                        # Build cache from existing ranks
+                                        for opp_team, stat_type, rank in existing_ranks:
+                                            if opp_team and stat_type:
+                                                rank_cache[(opp_team, stat_type)] = rank
+                                        
+                                        # Only calculate missing ranks if we have any
+                                        missing_combos = []
                                         for _, row in unique_combos.iterrows():
                                             opp_team = row['Opp. Team Full']
                                             stat_type = row['Stat Type']
@@ -1459,54 +1494,22 @@ def main():
                                             if pd.isna(opp_team) or opp_team == 'Unknown' or not opp_team:
                                                 continue
                                             
-                                            # Look up rank from existing props, preferring:
-                                            # 1. Most recent calculated rank from any week
-                                            # 2. NULL if no rank found
+                                            if (opp_team, stat_type) not in rank_cache:
+                                                missing_combos.append((opp_team, stat_type))
+                                        
+                                        # If we have missing ranks, skip calculation for now to prevent infinite loop
+                                        if missing_combos:
+                                            print(f"⚠️ Skipping defensive rank calculation for {len(missing_combos)} combinations to prevent infinite loop")
+                                            print(f"   Missing combinations: {missing_combos[:5]}{'...' if len(missing_combos) > 5 else ''}")
                                             
-                                            # Look for most recent calculated rank from any week
-                                            existing_prop = session.query(Prop).filter(
-                                                Prop.opp_team_full == opp_team,
-                                                Prop.stat_type == stat_type,
-                                                Prop.team_pos_rank_stat_type.isnot(None)
-                                            ).order_by(Prop.week.desc()).first()
-                                            
-                                            if existing_prop:
-                                                rank_cache[(opp_team, stat_type)] = existing_prop.team_pos_rank_stat_type
-                                            else:
-                                                # No rank found in database - calculate it now
-                                                try:
-                                                    from position_defensive_ranks import PositionDefensiveRankings
-                                                    import tempfile
-                                                    import os
-                                                    
-                                                    # Create temporary directory for ranking calculation
-                                                    with tempfile.TemporaryDirectory() as temp_dir:
-                                                        # Export box score data for ranking calculation
-                                                        box_score_exporter = data_processor.box_score_loader
-                                                        weeks_to_export = list(range(1, current_week))  # Export weeks 1 through current_week-1
-                                                        
-                                                        for week in weeks_to_export:
-                                                            week_data = box_score_exporter.load_week_data_from_db(week)
-                                                            if not week_data.empty:
-                                                                week_dir = os.path.join(temp_dir, f'WEEK{week}')
-                                                                os.makedirs(week_dir, exist_ok=True)
-                                                                # Export as CSV for the ranking calculator
-                                                                week_data.to_csv(os.path.join(week_dir, 'box_scores.csv'), index=False)
-                                                        
-                                                        # Initialize ranking calculator
-                                                        rankings_calc = PositionDefensiveRankings(data_dir=temp_dir)
-                                                        
-                                                        # Calculate rank for this opponent/stat combination
-                                                        calculated_rank = rankings_calc.get_position_defensive_rank(
-                                                            opp_team, stat_type, current_week
-                                                        )
-                                                        
-                                                        rank_cache[(opp_team, stat_type)] = calculated_rank
-                                                        print(f"📊 Calculated rank for {opp_team} {stat_type}: {calculated_rank}")
-                                                
-                                                except Exception as e:
-                                                    print(f"⚠️ Error calculating defensive rank for {opp_team} {stat_type}: {e}")
+                                            # Set missing ranks to None to prevent infinite loop
+                                            for opp_team, stat_type in missing_combos:
+                                                if (opp_team, stat_type) not in rank_cache:
                                                     rank_cache[(opp_team, stat_type)] = None
+                                    
+                                    # Cache the rankings for this week
+                                    st.session_state[cache_key] = rank_cache
+                                    print(f"📊 Cached defensive rankings for Week {current_week}")
                                     
                                     # Apply ranks to props
                                     for idx in props_df.index:
@@ -2436,117 +2439,117 @@ def main():
                         st.markdown(f"**{window_name}**")
                         display_time_window_strategies(window_df, filter_props_by_strategy, data_processor, is_historical)
 
-        # ROI Performance Table (only for current week)
-        if not is_historical:
-            st.subheader("Plum Props Performance (ROI)")
+        # # ROI Performance Table (only for current week)
+        # if not is_historical:
+        #     st.subheader("Plum Props Performance (ROI)")
             
-            # Cache ROI data to avoid recalculating when switching between weeks
-            current_week = get_current_week_from_schedule()
+        #     # Cache ROI data to avoid recalculating when switching between weeks
+        #     current_week = get_current_week_from_schedule()
             
-            # Check if we have cached ROI data for this week
-            if ('roi_data_cache' in st.session_state and 
-                'roi_cache_week' in st.session_state and 
-                st.session_state.roi_cache_week == current_week):
-                # Use cached data
-                roi_data = st.session_state.roi_data_cache
-            else:
-                # Calculate fresh ROI data
-                with st.spinner("Calculating historical ROI for strategies..."):
-                    roi_data = calculate_all_strategies_roi()
+        #     # Check if we have cached ROI data for this week
+        #     if ('roi_data_cache' in st.session_state and 
+        #         'roi_cache_week' in st.session_state and 
+        #         st.session_state.roi_cache_week == current_week):
+        #         # Use cached data
+        #         roi_data = st.session_state.roi_data_cache
+        #     else:
+        #         # Calculate fresh ROI data
+        #         with st.spinner("Calculating historical ROI for strategies..."):
+        #             roi_data = calculate_all_strategies_roi()
                 
-                # Cache the results
-                st.session_state.roi_data_cache = roi_data
-                st.session_state.roi_cache_week = current_week
+        #         # Cache the results
+        #         st.session_state.roi_data_cache = roi_data
+        #         st.session_state.roi_cache_week = current_week
             
             
-        if roi_data:
-            try:
-                # Calculate the week range for display
-                current_week = get_current_week_from_schedule()
-                historical_weeks = list(range(4, current_week))
-                if len(historical_weeks) == 1:
-                    week_range_str = f"Week {historical_weeks[0]}"
-                elif len(historical_weeks) == 2:
-                    week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
-                else:
-                    week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+        # if roi_data:
+        #     try:
+        #         # Calculate the week range for display
+        #         current_week = get_current_week_from_schedule()
+        #         historical_weeks = list(range(4, current_week))
+        #         if len(historical_weeks) == 1:
+        #             week_range_str = f"Week {historical_weeks[0]}"
+        #         elif len(historical_weeks) == 2:
+        #             week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
+        #         else:
+        #             week_range_str = f"Weeks {historical_weeks[0]}-{historical_weeks[-1]}"
                     
-                # Create ROI table with Version+TimeWindow as rows and strategies as columns
-                def format_roi(roi):
-                    try:
-                        if roi > 0:
-                            return f"+{roi:.2f}u"
-                        elif roi < 0:
-                            return f"{roi:.2f}u"
-                        else:
-                            return "0.00u"
-                    except:
-                        return "N/A"
+        #         # Create ROI table with Version+TimeWindow as rows and strategies as columns
+        #         def format_roi(roi):
+        #             try:
+        #                 if roi > 0:
+        #                     return f"+{roi:.2f}u"
+        #                 elif roi < 0:
+        #                     return f"{roi:.2f}u"
+        #                 else:
+        #                     return "0.00u"
+        #             except:
+        #                 return "N/A"
                     
-                # Time windows to display
-                time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF']
+        #         # Time windows to display
+        #         time_windows = ['TNF', 'SunAM', 'SunPM', 'SNF', 'MNF']
                     
-                # Build table data with rows for each version+time window combination
-                roi_table_data = []
+        #         # Build table data with rows for each version+time window combination
+        #         roi_table_data = []
                     
-                for version in ['v1', 'v2']:
-                    for window in time_windows:
-                        # Extract ROI values for this version and time window
-                        optimal_key = f'{version}_Optimal'
-                        greasy_key = f'{version}_Greasy'
-                        degen_key = f'{version}_Degen'
+        #         for version in ['v1', 'v2']:
+        #             for window in time_windows:
+        #                 # Extract ROI values for this version and time window
+        #                 optimal_key = f'{version}_Optimal'
+        #                 greasy_key = f'{version}_Greasy'
+        #                 degen_key = f'{version}_Degen'
                                 
-                        optimal_roi = roi_data.get(optimal_key, {}).get(window, {}).get('roi', 0) or 0
-                        greasy_roi = roi_data.get(greasy_key, {}).get(window, {}).get('roi', 0) or 0
-                        degen_roi = roi_data.get(degen_key, {}).get(window, {}).get('roi', 0) or 0
+        #                 optimal_roi = roi_data.get(optimal_key, {}).get(window, {}).get('roi', 0) or 0
+        #                 greasy_roi = roi_data.get(greasy_key, {}).get(window, {}).get('roi', 0) or 0
+        #                 degen_roi = roi_data.get(degen_key, {}).get(window, {}).get('roi', 0) or 0
                                 
-                        roi_table_data.append({
-                            'Strategy': f'{version}_{window}',
-                            'Optimal': format_roi(optimal_roi),
-                            'Greasy': format_roi(greasy_roi),
-                            'Degen': format_roi(degen_roi),
-                            'Optimal_numeric': optimal_roi,
-                            'Greasy_numeric': greasy_roi,
-                            'Degen_numeric': degen_roi
-                        })
+        #                 roi_table_data.append({
+        #                     'Strategy': f'{version}_{window}',
+        #                     'Optimal': format_roi(optimal_roi),
+        #                     'Greasy': format_roi(greasy_roi),
+        #                     'Degen': format_roi(degen_roi),
+        #                     'Optimal_numeric': optimal_roi,
+        #                     'Greasy_numeric': greasy_roi,
+        #                     'Degen_numeric': degen_roi
+        #                 })
                     
-                roi_df = pd.DataFrame(roi_table_data)
+        #         roi_df = pd.DataFrame(roi_table_data)
                     
-                # Style the columns directly based on numeric values
-                def color_roi(val, numeric_val):
-                    """Apply color based on numeric value"""
-                    if val == '-' or val == 'N/A':
-                        return ''  # No styling for placeholder
-                    if numeric_val > 0:
-                        return 'background-color: #d4edda; color: #155724'  # Green
-                    elif numeric_val < 0:
-                        return 'background-color: #f8d7da; color: #721c24'  # Red
-                    return ''
+        #         # Style the columns directly based on numeric values
+        #         def color_roi(val, numeric_val):
+        #             """Apply color based on numeric value"""
+        #             if val == '-' or val == 'N/A':
+        #                 return ''  # No styling for placeholder
+        #             if numeric_val > 0:
+        #                 return 'background-color: #d4edda; color: #155724'  # Green
+        #             elif numeric_val < 0:
+        #                 return 'background-color: #f8d7da; color: #721c24'  # Red
+        #             return ''
                         
-                # Create display DataFrame (without numeric columns)
-                display_roi_df = roi_df[['Strategy', 'Optimal', 'Greasy', 'Degen']].copy()
+        #         # Create display DataFrame (without numeric columns)
+        #         display_roi_df = roi_df[['Strategy', 'Optimal', 'Greasy', 'Degen']].copy()
                         
-                # Apply styling using .applymap on each column with its numeric counterpart
-                styled_roi_df = display_roi_df.style.apply(
-                    lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
-                               else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
-                               else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
-                               else '' for col in x.index],
-                    axis=1
-                )
+        #         # Apply styling using .applymap on each column with its numeric counterpart
+        #         styled_roi_df = display_roi_df.style.apply(
+        #             lambda x: [color_roi(x['Optimal'], roi_df.loc[x.name, 'Optimal_numeric']) if col == 'Optimal'
+        #                        else color_roi(x['Greasy'], roi_df.loc[x.name, 'Greasy_numeric']) if col == 'Greasy'
+        #                        else color_roi(x['Degen'], roi_df.loc[x.name, 'Degen_numeric']) if col == 'Degen'
+        #                        else '' for col in x.index],
+        #             axis=1
+        #         )
                     
-                st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per time window per strategy)")
-                st.dataframe(
-                    styled_roi_df,
-                    use_container_width=False,
-                    hide_index=True
-                )
-                st.caption("Note: Each strategy is evaluated separately for each time window (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night). v1 strategies pick top 5 props. v2 Optimal (4 props, score 75+), v2 Greasy (6 props, score 65-80), v2 Degen (3 props, score 70-100, wide odds). All strategies parlay props - all must hit to win. ROI shows total return across all historical weeks.")
-            except Exception as e:
-                st.error(f"Error displaying ROI table: {e}")
-                st.info("ℹ️ ROI data could not be displayed. Please check console for details.")
-        else:
-            st.info("ℹ️ Not enough historical data to calculate ROI (requires weeks 4+)")
+        #         st.caption(f"ROI calculated from {week_range_str} (1 unit parlay bet per time window per strategy)")
+        #         st.dataframe(
+        #             styled_roi_df,
+        #             use_container_width=False,
+        #             hide_index=True
+        #         )
+        #         st.caption("Note: Each strategy is evaluated separately for each time window (TNF=Thursday Night, SunAM=1pm ET, SunPM=4pm ET, SNF=Sunday Night, MNF=Monday Night). v1 strategies pick top 5 props. v2 Optimal (4 props, score 75+), v2 Greasy (6 props, score 65-80), v2 Degen (3 props, score 70-100, wide odds). All strategies parlay props - all must hit to win. ROI shows total return across all historical weeks.")
+        #     except Exception as e:
+        #         st.error(f"Error displaying ROI table: {e}")
+        #         st.info("ℹ️ ROI data could not be displayed. Please check console for details.")
+        # else:
+        #     st.info("ℹ️ Not enough historical data to calculate ROI (requires weeks 4+)")
                 
         #     # High Score Straight Bets ROI Section (Score > 80 & Streak >= 3)
         #     st.markdown("---")
